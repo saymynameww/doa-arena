@@ -1,0 +1,12 @@
+# 行尾统一为 LF（AGENTS.md 第 7 节）
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件
+*.npz binary
+*.mat binary
+*.pt  binary
+*.png binary
+*.pdf binary

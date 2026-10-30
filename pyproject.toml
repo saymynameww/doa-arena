@@ -1,0 +1,60 @@
+# 仓库根目录的工具配置。两个发布包各自的 pyproject.toml 在 packages/arena_api/ 和 packages/arena/ 中。
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"          # 核心库要在云端 Python 3.10 上运行（AGENTS.md 规则 9）
+src = ["packages/arena_api/src", "packages/arena/src", "tests"]
+extend-exclude = ["frontend", "docs/prototype"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",    # pycodestyle
+  "F",         # pyflakes
+  "I",         # import 排序（代替 isort）
+  "N",         # PEP 8 命名
+  "UP",        # 按 3.10 语法现代化
+  "B",         # 常见缺陷
+  "SIM",       # 可简化的写法
+  "NPY",       # NumPy 专用规则，包括禁止旧式全局随机数 API
+  "RUF",
+  "TID",       # 禁用 API（见下方 banned-api）
+  "D",         # 文档字符串（Google 风格）
+]
+ignore = [
+  "RUF001", "RUF002", "RUF003",   # 允许中文全角标点出现在字符串、文档字符串和注释中
+  "N803", "N806",                 # 允许 M、K、N、R、X 等数学记号作为参数和变量名
+  "D100", "D104", "D105", "D107", # 模块、包、魔术方法、__init__ 不强制文档字符串
+  "D415",                         # 首行以中文句号“。”结尾时不报错
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"numpy.random.seed".msg = "随机数只能从实验种子派生（AGENTS.md 规则 4）"
+"random".msg = "随机数只能从实验种子派生（AGENTS.md 规则 4）"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["N802", "D"]
+"examples/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.10"
+files = ["packages/arena_api/src", "packages/arena/src"]
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "slow: 耗时超过 5 秒",
+  "gpu: 需要 CUDA",
+  "matlab: 需要本机 MATLAB（检查 .mat 导出）",
+]
+filterwarnings = ["error::DeprecationWarning:arena.*"]

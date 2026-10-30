@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+# 编译后复制进 Web 服务的前端产物，发布时重新生成
+packages/arena/src/arena/server/static/
+
+# 示例课题中运行产生的实验数据（AGENTS.md 规则 13）
+examples/**/arena_ws/.arena_index.sqlite
+examples/**/arena_ws/.trash/
+examples/**/arena_ws/experiments/
+examples/**/arena_ws/datasets/
+examples/**/arena_ws/models/*/*.pt
+
+# 编辑器与系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

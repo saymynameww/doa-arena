@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>算法竞技场 · 产品原型</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:#1f1f1f;background:#f5f5f5}
+.layout{display:flex;min-height:100vh}
+.side{width:200px;background:#001529;color:#fff;flex-shrink:0}
+.side .logo{padding:16px;font-weight:600;font-size:16px;border-bottom:1px solid #ffffff1a}
+.side .ws{padding:8px 16px;font-size:12px;color:#ffffffa6}
+.side a{display:block;padding:10px 24px;color:#ffffffa6;text-decoration:none}
+.side a.on,.side a:hover{background:#1677ff;color:#fff}
+.main{flex:1;padding:16px 24px;min-width:0}
+.page{display:none}.page.on{display:block}
+h2{margin:0 0 12px;font-size:20px}h3{margin:0 0 8px;font-size:15px}
+.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px #0000000d}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.col{flex:1;min-width:340px}
+.f{display:flex;align-items:center;margin:6px 0;flex-wrap:wrap}.f label{width:110px;color:#595959;flex-shrink:0;white-space:nowrap}
+.side{position:sticky;top:0;height:100vh}
+.algo .hd{flex-wrap:wrap}.tag{white-space:nowrap}
+input,select{border:1px solid #d9d9d9;border-radius:6px;padding:4px 8px;font:inherit;width:140px}
+input[type=checkbox]{width:auto}
+.unit{margin-left:6px;color:#8c8c8c;font-size:12px}
+.btn{border:1px solid #d9d9d9;background:#fff;border-radius:6px;padding:4px 14px;cursor:pointer;font:inherit}
+.btn.pri{background:#1677ff;border-color:#1677ff;color:#fff}.btn.dan{color:#ff4d4f;border-color:#ff4d4f}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+details{border:1px solid #f0f0f0;border-radius:6px;margin:8px 0;padding:0 12px}
+summary{padding:8px 0;cursor:pointer;font-weight:500}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid #f0f0f0;padding:8px;text-align:left}th{background:#fafafa;font-weight:500}
+.tag{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;background:#f0f0f0;margin-right:4px}
+.tag.ok{background:#f6ffed;color:#389e0d}.tag.warn{background:#fffbe6;color:#d48806}
+.tag.err{background:#fff2f0;color:#cf1322}.tag.blue{background:#e6f4ff;color:#0958d9}
+.hint{font-size:12px;color:#d48806;margin-left:110px}.hint.err{color:#cf1322}
+.algo{border:1px solid #f0f0f0;border-radius:6px;padding:8px 12px;margin:8px 0}
+.algo.off{opacity:.45}.algo .hd{display:flex;align-items:center;gap:8px}
+.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.prog{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;flex:1}
+.prog i{display:block;height:100%;background:#1677ff;width:0}
+.note{background:#e6f4ff;border:1px solid #91caff;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px}
+.req{font-size:11px;color:#8c8c8c;margin-left:6px}
+svg text{font:11px sans-serif;fill:#595959}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="side">
+  <div class="logo">DOA 算法竞技场</div>
+  <div class="ws">工作目录：fewshot-doa/arena_ws ▾</div>
+  <a href="#config" class="on">实验配置</a>
+  <a href="#run">运行与结果</a>
+  <a href="#history">历史实验</a>
+  <a href="#compare">多实验对比</a>
+  <a href="#algorithms">算法库</a>
+  <a href="#templates">模板</a>
+  <a href="#leaderboard">排行榜 <span class="tag" style="background:#ffffff26;color:#fff">P1</span></a>
+  <a href="#settings">设置</a>
+</nav>
+<main class="main">
+<div class="note">原型说明：所有数据均为假数据，用于展示页面结构和交互；括号中的灰色编号对应需求文档条目。正式界面由 React + Ant Design 实现（架构第 7 章）。</div>
+<!-- ===== 实验配置页 ===== -->
+<section class="page on" id="p-config">
+<div class="bar" style="margin-bottom:12px">
+  <h2 style="margin:0">新建实验</h2>
+  <input id="expName" value="相干信源 SNR 扫描" style="width:240px">
+  <button class="btn">从模板加载 ▾</button><button class="btn">保存为模板</button>
+  <button class="btn">导出 JSON / 脚本</button><span class="req">FR-SCN-10 · FR-API-06</span>
+</div>
+<div class="row">
+<!-- 左：场景 -->
+<div class="col card" style="flex:1.1">
+  <h3>场景 <span class="req">FR-SCN</span></h3>
+  <details open><summary>阵列</summary>
+    <div class="f"><label>阵列类型</label><select><option>均匀线阵 ULA</option></select></div>
+    <div class="f"><label>阵元数 M</label><input id="M" type="number" value="16" min="2" max="128"></div>
+    <div class="f"><label>阵元间距 d</label><input type="number" value="0.5" step="0.05"><span class="unit">λ</span></div>
+    <div class="f"><label>载频（仅显示）</label><input value="3.0e9"><span class="unit">Hz → 间距 5.0 cm</span></div>
+  </details>
+  <details open><summary>信源</summary>
+    <div class="f"><label>信源数 K</label><select id="Kmode"><option value="fixed">固定</option><option value="rand">随机</option></select>
+      <input id="K" type="number" value="2" style="width:60px;margin-left:6px"></div>
+    <div class="hint err" id="kErr" style="display:none">K 必须小于 M</div>
+    <div class="f"><label>角度设置</label><select id="angMode"><option value="fixed">固定角度</option><option value="random">范围内随机</option><option value="sep">中心 ± 间隔/2</option></select></div>
+    <div class="f" id="angFixed"><label>角度</label><input value="-10, 10" style="width:200px"><span class="unit">°</span></div>
+    <div class="f" id="angRand" style="display:none"><label>范围 / 最小间隔</label><input value="-60" style="width:60px">~<input value="60" style="width:60px"><input value="2" style="width:50px;margin-left:6px"><span class="unit">°</span></div>
+    <div class="f" id="angSep" style="display:none"><label>中心 / 间隔 Δ</label><input value="0" style="width:60px"><input value="10" style="width:60px;margin-left:6px"><span class="unit">°</span></div>
+    <div class="f"><label>SNR</label><input value="10"><span class="unit">dB（可逐个信源设置）</span></div>
+    <div class="f"><label>相关性</label><select id="corr"><option value="none">不相干</option><option value="partial">部分相关</option><option value="coh" selected>相干</option></select></div>
+    <div class="f" id="rhoRow" style="display:none"><label>相关系数 ρ</label><input value="0.5" style="width:60px"><span class="unit">∠</span><input value="0" style="width:60px"><span class="unit">°</span></div>
+    <div class="f"><label>快拍数 N</label><input value="200"></div>
+  </details>
+  <details open><summary>阵列误差 <span class="req">FR-SCN-07/08</span></summary>
+    <div class="algo"><div class="hd"><input type="checkbox" checked><b>幅相误差</b><select style="width:auto"><option>固定</option><option>每次随机</option></select></div>
+      <div class="f"><label>σ_g</label><input value="0.05"><span class="unit">线性</span></div>
+      <div class="f"><label>σ_φ</label><input value="5"><span class="unit">°</span></div></div>
+    <div class="algo off"><div class="hd"><input type="checkbox"><b>位置误差</b></div></div>
+    <div class="algo off"><div class="hd"><input type="checkbox"><b>互耦</b></div></div>
+    <div class="algo off"><div class="hd"><input type="checkbox"><b>阵元故障</b></div></div>
+  </details>
+  <div class="f"><label>随机种子</label><input value="12345"><button class="btn" style="margin-left:6px">随机</button></div>
+  <details open><summary>场景预览 <span class="req">FR-SCN-11</span></summary>
+    <svg width="228" height="150" id="preview"></svg>
+    <div style="font-size:12px;color:#595959">● 阵元（红色为故障）　— 信源方向</div>
+  </details>
+</div>
+<!-- 右：算法 -->
+<div class="col card">
+  <div class="bar"><h3 style="margin:0">算法 <span class="req">FR-ALG-02/03/05</span></h3><button class="btn" id="addAlgo">+ 添加算法 ▾</button></div>
+  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="MUSIC" style="width:110px"><span class="tag">music · 内置</span><span class="tag warn" title="相干信源下未开启空间平滑">⚠ 平滑未开启</span></div>
+    <div class="f"><label>网格步长</label><input value="0.1"><span class="unit">°</span></div>
+    <div class="f"><label>空间平滑</label><select><option>不平滑</option><option>前向</option><option>前后向</option></select></div></div>
+  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="MUSIC+FBSS" style="width:110px"><span class="tag">music · 内置</span></div>
+    <div class="f"><label>网格步长</label><input value="0.1"><span class="unit">°</span></div>
+    <div class="f"><label>空间平滑</label><select><option>前后向</option></select></div>
+    <div class="f"><label>子阵阵元数</label><input placeholder="自动（15）"></div></div>
+  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="TLS-ESPRIT" style="width:110px"><span class="tag">esprit · 内置</span></div>
+    <div class="f"><label>方法</label><select><option>TLS</option><option>LS</option></select></div>
+    <div class="f"><label>空间平滑</label><select><option>前后向</option></select></div></div>
+  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="B" style="width:110px"><span class="tag blue">cnn_grid_b · fewshot-doa</span><span class="tag warn">commit 有未提交修改</span></div>
+    <div class="f"><label>模型包</label><select style="width:200px"><option>models/cnn_grid_m16_v3</option></select></div>
+    <div class="f"><label>推理设备</label><select><option>自动（GPU）</option><option>GPU</option><option>CPU</option></select></div>
+    <div class="hint">训练条件：无阵列误差；本实验含幅相误差，超出训练范围 <span class="req">FR-GEN-06</span></div></div>
+  <div class="algo off" title="需要均匀线阵且所有阵元可用"><div class="hd"><input type="checkbox" disabled><span>Root-MUSIC</span><span class="tag">已选阵列不满足条件时置灰</span></div></div>
+</div>
+</div>
+<div class="card">
+  <div class="bar">
+    <b>实验方式</b>
+    <label><input type="radio" name="et"> 单次</label>
+    <label><input type="radio" name="et"> 蒙特卡罗</label>
+    <label><input type="radio" name="et" checked> 参数扫描</label>
+    <span style="margin-left:12px">扫描变量</span><select style="width:180px"><option>SNR（dB）</option><option>快拍数 N</option><option>两信源间隔 Δ</option><option>阵元数 M</option><option>幅相误差 σ_φ</option></select>
+    <span>取值</span><input value="-10:5:20" style="width:100px">
+    <span>每点试验</span><input value="500" style="width:70px">
+    <label><input type="checkbox" checked> 公共随机数</label>
+    <span>指标</span><span class="tag">RMSE</span><span class="tag">成功率</span><span class="tag">耗时</span><span class="tag">CRB</span>
+  </div>
+  <div class="bar" style="margin-top:10px">
+    <span style="color:#595959">共 7 点 × 500 次 × 4 算法 = 14,000 次估计，预计约 40 秒 <span class="req">FR-EXP-04</span></span>
+    <span class="tag warn">1 条警告</span>
+    <span style="flex:1"></span>
+    <button class="btn pri" id="runBtn">运行实验</button>
+  </div>
+</div>
+</section>
+<!-- ===== 运行与结果页 ===== -->
+<section class="page" id="p-run">
+<div class="bar" style="margin-bottom:12px">
+  <h2 style="margin:0">相干信源 SNR 扫描</h2>
+  <span class="tag" id="runStatus">未开始</span>
+  <span style="color:#8c8c8c;font-size:12px">20261029-143012_snr-sweep_a1b2 · Web 模式</span>
+  <span style="flex:1"></span>
+  <button class="btn dan" id="cancelBtn" disabled>中止</button>
+  <button class="btn">复制并修改</button><button class="btn">重新运行</button>
+</div>
+<div class="card">
+  <div class="bar"><span id="progTxt">点击“实验配置”页的“运行实验”开始</span>
+    <div class="prog"><i id="progBar"></i></div><span id="eta"></span></div>
+  <div style="font-size:12px;color:#8c8c8c;margin-top:4px">进度由 SSE 推送；扫描点每完成一个，下方曲线增加一个点 <span class="req">FR-EXP-05/06/07</span></div>
+</div>
+<div class="row">
+  <div class="col card">
+    <div class="bar"><h3 style="margin:0">RMSE vs SNR</h3>
+      <select style="width:auto"><option>RMSE + CRB</option><option>成功率</option><option>分辨概率</option><option>耗时</option></select>
+      <label><input type="checkbox" checked> 对数纵轴</label>
+      <select style="width:auto"><option>样式：网页</option><option>样式：论文单栏</option><option>样式：论文双栏</option></select>
+      <span class="req">FR-RES-04/06/10</span></div>
+    <svg id="chart" width="560" height="300" viewBox="0 0 560 300" style="width:100%;height:auto"></svg>
+  </div>
+  <div class="card" style="width:260px;flex-shrink:0">
+    <h3>导出 <span class="req">FR-RES-07/08/11 · FR-DAT-07</span></h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn">图 PDF</button><button class="btn">图 SVG</button>
+      <button class="btn">图 PNG</button><button class="btn">.mat</button>
+      <button class="btn">CSV</button><button class="btn">LaTeX 表格</button>
+      <button class="btn">HTML 报告</button><button class="btn">导出为脚本</button>
+    </div>
+    <h3 style="margin-top:16px">备注与标签</h3>
+    <textarea style="width:100%;height:60px;border:1px solid #d9d9d9;border-radius:6px">高 SNR 段 B 优于 FBSS</textarea>
+    <div><span class="tag">coherent</span><span class="tag">gain-phase</span><a href="#" style="font-size:12px">+ 标签</a></div>
+  </div>
+</div>
+<div class="card">
+  <div class="bar"><h3 style="margin:0">指标汇总（SNR = 10 dB）</h3><select style="width:auto"><option>SNR = 10 dB</option></select><button class="btn">修改指标参数并重新计算</button><span class="req">FR-RES-02 · 4.4 节</span></div>
+  <table id="sumTable"><tr><th>算法</th><th>RMSE (°)</th><th>sqrt(CRB) (°)</th><th>成功率</th><th>耗时中位数 (ms)</th><th>纳入统计</th><th>出错</th><th>状态</th></tr></table>
+</div>
+<div class="card">
+  <h3>警告与错误 <span class="req">FR-ALG-09 · FR-SYS-03</span></h3>
+  <div><span class="tag warn">警告</span> MUSIC：相干信源下未开启空间平滑，MUSIC 可能失效</div>
+  <div><span class="tag warn">警告</span> B：超出训练范围（训练数据不含幅相误差）；commit e3b0c44 有未提交修改，已保存 diff</div>
+  <div><span class="tag err">错误</span> B：RuntimeError CUDA out of memory（扫描点 1，第 37 次试验，共 2 次）<a href="#">查看堆栈</a></div>
+</div>
+</section>
+<!-- ===== 历史实验 ===== -->
+<section class="page" id="p-history">
+<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">历史实验</h2>
+  <input placeholder="搜索名称 / 备注" style="width:200px"><select style="width:auto"><option>全部算法</option></select>
+  <select style="width:auto"><option>全部模式</option><option>Web</option><option>脚本</option></select>
+  <select style="width:auto"><option>全部标签</option></select>
+  <span style="flex:1"></span><button class="btn">对比选中实验</button><span class="req">FR-DAT-02 · FR-RES-09</span></div>
+<div class="card"><table>
+  <tr><th></th><th>名称</th><th>时间</th><th>类型</th><th>算法</th><th>模式</th><th>状态</th><th>标签</th><th>操作</th></tr>
+  <tr><td><input type="checkbox"></td><td>★ 相干信源 SNR 扫描</td><td>10-29 14:30</td><td>扫描 SNR</td><td>MUSIC, MUSIC+FBSS, TLS-ESPRIT, B</td><td><span class="tag">Web</span></td><td><span class="tag ok">完成</span></td><td><span class="tag">coherent</span></td><td><a href="#run">查看</a> · 复制修改 · 重新运行 · 导出脚本 · 删除</td></tr>
+  <tr><td><input type="checkbox"></td><td>fig3 快拍数扫描</td><td>10-29 11:02</td><td>扫描 N</td><td>MUSIC, B</td><td><span class="tag blue">脚本</span></td><td><span class="tag ok">完成</span></td><td><span class="tag">paper-fig3</span></td><td>查看 · 复制修改 · 重新运行 · 删除</td></tr>
+  <tr><td><input type="checkbox"></td><td>互耦鲁棒性</td><td>10-28 20:15</td><td>扫描 scale</td><td>CBF, MVDR, MUSIC</td><td><span class="tag">Web</span></td><td><span class="tag warn">已中止（4/7 点）</span></td><td></td><td>查看 · 复制修改 · 删除</td></tr>
+  <tr><td><input type="checkbox"></td><td>大规模蒙特卡罗</td><td>10-28 18:40</td><td>蒙特卡罗</td><td>ESPRIT</td><td><span class="tag blue">脚本</span></td><td><span class="tag err">中断</span></td><td></td><td><a href="#">整理部分结果</a> · 删除</td></tr>
+</table>
+<div style="font-size:12px;color:#8c8c8c;margin-top:8px">数据来自工作目录 experiments/ 中的文件；索引可重建。删除移入 .trash/ <span class="req">FR-DAT-01a/05</span></div></div>
+</section>
+
+<!-- ===== 多实验对比 ===== -->
+<section class="page" id="p-compare">
+<h2>多实验对比 <span class="req">FR-RES-09</span></h2>
+<div class="card">选择扫描变量相同的实验，叠加同一指标曲线。图例格式：<code>实验名 / 算法</code>。
+<div class="bar" style="margin-top:8px"><span class="tag">相干信源 SNR 扫描 / B</span><span class="tag">不相干 SNR 扫描 / B</span><select style="width:auto"><option>RMSE</option></select></div>
+<svg id="chart2" width="560" height="260" viewBox="0 0 560 260" style="width:100%;max-width:760px;height:auto"></svg></div>
+</section>
+<!-- ===== 算法库 ===== -->
+<section class="page" id="p-algorithms">
+<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">算法库</h2><button class="btn">刷新</button><button class="btn">导入模型包</button>
+  <span class="req">FR-ALG-01/01a/01b/01c/14 · 接口规范 10.1</span></div>
+<div class="card"><table>
+  <tr><th>名称</th><th>id</th><th>类别</th><th>来源</th><th>版本</th><th>Git</th><th>适用条件</th></tr>
+  <tr><td>CBF</td><td>cbf</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>任意阵列</td></tr>
+  <tr><td>MVDR</td><td>mvdr</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>任意阵列</td></tr>
+  <tr><td>MUSIC</td><td>music</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>需要 K；平滑仅 ULA</td></tr>
+  <tr><td>Root-MUSIC</td><td>root_music</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>仅 ULA</td></tr>
+  <tr><td>ESPRIT</td><td>esprit</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>仅 ULA</td></tr>
+  <tr><td>CNN 网格分类（B）</td><td>cnn_grid_b</td><td>学习型</td><td><span class="tag blue">fewshot-doa/algorithms/cnn_grid_b</span></td><td>0.1.0</td><td>e3b0c44 <span class="tag warn">未提交修改</span></td><td>ULA，M 与模型一致</td></tr>
+  <tr><td style="color:#cf1322">（加载失败）</td><td>—</td><td>—</td><td><span class="tag">fewshot-doa/algorithms/maml_cnn</span></td><td>—</td><td>—</td><td><span class="tag err">SyntaxError: line 42</span> <a href="#">堆栈</a></td></tr>
+</table></div>
+<div class="card"><h3>模型包（arena_ws/models/）</h3><table>
+  <tr><th>模型</th><th>插件</th><th>阵列</th><th>训练条件</th><th>信号模型版本</th><th>训练平台</th></tr>
+  <tr><td>cnn_grid_m16_v3</td><td>cnn_grid_b</td><td>ULA M=16 d=0.5λ</td><td>K∈{1,2,3}，SNR −10~20 dB，无误差</td><td>1 <span class="tag ok">一致</span></td><td>AutoDL A100</td></tr>
+</table></div>
+</section>
+
+<!-- ===== 模板 ===== -->
+<section class="page" id="p-templates">
+<h2>模板 <span class="req">FR-SCN-10 · 数据格式 7.3</span></h2>
+<div class="card"><table>
+  <tr><th>名称</th><th>类型</th><th>层级</th><th>说明</th><th>操作</th></tr>
+  <tr><td>相干双信源</td><td>场景</td><td><span class="tag">工作目录</span></td><td>M=16 ULA，±10° 相干</td><td>新建实验 · 编辑 · 复制 · 删除</td></tr>
+  <tr><td>SNR 扫描（论文图）</td><td>实验</td><td><span class="tag">工作目录</span></td><td>−10~20 dB，每点 1000 次</td><td>新建实验 · 编辑 · 复制 · 删除</td></tr>
+  <tr><td>默认场景</td><td>场景</td><td><span class="tag">内置</span></td><td>M=16，K=2，θ=±10°，SNR 10 dB，N=200</td><td>新建实验 · 复制</td></tr>
+</table></div>
+</section>
+
+<!-- ===== 排行榜 ===== -->
+<section class="page" id="p-leaderboard">
+<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">排行榜（P1）</h2><select style="width:auto"><option>doa-basic v1.0</option></select><button class="btn pri">选择算法运行场景集</button><span class="req">FR-BEN</span></div>
+<div class="card"><table>
+  <tr><th>排名</th><th>算法</th><th>版本 / commit</th><th>RMSE @ SNR=0 dB</th><th>分辨概率 @ Δ=4°</th><th>相干成功率</th><th>耗时 (ms)</th></tr>
+  <tr><td>1</td><td>B</td><td>0.1.0 / e3b0c44</td><td>0.48</td><td>92%</td><td>97%</td><td>0.03</td></tr>
+  <tr><td>2</td><td>TLS-ESPRIT</td><td>内置 1.0.0</td><td>0.61</td><td>85%</td><td>95%</td><td>0.09</td></tr>
+  <tr><td>3</td><td>MUSIC+FBSS</td><td>内置 1.0.0</td><td>0.66</td><td>81%</td><td>96%</td><td>0.18</td></tr>
+</table><div style="font-size:12px;color:#8c8c8c;margin-top:8px">数值来自各实验的 summary.json；点击单元格打开对应实验。</div></div>
+</section>
+
+<!-- ===== 设置 ===== -->
+<section class="page" id="p-settings">
+<h2>设置 <span class="req">FR-SYS-02/04 · 数据格式 7.1/7.2</span></h2>
+<div class="card"><h3>工作目录</h3>
+  <div class="f"><label>当前</label><select style="width:420px"><option>D:/DOA_Estimation_Research/Projects/fewshot-doa/arena_ws</option></select><button class="btn" style="margin-left:6px">新建 / 添加</button></div></div>
+<div class="card"><h3>外部算法来源</h3>
+  <table><tr><th>层级</th><th>路径</th><th></th></tr>
+  <tr><td><span class="tag">工作目录</span></td><td>../algorithms</td><td>—</td></tr>
+  <tr><td><span class="tag">全局</span></td><td>（无）</td><td><button class="btn">添加目录</button></td></tr></table></div>
+<div class="card"><h3>运行环境</h3>
+  Python 3.12.4 · NumPy 2.1 · PyTorch 2.5.1+cu124 · <span class="tag ok">CUDA 可用</span> NVIDIA GeForce RTX 4060 Laptop GPU (8 GB)
+  <div class="f"><label>默认推理设备</label><select><option>自动</option></select></div></div>
+</section>
+</main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+// ---- 路由 ----
+function route(){
+  const id = (location.hash || '#config').slice(1);
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + id));
+  document.querySelectorAll('.side a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + id));
+}
+addEventListener('hashchange', route); route();
+
+// ---- 表单联动 ----
+$('#angMode').onchange = e => {
+  const v = e.target.value;
+  $('#angFixed').style.display = v === 'fixed' ? '' : 'none';
+  $('#angRand').style.display = v === 'random' ? '' : 'none';
+  $('#angSep').style.display = v === 'sep' ? '' : 'none';
+  drawPreview();
+};
+$('#corr').onchange = e => { $('#rhoRow').style.display = e.target.value === 'partial' ? '' : 'none'; };
+function checkK(){
+  const bad = +$('#K').value >= +$('#M').value;
+  $('#kErr').style.display = bad ? '' : 'none';
+  $('#runBtn').disabled = bad;           // 后端校验不通过时禁止提交（NFR-31）
+}
+$('#K').oninput = $('#M').oninput = () => { checkK(); drawPreview(); };
+
+// ---- 预览：阵元 + 信源方向 ----
+function drawPreview(){
+  const M = Math.min(+$('#M').value || 16, 64), svg = $('#preview'), cx = 114, cy = 130;
+  let h = '';
+  for (let m = 0; m < M; m++){
+    const x = 14 + m * (200 / Math.max(M - 1, 1));
+    h += `<circle cx="${x}" cy="${cy}" r="3.5" fill="${m === 5 ? '#ff4d4f' : '#1677ff'}"/>`;
+  }
+  [-10, 10].forEach(t => {
+    const r = t * Math.PI / 180, x2 = cx + 110 * Math.sin(r), y2 = cy - 110 * Math.cos(r);
+    h += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#fa8c16" stroke-width="2"/>`;
+    h += `<text x="${x2 - 10}" y="${y2 - 4}">${t}°</text>`;
+  });
+  h += `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="12" stroke="#d9d9d9" stroke-dasharray="3"/>`;
+  svg.innerHTML = h;
+}
+drawPreview();
+// ---- 假数据：RMSE vs SNR ----
+const SNR = [-10, -5, 0, 5, 10, 15, 20];
+const crb = SNR.map(s => 0.9 * Math.pow(10, -s / 20));
+const ALGOS = [
+  { name: 'MUSIC',      color: '#bfbfbf', f: i => 8 + i * 0.3 },
+  { name: 'MUSIC+FBSS', color: '#1677ff', f: i => crb[i] * (1.6 + 2.5 * Math.exp(-i)) },
+  { name: 'TLS-ESPRIT', color: '#52c41a', f: i => crb[i] * (1.4 + 2.0 * Math.exp(-i)) },
+  { name: 'B',          color: '#fa541c', f: i => crb[i] * (1.2 + 1.2 * Math.exp(-i)) },
+];
+function drawChart(svg, nPts, series){
+  const W = +svg.getAttribute('width'), H = +svg.getAttribute('height'), L = 50, R = 120, T = 12, B = 34;
+  const x = s => L + (s + 10) / 30 * (W - L - R);
+  const y = v => T + (1 - (Math.log10(v) + 2) / 3.2) * (H - T - B);   // 对数纵轴 0.01~15°
+  let h = `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#f0f0f0"/>`;
+  [0.01, 0.1, 1, 10].forEach(v => h += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#f0f0f0"/><text x="${L - 34}" y="${y(v) + 4}">${v}</text>`);
+  SNR.forEach(s => h += `<text x="${x(s) - 8}" y="${H - 16}">${s}</text>`);
+  h += `<text x="${(W - R) / 2}" y="${H - 2}">SNR (dB)</text><text x="4" y="${T + 10}">RMSE (°)</text>`;
+  series.forEach((s, k) => {
+    const pts = SNR.slice(0, nPts).map((sn, i) => [x(sn), y(s.v[i])]);
+    if (pts.length) h += `<polyline fill="none" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="5 3"' : ''} points="${pts.join(' ')}"/>`;
+    pts.forEach(p => h += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${s.color}"/>`);
+    h += `<line x1="${W - R + 10}" x2="${W - R + 28}" y1="${T + 10 + k * 18}" y2="${T + 10 + k * 18}" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="5 3"' : ''}/><text x="${W - R + 32}" y="${T + 14 + k * 18}">${s.name}</text>`;
+  });
+  svg.innerHTML = h;
+}
+const runSeries = [...ALGOS.map(a => ({ name: a.name, color: a.color, v: SNR.map((_, i) => a.f(i)) })),
+                   { name: 'sqrt(CRB)', color: '#000', dash: 1, v: crb }];
+drawChart($('#chart'), 0, runSeries);
+drawChart($('#chart2'), 7, [
+  { name: '相干 / B', color: '#fa541c', v: runSeries[3].v },
+  { name: '不相干 / B', color: '#722ed1', v: crb.map(c => c * 1.1) },
+  { name: 'sqrt(CRB)', color: '#000', dash: 1, v: crb }]);
+
+// ---- 模拟运行：逐点推进 ----
+let timer = null;
+function fillTable(){
+  const i = 4, rows = ALGOS.map((a, k) => {
+    const v = a.f(i), ok = k === 0 ? '41%' : (k === 3 ? '99%' : '100%');
+    const st = k === 3 ? '<span class="tag warn">部分出错</span>' : '<span class="tag ok">正常</span>';
+    return `<tr><td>${a.name}</td><td>${v.toFixed(3)}</td><td>${crb[i].toFixed(3)}</td><td>${ok}</td><td>${[0.21, 0.18, 0.09, 0.03][k]}</td><td>${k === 0 ? 205 : 500}</td><td>${k === 3 ? 2 : 0}</td><td>${st}</td></tr>`;
+  });
+  $('#sumTable').innerHTML = $('#sumTable').rows[0].outerHTML + rows.join('');
+}
+$('#runBtn').onclick = () => {
+  location.hash = '#run';
+  let p = 0; $('#cancelBtn').disabled = false;
+  $('#runStatus').className = 'tag blue'; $('#runStatus').textContent = '运行中';
+  clearInterval(timer);
+  timer = setInterval(() => {
+    p++; drawChart($('#chart'), p, runSeries);
+    $('#progBar').style.width = (p / 7 * 100) + '%';
+    $('#progTxt').textContent = `扫描点 ${p}/7：SNR = ${SNR[p - 1]} dB`;
+    $('#eta').textContent = p < 7 ? `剩余约 ${(7 - p) * 6} 秒` : '';
+    if (p === 7){ clearInterval(timer); finish('完成', 'tag ok'); }
+  }, 700);
+};
+$('#cancelBtn').onclick = () => { clearInterval(timer); finish('已中止（保留已完成扫描点）', 'tag warn'); };
+function finish(txt, cls){
+  $('#runStatus').className = cls; $('#runStatus').textContent = txt;
+  $('#cancelBtn').disabled = true; fillTable();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# 提交前检查（AGENTS.md 第 5 节）。首次克隆后运行：pre-commit install
+# 建仓库后运行一次 pre-commit autoupdate，把下面的 rev 更新到当时的最新版本。
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^frontend/tsconfig.*\.json$   # tsconfig 允许注释，不是标准 JSON
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=1024]       # AGENTS.md 规则 13
+      - id: check-merge-conflict
