@@ -123,16 +123,16 @@ class MUSIC(Algorithm):
                 L=L,
                 forward_backward=(params.smoothing == "fb"),
             )
+            # 空间平滑后，需要使用子阵导向矢量（前 L 个阵元）
+            A_grid_to_use = self.A_grid[:L, :]
         else:
-            # 不平滑时也可以选择前后向平均（不改变维度）
-            # 这里保持简单，不额外平均
-            pass
+            A_grid_to_use = self.A_grid
 
         # 子空间分解
         _, Un, _, _ = kit.subspace_decomposition(R, obs.K)
 
         # 计算 MUSIC 谱
-        spectrum = kit.music_spectrum(self.A_grid, Un)
+        spectrum = kit.music_spectrum(A_grid_to_use, Un)
 
         # 峰值搜索
         peak_angles, peak_values = kit.peak_search(

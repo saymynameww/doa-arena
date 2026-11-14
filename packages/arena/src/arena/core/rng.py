@@ -108,13 +108,16 @@ class TrialRNG:
             信源生成器
         """
         idx = self._get_counter("sources")
-        seq = self._seq.spawn(1, spawn_key=("sources", idx))[0]
+        # 从当前序列派生子序列
+        # 使用计数器确保每次调用得到不同的子序列
+        seq = self._seq.spawn(idx + 1)[idx]
         return np.random.Generator(np.random.PCG64(seq))
 
     def for_noise(self) -> np.random.Generator:
         """噪声随机数生成器。"""
         idx = self._get_counter("noise")
-        seq = self._seq.spawn(1, spawn_key=("noise", idx))[0]
+        # 使用大偏移避免与 sources 冲突
+        seq = self._seq.spawn(1000 + idx + 1)[1000 + idx]
         return np.random.Generator(np.random.PCG64(seq))
 
     def for_impairment(
@@ -139,7 +142,10 @@ class TrialRNG:
             key = f"impairment_{impairment_type}"
             idx = self._get_counter(key)
 
-        seq = self._seq.spawn(1, spawn_key=("impairment", impairment_type, idx))[0]
+        # 使用类型哈希 + 索引作为偏移
+        type_hash = hash(impairment_type) % 10000
+        offset = 10000 + type_hash + idx
+        seq = self._seq.spawn(offset + 1)[offset]
         return np.random.Generator(np.random.PCG64(seq))
 
     def _get_counter(self, key: str) -> int:
