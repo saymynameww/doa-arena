@@ -1,31 +1,56 @@
 # Python
 __pycache__/
 *.py[cod]
-*.egg-info/
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
-.venv/
-.mypy_cache/
-.ruff_cache/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.hypothesis/
 
-# 前端
-frontend/node_modules/
-frontend/dist/
-# 编译后复制进 Web 服务的前端产物，发布时重新生成
-packages/arena/src/arena/server/static/
+# Jupyter
+.ipynb_checkpoints
 
-# 示例课题中运行产生的实验数据（AGENTS.md 规则 13）
-examples/**/arena_ws/.arena_index.sqlite
-examples/**/arena_ws/.trash/
-examples/**/arena_ws/experiments/
-examples/**/arena_ws/datasets/
-examples/**/arena_ws/models/*/*.pt
-
-# 编辑器与系统
+# IDEs
 .vscode/
 .idea/
-Thumbs.db
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Project specific
+*.npz
+*.mat
+*.pkl
+*.pth
+*.pt
+runs/
+arena_ws/
+.arena_index.sqlite
+
+# Claude
+.claude/
