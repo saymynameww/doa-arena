@@ -12,11 +12,10 @@ class ParamsModel(BaseModel):
     所有插件的 Params 类都应继承此类。
     """
 
-    class Config:
-        # 允许额外字段，便于扩展
-        extra = "forbid"
-        # 验证赋值
-        validate_assignment = True
+    model_config = {
+        "extra": "forbid",  # 禁止额外字段
+        "validate_assignment": True,  # 验证赋值
+    }
 
 
 def Param(
