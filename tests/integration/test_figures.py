@@ -208,3 +208,23 @@ def test_all_exports_together(sweep_result):
         assert (output_dir / "results.csv").exists()
         assert (output_dir / "results.tex").exists()
 
+
+def test_html_report(sweep_result):
+    """测试生成 HTML 报告。"""
+    from arena.core.reports import generate_html_report
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_path = Path(tmpdir) / "report.html"
+        generate_html_report(sweep_result, output_path, title="测试报告")
+
+        # 验证文件存在
+        assert output_path.exists()
+
+        # 验证内容
+        with open(output_path, encoding="utf-8") as f:
+            content = f.read()
+            assert "测试报告" in content
+            assert "MUSIC" in content
+            assert "ESPRIT" in content
+            assert "plotly" in content.lower()  # Plotly JS
+
