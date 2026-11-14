@@ -4,11 +4,20 @@
 完整版本将在后续补充。
 """
 
-from .experiment import ExperimentConfig, ExperimentType
+from .experiment import (
+    AlgorithmConfig,
+    ExperimentConfig,
+    ExperimentOptions,
+    ExperimentType,
+    SweepConfig,
+)
 from .scenario import ScenarioConfig
 
 __all__ = [
     "ScenarioConfig",
     "ExperimentConfig",
     "ExperimentType",
+    "AlgorithmConfig",
+    "SweepConfig",
+    "ExperimentOptions",
 ]
