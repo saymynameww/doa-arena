@@ -2,382 +2,1576 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>算法竞技场 · 产品原型</title>
 <style>
+:root{
+  --bg:#f3f4f6;--surface:#fff;--line:#e3e6ea;--line-soft:#eef0f2;
+  --ink:#1c1f23;--ink-2:#4b5563;--ink-3:#6b7280;
+  --pri:#1677ff;--pri-soft:#edf4ff;--pri-line:#a9c9ff;
+  --warn:#955800;--warn-soft:#fff6de;--warn-line:#efd08a;
+  --err:#c02626;--err-soft:#fdeeee;--err-line:#f0b5b5;
+  --ok:#2a7a2f;--ok-soft:#eaf6ea;
+}
 *{box-sizing:border-box}
-body{margin:0;font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:#1f1f1f;background:#f5f5f5}
+[hidden]{display:none!important}
+body{margin:0;font:14px/1.55 "Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;color:var(--ink);background:var(--bg)}
+h2{margin:0;font-size:20px;font-weight:600}
+h3{margin:0;font-size:15px;font-weight:600}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{border:1px solid #d3d7dd;border-radius:6px;padding:3px 8px;background:#fff;width:140px}
+input,select{height:30px}
+input[type=checkbox],input[type=radio]{width:auto;height:auto;accent-color:var(--pri)}
+:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;background:#f1f3f5;border-radius:4px;padding:1px 5px}
+
+/* ---- 外壳 ---- */
 .layout{display:flex;min-height:100vh}
-.side{width:200px;background:#001529;color:#fff;flex-shrink:0}
+.side{width:200px;background:#0f1b2d;color:#fff;flex-shrink:0;position:sticky;top:0;height:100vh}
 .side .logo{padding:16px;font-weight:600;font-size:16px;border-bottom:1px solid #ffffff1a}
 .side .ws{padding:8px 16px;font-size:12px;color:#ffffffa6}
-.side a{display:block;padding:10px 24px;color:#ffffffa6;text-decoration:none}
-.side a.on,.side a:hover{background:#1677ff;color:#fff}
+.side a{display:block;padding:9px 24px;color:#ffffffb3;text-decoration:none}
+.side a.on,.side a:hover{background:var(--pri);color:#fff}
 .main{flex:1;padding:16px 24px;min-width:0}
 .page{display:none}.page.on{display:block}
-h2{margin:0 0 12px;font-size:20px}h3{margin:0 0 8px;font-size:15px}
-.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px #0000000d}
-.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}.col{flex:1;min-width:340px}
-.f{display:flex;align-items:center;margin:6px 0;flex-wrap:wrap}.f label{width:110px;color:#595959;flex-shrink:0;white-space:nowrap}
-.side{position:sticky;top:0;height:100vh}
-.algo .hd{flex-wrap:wrap}.tag{white-space:nowrap}
-input,select{border:1px solid #d9d9d9;border-radius:6px;padding:4px 8px;font:inherit;width:140px}
-input[type=checkbox]{width:auto}
-.unit{margin-left:6px;color:#8c8c8c;font-size:12px}
-.btn{border:1px solid #d9d9d9;background:#fff;border-radius:6px;padding:4px 14px;cursor:pointer;font:inherit}
-.btn.pri{background:#1677ff;border-color:#1677ff;color:#fff}.btn.dan{color:#ff4d4f;border-color:#ff4d4f}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-details{border:1px solid #f0f0f0;border-radius:6px;margin:8px 0;padding:0 12px}
-summary{padding:8px 0;cursor:pointer;font-weight:500}
+.note{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;color:var(--ink-2);margin-bottom:16px}
+.note label{margin-left:auto;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.req{display:none;font-size:11px;color:var(--ink-3);font-weight:400;margin-left:6px}
+body.show-req .req{display:inline}
+
+/* ---- 表格、标签、按钮 ---- */
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border-bottom:1px solid #f0f0f0;padding:8px;text-align:left}th{background:#fafafa;font-weight:500}
-.tag{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;background:#f0f0f0;margin-right:4px}
-.tag.ok{background:#f6ffed;color:#389e0d}.tag.warn{background:#fffbe6;color:#d48806}
-.tag.err{background:#fff2f0;color:#cf1322}.tag.blue{background:#e6f4ff;color:#0958d9}
-.hint{font-size:12px;color:#d48806;margin-left:110px}.hint.err{color:#cf1322}
-.algo{border:1px solid #f0f0f0;border-radius:6px;padding:8px 12px;margin:8px 0}
-.algo.off{opacity:.45}.algo .hd{display:flex;align-items:center;gap:8px}
-.bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.prog{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;flex:1}
-.prog i{display:block;height:100%;background:#1677ff;width:0}
-.note{background:#e6f4ff;border:1px solid #91caff;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px}
-.req{font-size:11px;color:#8c8c8c;margin-left:6px}
-svg text{font:11px sans-serif;fill:#595959}
+th,td{border-bottom:1px solid var(--line-soft);padding:8px;text-align:left}
+th{background:#f8f9fa;font-weight:500;color:var(--ink-2)}
+.tag{display:inline-block;padding:0 7px;border-radius:4px;font-size:12px;background:#eef0f2;margin-right:4px;white-space:nowrap}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.err{background:var(--err-soft);color:var(--err)}.tag.blue{background:var(--pri-soft);color:#0b5bd3}
+.btn{border:1px solid #d3d7dd;background:#fff;border-radius:6px;padding:4px 14px;cursor:pointer;height:30px;white-space:nowrap}
+.btn:hover{border-color:var(--pri);color:var(--pri)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}.btn.pri:hover{background:#0e66e0;color:#fff}
+.btn.dan{color:var(--err);border-color:var(--err-line)}
+.btn.lg{height:36px;padding:0 22px;font-weight:600}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---- 通用部件 ---- */
+.grow{flex:1}
+.panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:16px}
+.ph{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:14px}
+.ph-t{display:flex;gap:12px;align-items:center;flex:1;min-width:280px}
+.ph-a{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ph-sub{flex-basis:100%;font-size:12px;color:var(--ink-3)}
+.name-in{width:280px;font-size:15px;height:34px}
+.pn-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cnt{color:var(--ink-3);font-size:13px}
+.menu-w{position:relative}
+.pop{position:absolute;top:calc(100% + 6px);right:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px #1c1f2326;padding:6px}
+.pop.up{top:auto;bottom:calc(100% + 8px);right:auto;left:24px}
+.menu{min-width:220px}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:6px;cursor:pointer}
+.menu button:hover{background:#f3f4f6}
+.menu small{display:block;color:var(--ink-3)}
+.seg{display:inline-flex;border:1px solid #d3d7dd;border-radius:6px;overflow:hidden}
+.seg button{border:0;background:#fff;padding:3px 12px;cursor:pointer;height:28px}
+.seg button+button{border-left:1px solid #d3d7dd}
+.seg button[aria-pressed=true]{background:var(--pri-soft);color:#0b5bd3;font-weight:600}
+.sw{position:relative;display:inline-flex;cursor:pointer;flex-shrink:0}
+.sw input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.sw i{width:30px;height:18px;border-radius:9px;background:#b9bfc8;transition:background .15s}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked+i{background:var(--pri)}.sw input:checked+i::after{transform:translateX(12px)}
+.sw input:focus-visible+i{outline:2px solid var(--pri);outline-offset:2px}
+.ib{border:0;background:none;width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-3);flex-shrink:0}
+.ib:hover{background:#eef0f2;color:var(--ink)}
+.swt{flex-shrink:0;display:block}
+.toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%);background:#1c1f23;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;z-index:50;max-width:80vw}
+@keyframes flash{0%,60%{box-shadow:0 0 0 3px #1677ff66}100%{box-shadow:0 0 0 3px #1677ff00}}
+.flash{animation:flash 1.6s}
+
+/* ---- 实验配置页：实验方式 ---- */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.mode{display:grid;grid-template-columns:44px 1fr;gap:2px 12px;text-align:left;border:1px solid var(--line);border-radius:8px;background:#fff;padding:12px 14px;cursor:pointer}
+.mode svg{grid-row:1/3;align-self:center;color:var(--ink-3)}
+.mode b{font-size:15px}
+.mode span{color:var(--ink-2);font-size:13px}
+.mode:hover{border-color:var(--pri-line)}
+.mode[aria-checked=true]{border-color:var(--pri);background:var(--pri-soft);box-shadow:inset 0 0 0 1px var(--pri)}
+.mode[aria-checked=true] svg{color:var(--pri)}
+.ms{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft)}
+.ms-i{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ms-l{color:var(--ink-2)}
+.swchip{border:1px solid var(--pri-line);background:var(--pri-soft);border-radius:6px;padding:3px 10px;cursor:pointer;height:30px}
+.swchip.none{border-color:var(--err-line);background:var(--err-soft);color:var(--err)}
+.chip{border:1px solid #d3d7dd;background:#fff;border-radius:14px;padding:2px 11px;cursor:pointer;color:var(--ink-3)}
+.chip[aria-pressed=true]{border-color:var(--pri-line);background:var(--pri-soft);color:#0b5bd3}
+body:not(.m-sweep) .only-sweep,body.m-single .not-single,body:not(.m-single) .only-single{display:none}
+
+/* ---- 实验配置页：三栏 ---- */
+.cfg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 288px;gap:16px;align-items:start}
+.cfg>.panel{margin:0}
+.rail{position:sticky;top:16px;display:grid;gap:16px}
+.rail .panel{margin:0}
+@media(max-width:1340px){.cfg{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#scene{grid-row:1/span 2}.rail{grid-column:2;position:static}}
+@media(max-width:900px){.cfg,.modes{grid-template-columns:1fr}#scene{grid-row:auto}.rail{grid-column:auto}}
+
+.sec{border-top:1px solid var(--line-soft);padding:2px 0}
+.sec>summary{display:flex;align-items:baseline;gap:10px;padding:8px 0;cursor:pointer;list-style:none}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary::before{content:"";width:6px;height:6px;border:solid var(--ink-3);border-width:0 1.5px 1.5px 0;transform:rotate(-45deg);margin:0 2px 2px 2px;transition:transform .15s;align-self:center}
+.sec[open]>summary::before{transform:rotate(45deg)}
+.sec-t{font-weight:600}
+.sec-s{color:var(--ink-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec[open] .sec-s{display:none}
+.sec-b{padding:0 0 8px}
+
+.fld{max-width:500px;display:grid;grid-template-columns:92px minmax(0,1fr);column-gap:10px;align-items:center;padding:4px 8px;margin:0 -8px;border-radius:6px}
+.fld>label{color:var(--ink-2);line-height:1.3}
+.ctl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.fld input:not([type=checkbox]),.fld select{width:112px}
+.unit{color:var(--ink-3);font-size:12px}
+.fld>p{grid-column:2;margin-top:2px;font-size:12px}
+.msg{color:var(--err)}.msg.w{color:var(--warn)}.msg:empty{display:none}
+.help{color:var(--ink-3)}
+.rng,.rng-info{display:none}
+.fld.swon{background:var(--pri-soft);box-shadow:inset 3px 0 0 var(--pri)}
+.fld.swon .one,.fld.swon .help{display:none}
+.fld.swon .rng{display:block;border-color:var(--pri-line)}
+.fld.swon .rng-info{display:block;color:var(--ink-2)}
+.swp{display:none;margin-left:auto;border:0;background:none;color:var(--ink-3);font-size:12px;padding:2px 6px;border-radius:4px;cursor:pointer;white-space:nowrap}
+.swp:hover{background:#e7eefb;color:#0b5bd3}
+.fld.swon .swp{color:#0b5bd3}
+body.m-sweep .swp{display:inline-block}
+
+.imp{border-top:1px dashed var(--line-soft);padding:6px 0}
+.imp:first-child{border-top:0}
+.imp-hd{display:flex;align-items:center;gap:10px;min-height:30px}
+.imp-s{color:var(--ink-3);font-size:12px;flex:1}
+.imp.on .imp-s{visibility:hidden}
+.imp:not(.on) .imp-bd,.imp:not(.on) .imp-real{display:none}
+.imp-real{width:96px}
+.imp-bd{padding:4px 0 2px 40px}
+
+/* ---- 实验配置页：算法 ---- */
+.ac{border:1px solid var(--line);border-radius:8px;margin-top:8px;background:#fff}
+.ac.open{border-color:#c7ccd4}
+.ac.bad{border-color:var(--err-line)}
+.ac-hd{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 10px;cursor:pointer}
+.ac-name{flex:1;min-width:60px;width:auto;border-color:transparent;background:transparent;font-weight:600;padding:3px 6px}
+.ac-name:hover,.ac-name:focus{border-color:#d3d7dd;background:#fff}
+.ac-sum{padding:0 12px 8px 58px;margin-top:-5px;color:var(--ink-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.ac.off .swt,.ac.off .ac-name,.ac.off .ac-sum,.ac.off .ac-msg{opacity:.45}
+.chev svg{transition:transform .15s}.ac.open .chev svg{transform:rotate(180deg)}
+.ac-msg{display:flex;gap:6px;align-items:flex-start;font-size:12px;padding:5px 10px;border-top:1px solid var(--line-soft)}
+.ac-msg svg{flex-shrink:0;margin-top:2px}
+.ac-msg.w{background:var(--warn-soft);color:var(--warn)}
+.ac-msg.e{background:var(--err-soft);color:var(--err)}
+.ac-msg:last-child{border-radius:0 0 7px 7px}
+.ac-bd{padding:8px 12px 10px;border-top:1px solid var(--line-soft)}
+.ac-meta{font-size:12px;color:var(--ink-3);margin-bottom:6px}
+.adv{margin-top:4px}
+.adv>summary{cursor:pointer;color:var(--ink-3);font-size:12px;padding:4px 0}
+#addPop{width:392px;max-width:calc(100vw - 48px);padding:10px}
+#addQ{width:100%;margin-bottom:6px}
+.ar-g{font-size:12px;color:var(--ink-3);padding:8px 6px 2px}
+.ar{display:grid;grid-template-columns:1fr auto;gap:0 8px;width:100%;text-align:left;border:0;background:none;padding:6px;border-radius:6px;cursor:pointer}
+.ar:hover:not(:disabled){background:#f3f4f6}
+.ar b{font-weight:600}
+.ar .ar-c{font-size:12px;color:var(--ink-3)}
+.ar .ar-d{grid-column:1/-1;font-size:12px;color:var(--ink-2)}
+.ar:disabled{cursor:not-allowed}.ar:disabled b,.ar:disabled .ar-c{opacity:.45}
+.ar:disabled .ar-d{color:var(--warn)}
+.empty{color:var(--ink-3);text-align:center;padding:28px 12px}
+
+/* ---- 实验配置页：预览、摘要、运行栏 ---- */
+#preview{width:100%;height:auto;display:block}
+#preview text{font-size:10px;fill:var(--ink-3)}
+.cap{font-size:12px;color:var(--ink-3);margin-top:4px}
+.sum{display:grid;grid-template-columns:64px 1fr;gap:6px 8px;margin:0;font-size:13px}
+.sum dt{color:var(--ink-3)}.sum dd{margin:0}
+.runbar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:16px -24px -16px;padding:10px 24px;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 12px #1c1f230d}
+#est b{font-variant-numeric:tabular-nums}
+#est.big{color:var(--warn)}
+.iss{border:1px solid;border-radius:6px;height:30px;padding:0 10px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.iss.w{background:var(--warn-soft);border-color:var(--warn-line);color:var(--warn)}
+.iss.e{background:var(--err-soft);border-color:var(--err-line);color:var(--err)}
+#issPop{width:460px;max-width:calc(100vw - 48px)}
+.il{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;width:100%;text-align:left;border:0;background:none;padding:7px 8px;border-radius:6px;cursor:pointer}
+.il:hover{background:#f3f4f6}
+.il .lv{font-size:12px;border-radius:4px;padding:0 6px;align-self:start}
+.il .lv.w{background:var(--warn-soft);color:var(--warn)}.il .lv.e{background:var(--err-soft);color:var(--err)}
+.il small{color:var(--ink-3)}
+
+/* ---- 运行与结果页 ---- */
+.demo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #b9bfc8;border-radius:6px;padding:6px 12px;font-size:12px;color:var(--ink-2);margin-bottom:16px}
+.prog-t{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}
+.pbar{height:8px;background:#eef0f2;border-radius:4px;overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--pri);width:0;transition:width .3s}
+.issues{border:1px solid var(--warn-line);background:#fffdf5;border-radius:8px;margin-bottom:16px;padding:4px 14px}
+.issues.has-e{border-color:var(--err-line);background:#fffafa}
+.ir{display:flex;gap:10px;align-items:baseline;padding:6px 0;flex-wrap:wrap}
+.ir+.ir{border-top:1px solid #0000000d}
+.ir .lv{font-size:12px;border-radius:4px;padding:0 6px;font-weight:600}
+.ir .lv.w{background:var(--warn-soft);color:var(--warn)}.ir .lv.e{background:var(--err-soft);color:var(--err)}
+.ir .who{display:inline-flex;gap:6px;align-items:center;font-weight:600}
+.ir .tx{flex:1;min-width:240px}
+.link{border:0;background:none;color:#0b5bd3;cursor:pointer;padding:0}
+.link:hover{text-decoration:underline}
+pre.stack{flex-basis:100%;margin:4px 0;background:#1c1f23;color:#e6e8eb;border-radius:6px;padding:10px 12px;font:12px/1.5 Consolas,"Cascadia Mono",monospace;overflow:auto}
+.cond{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.cond p{flex:1;min-width:260px}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 24px;margin:12px 0}
+.kv div{display:flex;gap:8px}.kv span{color:var(--ink-3);min-width:84px}
+.rmain{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:16px;align-items:start}
+.rmain .panel{margin-bottom:16px}.rcol{min-width:0}
+@media(max-width:1180px){.rmain{grid-template-columns:1fr}}
+.ch-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.tabs{display:flex;gap:20px}
+.tabs button{border:0;background:none;padding:4px 0 6px;border-bottom:2px solid transparent;color:var(--ink-2);cursor:pointer;font-size:15px}
+.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--pri);font-weight:600}
+.ck{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+#p-run:not([data-type=sweep]) .t-sweep,#p-run:not([data-type=mc]) .t-mc,#p-run:not([data-type=single]) .t-single{display:none}
+.lg{display:flex;flex-wrap:wrap;gap:4px 6px;margin-bottom:4px}
+.lg-i{display:inline-flex;gap:6px;align-items:center;border:0;background:none;padding:2px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.lg-i:hover{background:#f3f4f6}
+.lg-i[aria-pressed=false]{opacity:.38;text-decoration:line-through}
+.lg-i small{color:var(--ink-3)}
+.lg-s{display:inline-flex;gap:6px;align-items:center;padding:2px 8px;font-size:13px;color:var(--ink-2)}
+.chart-w{position:relative}
+.chart-w svg{display:block;width:100%;height:auto}
+.chart-w svg text{font-size:12px;fill:var(--ink-3);font-variant-numeric:tabular-nums}
+.chart-w svg text.ax{fill:var(--ink-2)}
+.chart-w svg text.b{fill:var(--ink);font-weight:600}
+.chart-w .hit{cursor:crosshair}
+.chart-w.s1{max-width:460px}.chart-w.s2{max-width:820px}
+.chart-w.s1 svg text,.chart-w.s2 svg text{font-family:"Times New Roman",SimSun,serif;font-size:14px}
+.tip{position:absolute;pointer-events:none;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px #1c1f2326;padding:8px 10px;font-size:12px;min-width:170px;z-index:5}
+.tip b{display:block;margin-bottom:4px}
+.tip .tr{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tip .tr span{flex:1;color:var(--ink-2)}
+.tip .tr em{font-style:normal;font-variant-numeric:tabular-nums;font-weight:600;margin-left:10px}
+.ch-f{font-size:12px;color:var(--ink-3);margin-top:6px}
+#rNotes textarea{width:100%;height:84px;resize:vertical;margin:8px 0}
+.tb-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.step{display:inline-flex;align-items:center;gap:4px}
+.rt td,.rt th{font-variant-numeric:tabular-nums}
+.rt th.n,.rt td.n{text-align:right}
+.rt th button{border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:0}
+.rt th button i{font-style:normal;color:var(--pri);margin-left:2px}
+.rt td.best{font-weight:700;color:var(--ink)}
+.rt .al{display:flex;gap:8px;align-items:center;font-weight:600}
+.incl{display:inline-flex;gap:8px;align-items:center;justify-content:flex-end}
+.incl i{width:44px;height:5px;border-radius:3px;background:#e3e6ea;overflow:hidden;display:block}
+.incl i::after{content:"";display:block;height:100%;width:var(--p);background:#8a919c}
+.incl.low{color:var(--warn);font-weight:600}.incl.low i::after{background:#d48806}
+
+@media(max-width:760px){.layout{flex-direction:column}.side{width:auto;height:auto;position:static;display:flex;overflow:auto;align-items:center}.side .logo{border:0;white-space:nowrap}.side .ws{display:none}.side a{white-space:nowrap;padding:10px 12px}.main{padding:12px}.runbar{margin:16px -12px -12px;padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---- 导航 ---- */
+.side{display:flex;flex-direction:column;overflow-y:auto}
+.nav-g{font-size:12px;color:#ffffff73;padding:14px 16px 4px}
+.side a.last{margin-top:auto}
+.wsb{display:block;width:calc(100% - 24px);margin:10px 12px 0;text-align:left;border:1px solid #ffffff26;background:#ffffff0d;color:#fff;border-radius:6px;padding:6px 10px;cursor:pointer}
+.wsb:hover{background:#ffffff1a}
+.wsb small{display:block;color:#ffffff8c;font-size:11px}
+.wsb b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side .pop{left:12px;right:12px;color:var(--ink)}
+.side .menu{min-width:0}
+.task{border-top:1px solid #ffffff1a;padding:12px 16px 14px;font-size:12px;color:#ffffff8c}
+.side a.tl,.side a.tl:hover{padding:0;background:none;color:#ffffffa6}
+.tl b{display:block;color:#fff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .pbar{background:#ffffff26;height:5px;margin:6px 0 4px}
+
+/* ---- 列表页通用 ---- */
+a.btn{display:inline-flex;align-items:center;text-decoration:none;color:inherit}
+a.btn.pri{color:#fff}
+.btn.danf{background:var(--err);border-color:var(--err);color:#fff}.btn.danf:hover{color:#fff;border-color:var(--err)}
+.crumb{font-size:12px;color:var(--ink-3);margin-bottom:6px}.crumb a{color:#0b5bd3;text-decoration:none}.crumb a:hover{text-decoration:underline}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.tools select{width:auto}.tools .q{width:230px}
+.flat{padding:0}
+.flat>.pn-h{padding:14px 16px 6px;margin:0}
+.flat>.cap{padding:8px 16px 12px;margin:0}
+.flat .lt tr:first-child th:first-child{border-top-left-radius:8px}.flat .lt tr:first-child th:last-child{border-top-right-radius:8px}
+.lt th:first-child,.lt td:first-child{padding-left:16px}.lt th:last-child,.lt td:last-child{padding-right:16px}
+.lt th.n,.lt td.n{text-align:right;font-variant-numeric:tabular-nums}
+.lt td.ra{text-align:right;white-space:nowrap}
+.lt tr.row{cursor:pointer}.lt tr.row:hover td{background:#f8f9fb}
+.lt tr:last-child td{border-bottom:0}
+.lt th button{border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:0;text-align:inherit}
+.lt th small{display:block;font-weight:400;color:var(--ink-3)}
+.nw{white-space:nowrap}.tgs{margin-top:3px}
+.lt td.nm{min-width:150px}
+.nm b{font-weight:600}.nm small{display:block;color:var(--ink-3);font-size:12px}
+.star{border:0;background:none;cursor:pointer;color:#c3c8d0;font-size:16px;line-height:1;padding:2px}.star[aria-pressed=true]{color:#d48806}
+.chev[aria-expanded=true] svg{transform:rotate(180deg)}
+.xrow td{background:#fafbfc}
+.xrow>td{padding:12px 16px 16px}
+.xrow h4{margin:14px 0 6px;font-size:13px;font-weight:600}
+.xrow table{border:1px solid var(--line-soft)}.xrow table td{background:#fff}
+.stk{flex-basis:100%}.stk summary{cursor:pointer;color:#0b5bd3;font-size:13px}
+.selbar{position:sticky;bottom:12px;z-index:10;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#1c1f23;color:#fff;border-radius:8px;padding:8px 8px 8px 16px;margin-top:12px;box-shadow:0 8px 24px #1c1f2340}
+.selbar .btn{color:var(--ink)}.selbar .btn.pri{color:#fff}
+.selbar .why{color:#ffffffb3;font-size:12px}
+
+/* ---- 多实验对比、排行榜、对话框 ---- */
+.cx{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.cx-i{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:4px 4px 4px 10px}
+.cx-i small{color:var(--ink-3)}
+.lgg{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-bottom:4px;font-size:13px}
+.lgg>span:first-child{color:var(--ink-3);font-size:12px;min-width:150px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex-shrink:0}
+.chipc{display:inline-flex;gap:6px;align-items:center;padding:2px 8px}
+.cellb{border:0;background:none;font:inherit;color:inherit;cursor:pointer;padding:2px 6px;margin-right:-6px;border-radius:4px;font-variant-numeric:tabular-nums}
+.cellb:hover{background:var(--pri-soft);color:#0b5bd3}
+.cellb.best{font-weight:700}
+.chk{display:grid;gap:6px;margin:10px 0}
+.chk label{display:flex;gap:8px;align-items:center}
+.vl{display:grid;gap:6px;margin:12px 0 4px;padding:0;list-style:none}
+.vl li{display:flex;gap:8px;align-items:baseline}.vl li::before{content:"✓";color:var(--ok);font-weight:700}
+dialog{border:0;border-radius:10px;padding:0;width:min(500px,92vw);color:var(--ink);box-shadow:0 16px 48px #1c1f2340}
+dialog::backdrop{background:#1c1f2366}
+.dl-h{padding:16px 20px 0;font-size:16px;font-weight:600}.dl-b{padding:10px 20px 4px}.dl-b input[type=text]{width:100%}
+.dl-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 16px}
+@media(max-width:760px){.nav-g,.task,.side .menu-w{display:none}.side a.last{margin-top:0}}
 </style>
 </head>
-<body>
+<body class="m-sweep">
 <div class="layout">
 <nav class="side">
   <div class="logo">DOA 算法竞技场</div>
-  <div class="ws">工作目录：fewshot-doa/arena_ws ▾</div>
-  <a href="#config" class="on">实验配置</a>
-  <a href="#run">运行与结果</a>
+  <div class="menu-w"><button class="wsb" data-pop="wsPop" title="切换工作目录"><small>工作目录</small><b>fewshot-doa / arena_ws</b></button>
+    <div class="pop menu" id="wsPop" hidden>
+      <button data-say="已经在这个工作目录里">fewshot-doa / arena_ws<small>当前，8 个实验</small></button>
+      <button data-say="原型演示：正式界面会切换到这个工作目录，历史实验、模板和模型包随之更换">doa-baselines / arena_ws<small>23 个实验</small></button>
+      <button data-go="#settings">管理工作目录</button>
+    </div></div>
+  <div class="nav-g">实验</div>
+  <a href="#config">新建实验</a>
   <a href="#history">历史实验</a>
-  <a href="#compare">多实验对比</a>
+  <div class="nav-g">资源</div>
   <a href="#algorithms">算法库</a>
   <a href="#templates">模板</a>
-  <a href="#leaderboard">排行榜 <span class="tag" style="background:#ffffff26;color:#fff">P1</span></a>
-  <a href="#settings">设置</a>
+  <div class="nav-g">评测</div>
+  <a href="#leaderboard">排行榜</a>
+  <a href="#settings" class="last">设置</a>
+  <div class="task" id="task"></div>
 </nav>
 <main class="main">
-<div class="note">原型说明：所有数据均为假数据，用于展示页面结构和交互；括号中的灰色编号对应需求文档条目。正式界面由 React + Ant Design 实现（架构第 7 章）。</div>
+<div class="note"><span>原型 v0.2：全部页面已按新版重做。数据全部是假数据；正式界面中所有参数表单由后端 JSON Schema 生成。</span>
+  <label><input type="checkbox" id="reqTg"> 显示需求编号</label></div>
+
 <!-- ===== 实验配置页 ===== -->
 <section class="page on" id="p-config">
-<div class="bar" style="margin-bottom:12px">
-  <h2 style="margin:0">新建实验</h2>
-  <input id="expName" value="相干信源 SNR 扫描" style="width:240px">
-  <button class="btn">从模板加载 ▾</button><button class="btn">保存为模板</button>
-  <button class="btn">导出 JSON / 脚本</button><span class="req">FR-SCN-10 · FR-API-06</span>
-</div>
-<div class="row">
-<!-- 左：场景 -->
-<div class="col card" style="flex:1.1">
-  <h3>场景 <span class="req">FR-SCN</span></h3>
-  <details open><summary>阵列</summary>
-    <div class="f"><label>阵列类型</label><select><option>均匀线阵 ULA</option></select></div>
-    <div class="f"><label>阵元数 M</label><input id="M" type="number" value="16" min="2" max="128"></div>
-    <div class="f"><label>阵元间距 d</label><input type="number" value="0.5" step="0.05"><span class="unit">λ</span></div>
-    <div class="f"><label>载频（仅显示）</label><input value="3.0e9"><span class="unit">Hz → 间距 5.0 cm</span></div>
-  </details>
-  <details open><summary>信源</summary>
-    <div class="f"><label>信源数 K</label><select id="Kmode"><option value="fixed">固定</option><option value="rand">随机</option></select>
-      <input id="K" type="number" value="2" style="width:60px;margin-left:6px"></div>
-    <div class="hint err" id="kErr" style="display:none">K 必须小于 M</div>
-    <div class="f"><label>角度设置</label><select id="angMode"><option value="fixed">固定角度</option><option value="random">范围内随机</option><option value="sep">中心 ± 间隔/2</option></select></div>
-    <div class="f" id="angFixed"><label>角度</label><input value="-10, 10" style="width:200px"><span class="unit">°</span></div>
-    <div class="f" id="angRand" style="display:none"><label>范围 / 最小间隔</label><input value="-60" style="width:60px">~<input value="60" style="width:60px"><input value="2" style="width:50px;margin-left:6px"><span class="unit">°</span></div>
-    <div class="f" id="angSep" style="display:none"><label>中心 / 间隔 Δ</label><input value="0" style="width:60px"><input value="10" style="width:60px;margin-left:6px"><span class="unit">°</span></div>
-    <div class="f"><label>SNR</label><input value="10"><span class="unit">dB（可逐个信源设置）</span></div>
-    <div class="f"><label>相关性</label><select id="corr"><option value="none">不相干</option><option value="partial">部分相关</option><option value="coh" selected>相干</option></select></div>
-    <div class="f" id="rhoRow" style="display:none"><label>相关系数 ρ</label><input value="0.5" style="width:60px"><span class="unit">∠</span><input value="0" style="width:60px"><span class="unit">°</span></div>
-    <div class="f"><label>快拍数 N</label><input value="200"></div>
-  </details>
-  <details open><summary>阵列误差 <span class="req">FR-SCN-07/08</span></summary>
-    <div class="algo"><div class="hd"><input type="checkbox" checked><b>幅相误差</b><select style="width:auto"><option>固定</option><option>每次随机</option></select></div>
-      <div class="f"><label>σ_g</label><input value="0.05"><span class="unit">线性</span></div>
-      <div class="f"><label>σ_φ</label><input value="5"><span class="unit">°</span></div></div>
-    <div class="algo off"><div class="hd"><input type="checkbox"><b>位置误差</b></div></div>
-    <div class="algo off"><div class="hd"><input type="checkbox"><b>互耦</b></div></div>
-    <div class="algo off"><div class="hd"><input type="checkbox"><b>阵元故障</b></div></div>
-  </details>
-  <div class="f"><label>随机种子</label><input value="12345"><button class="btn" style="margin-left:6px">随机</button></div>
-  <details open><summary>场景预览 <span class="req">FR-SCN-11</span></summary>
-    <svg width="228" height="150" id="preview"></svg>
-    <div style="font-size:12px;color:#595959">● 阵元（红色为故障）　— 信源方向</div>
-  </details>
-</div>
-<!-- 右：算法 -->
-<div class="col card">
-  <div class="bar"><h3 style="margin:0">算法 <span class="req">FR-ALG-02/03/05</span></h3><button class="btn" id="addAlgo">+ 添加算法 ▾</button></div>
-  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="MUSIC" style="width:110px"><span class="tag">music · 内置</span><span class="tag warn" title="相干信源下未开启空间平滑">⚠ 平滑未开启</span></div>
-    <div class="f"><label>网格步长</label><input value="0.1"><span class="unit">°</span></div>
-    <div class="f"><label>空间平滑</label><select><option>不平滑</option><option>前向</option><option>前后向</option></select></div></div>
-  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="MUSIC+FBSS" style="width:110px"><span class="tag">music · 内置</span></div>
-    <div class="f"><label>网格步长</label><input value="0.1"><span class="unit">°</span></div>
-    <div class="f"><label>空间平滑</label><select><option>前后向</option></select></div>
-    <div class="f"><label>子阵阵元数</label><input placeholder="自动（15）"></div></div>
-  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="TLS-ESPRIT" style="width:110px"><span class="tag">esprit · 内置</span></div>
-    <div class="f"><label>方法</label><select><option>TLS</option><option>LS</option></select></div>
-    <div class="f"><label>空间平滑</label><select><option>前后向</option></select></div></div>
-  <div class="algo"><div class="hd"><input type="checkbox" checked><input value="B" style="width:110px"><span class="tag blue">cnn_grid_b · fewshot-doa</span><span class="tag warn">commit 有未提交修改</span></div>
-    <div class="f"><label>模型包</label><select style="width:200px"><option>models/cnn_grid_m16_v3</option></select></div>
-    <div class="f"><label>推理设备</label><select><option>自动（GPU）</option><option>GPU</option><option>CPU</option></select></div>
-    <div class="hint">训练条件：无阵列误差；本实验含幅相误差，超出训练范围 <span class="req">FR-GEN-06</span></div></div>
-  <div class="algo off" title="需要均匀线阵且所有阵元可用"><div class="hd"><input type="checkbox" disabled><span>Root-MUSIC</span><span class="tag">已选阵列不满足条件时置灰</span></div></div>
-</div>
-</div>
-<div class="card">
-  <div class="bar">
-    <b>实验方式</b>
-    <label><input type="radio" name="et"> 单次</label>
-    <label><input type="radio" name="et"> 蒙特卡罗</label>
-    <label><input type="radio" name="et" checked> 参数扫描</label>
-    <span style="margin-left:12px">扫描变量</span><select style="width:180px"><option>SNR（dB）</option><option>快拍数 N</option><option>两信源间隔 Δ</option><option>阵元数 M</option><option>幅相误差 σ_φ</option></select>
-    <span>取值</span><input value="-10:5:20" style="width:100px">
-    <span>每点试验</span><input value="500" style="width:70px">
-    <label><input type="checkbox" checked> 公共随机数</label>
-    <span>指标</span><span class="tag">RMSE</span><span class="tag">成功率</span><span class="tag">耗时</span><span class="tag">CRB</span>
+<header class="ph">
+  <div class="ph-t"><h2>新建实验</h2><input class="name-in" id="expName" value="相干信源 SNR 扫描" aria-label="实验名称"></div>
+  <div class="ph-a"><div class="menu-w"><button class="btn" data-pop="tplPop">从模板加载</button><div class="pop menu" id="tplPop" hidden style="width:300px"></div></div><button class="btn" data-say="原型演示：正式界面会让你起个名字，把当前场景或整个实验存成模板，保存在工作目录的 templates/">保存为模板</button><button class="btn">导出 JSON / 脚本</button><span class="req">FR-SCN-10 · FR-API-06</span></div>
+</header>
+
+<div class="panel" id="modePanel">
+  <div class="modes" role="radiogroup" aria-label="实验方式">
+    <button class="mode" role="radio" data-mode="single"><svg width="44" height="32" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 28h40M3 26c8 0 10-1 12-8s3-14 5-14 3 7 5 14 4 8 14 8"/></svg><b>单次实验</b><span>生成一组数据，每个算法运行一次。看空间谱和估计角度。</span></button>
+    <button class="mode" role="radio" data-mode="mc"><svg width="44" height="32" viewBox="0 0 44 32" fill="currentColor"><path d="M2 28h40" stroke="currentColor" stroke-width="1.6"/><circle cx="22" cy="8" r="2"/><circle cx="18" cy="13" r="2"/><circle cx="26" cy="12" r="2"/><circle cx="21" cy="17" r="2"/><circle cx="15" cy="20" r="2"/><circle cx="27" cy="19" r="2"/><circle cx="23" cy="23" r="2"/><circle cx="31" cy="23" r="2"/><circle cx="11" cy="23" r="2"/></svg><b>蒙特卡罗</b><span>场景固定，重复做多次独立试验。看统计指标和估计值的分布。</span></button>
+    <button class="mode" role="radio" data-mode="sweep"><svg width="44" height="32" viewBox="0 0 44 32" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 28h40M2 28V3M5 7c8 2 12 6 17 11s10 7 19 8"/><g fill="currentColor" stroke="none"><circle cx="5" cy="7" r="2.2"/><circle cx="16" cy="13" r="2.2"/><circle cx="26" cy="21" r="2.2"/><circle cx="40" cy="26" r="2.2"/></g></svg><b>参数扫描</b><span>让一个参数取多个值，每个值做一次蒙特卡罗。看指标随它变化的曲线。</span></button>
   </div>
-  <div class="bar" style="margin-top:10px">
-    <span style="color:#595959">共 7 点 × 500 次 × 4 算法 = 14,000 次估计，预计约 40 秒 <span class="req">FR-EXP-04</span></span>
-    <span class="tag warn">1 条警告</span>
-    <span style="flex:1"></span>
-    <button class="btn pri" id="runBtn">运行实验</button>
+  <div class="ms">
+    <div class="ms-i only-sweep"><span class="ms-l">扫描变量</span><button class="swchip" id="swChip" title="跳到这个字段"></button></div>
+    <div class="ms-i not-single"><label class="ms-l" for="trials" id="trialsL">每点试验次数</label><input id="trials" type="number" value="500" min="1" style="width:92px"></div>
+    <div class="ms-i not-single"><span class="ms-l">指标</span><span id="metrics"></span><span class="unit">成功门限</span><input id="thr" value="1" style="width:48px" aria-label="成功门限"><span class="unit">°</span></div>
+    <p class="only-single" style="color:var(--ink-2)">单次实验不统计指标；结果页显示各算法的空间谱叠加图和估计角度。</p>
+    <span class="req">FR-EXP-01/03 · 数据格式 3.6/3.7</span>
   </div>
 </div>
-</section>
-<!-- ===== 运行与结果页 ===== -->
-<section class="page" id="p-run">
-<div class="bar" style="margin-bottom:12px">
-  <h2 style="margin:0">相干信源 SNR 扫描</h2>
-  <span class="tag" id="runStatus">未开始</span>
-  <span style="color:#8c8c8c;font-size:12px">20261029-143012_snr-sweep_a1b2 · Web 模式</span>
-  <span style="flex:1"></span>
-  <button class="btn dan" id="cancelBtn" disabled>中止</button>
-  <button class="btn">复制并修改</button><button class="btn">重新运行</button>
-</div>
-<div class="card">
-  <div class="bar"><span id="progTxt">点击“实验配置”页的“运行实验”开始</span>
-    <div class="prog"><i id="progBar"></i></div><span id="eta"></span></div>
-  <div style="font-size:12px;color:#8c8c8c;margin-top:4px">进度由 SSE 推送；扫描点每完成一个，下方曲线增加一个点 <span class="req">FR-EXP-05/06/07</span></div>
-</div>
-<div class="row">
-  <div class="col card">
-    <div class="bar"><h3 style="margin:0">RMSE vs SNR</h3>
-      <select style="width:auto"><option>RMSE + CRB</option><option>成功率</option><option>分辨概率</option><option>耗时</option></select>
-      <label><input type="checkbox" checked> 对数纵轴</label>
-      <select style="width:auto"><option>样式：网页</option><option>样式：论文单栏</option><option>样式：论文双栏</option></select>
-      <span class="req">FR-RES-04/06/10</span></div>
-    <svg id="chart" width="560" height="300" viewBox="0 0 560 300" style="width:100%;height:auto"></svg>
-  </div>
-  <div class="card" style="width:260px;flex-shrink:0">
-    <h3>导出 <span class="req">FR-RES-07/08/11 · FR-DAT-07</span></h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button class="btn">图 PDF</button><button class="btn">图 SVG</button>
-      <button class="btn">图 PNG</button><button class="btn">.mat</button>
-      <button class="btn">CSV</button><button class="btn">LaTeX 表格</button>
-      <button class="btn">HTML 报告</button><button class="btn">导出为脚本</button>
+
+<div class="cfg">
+<!-- 场景 -->
+<div class="panel" id="scene">
+  <div class="pn-h"><h3>场景</h3><span class="req">FR-SCN</span></div>
+
+  <details class="sec" open><summary><span class="sec-t">阵列</span><span class="sec-s" id="sArr"></span></summary><div class="sec-b">
+    <div class="fld"><label for="arrType">阵列类型</label><div class="ctl"><select id="arrType" style="width:150px"><option>均匀线阵（ULA）</option></select></div></div>
+    <div class="fld" id="f-M" data-sw="M" data-swname="阵元数 M" data-path="scenario.array.params.M" data-range="8:4:32"><label for="M">阵元数 M</label><div class="ctl"><input class="one" id="M" type="number" value="16" min="2" max="128"></div><p class="msg" id="m-M"></p></div>
+    <div class="fld"><label for="d">阵元间距 d</label><div class="ctl"><input id="d" type="number" value="0.5" step="0.05"><span class="unit">λ</span></div></div>
+    <div class="fld"><label for="fc">载频</label><div class="ctl"><input id="fc" value="3.0e9"><span class="unit">Hz</span></div><p class="help">只用来显示物理间距（当前 5.0 cm），不影响仿真</p></div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="sec-t">信源</span><span class="sec-s" id="sSrc"></span></summary><div class="sec-b">
+    <div class="fld" id="f-K"><label for="K">信源数 K</label><div class="ctl"><select id="Kmode" style="width:76px" aria-label="信源数是否固定"><option value="fixed">固定</option><option value="rand">随机</option></select><input id="K" type="number" value="2" min="1" style="width:64px"><input id="Kset" value="1, 2, 3" style="width:92px" aria-label="K 的取值集合" hidden></div><p class="msg" id="m-K"></p></div>
+    <div class="fld" id="f-ang"><label for="angMode">角度</label><div class="ctl"><select id="angMode" style="width:150px"><option value="fixed">固定角度</option><option value="random">范围内随机</option><option value="separation">中心 ± 间隔/2</option></select></div><p class="msg" id="m-ang"></p></div>
+    <div class="fld" id="angFixed"><label for="ang">角度值</label><div class="ctl"><input id="ang" value="-10, 10" style="width:150px"><span class="unit">°</span></div></div>
+    <div class="fld" id="angRand" hidden><label for="angLo">范围</label><div class="ctl"><input id="angLo" value="-60" style="width:56px"><span class="unit">至</span><input id="angHi" value="60" style="width:56px" aria-label="范围上限"><span class="unit">°</span></div></div>
+    <div class="fld" id="angGapF" hidden><label for="angGap">最小间隔</label><div class="ctl"><input id="angGap" value="2" style="width:56px"><span class="unit">°</span></div></div>
+    <div class="fld" id="angCen" hidden><label for="angC">中心角</label><div class="ctl"><input id="angC" value="0" style="width:72px"><span class="unit">°</span></div></div>
+    <div class="fld" id="f-sep" hidden data-sw="sep" data-swname="两信源间隔 Δ" data-swunit="°" data-path="scenario.sources.angles.delta" data-range="2:2:20"><label for="angD">间隔 Δ</label><div class="ctl"><input class="one" id="angD" value="20" style="width:72px"><span class="unit">°</span></div></div>
+    <div class="fld" id="f-snr" data-sw="snr" data-swname="SNR" data-swunit="dB" data-path="scenario.sources.snr_db" data-range="-10:5:20"><label for="snr">SNR</label><div class="ctl"><input class="one" id="snr" value="10"><span class="unit">dB</span></div><p class="help">所有信源相同；逐个设置时填列表</p></div>
+    <div class="fld"><label for="corr">相关性</label><div class="ctl"><select id="corr"><option value="none">不相干</option><option value="partial">部分相关</option><option value="coh" selected>相干</option></select></div></div>
+    <div class="fld" id="f-rho" hidden data-sw="rho" data-swname="相关系数幅度" data-path="scenario.sources.correlation.rho.mag" data-range="0:0.1:0.9"><label for="rho">相关系数</label><div class="ctl"><input class="one" id="rho" value="0.5" style="width:60px"><span class="unit">∠</span><input id="rhoPh" value="0" style="width:56px" aria-label="相关系数相位"><span class="unit">°</span></div></div>
+    <div class="fld" id="f-N" data-sw="N" data-swname="快拍数 N" data-path="scenario.snapshots" data-range="10, 20, 50, 100, 200, 500"><label for="N">快拍数 N</label><div class="ctl"><input class="one" id="N" type="number" value="200" min="1"></div><p class="msg w" id="m-N"></p></div>
+  </div></details>
+
+  <details class="sec" open><summary><span class="sec-t">阵列误差</span><span class="sec-s" id="sImp"></span><span class="req">FR-SCN-07/08</span></summary><div class="sec-b">
+    <div class="imp on" id="imp-gp" data-name="幅相">
+      <div class="imp-hd"><label class="sw"><input type="checkbox" checked aria-label="幅相误差"><i></i></label><b>幅相误差</b><span class="imp-s">各通道增益和相位不一致</span><select class="imp-real" aria-label="误差实现方式"><option>固定</option><option>每次随机</option></select></div>
+      <div class="imp-bd">
+        <div class="fld" data-sw="sg" data-swname="幅度误差 σ_g" data-path="scenario.impairments[gain_phase].params.sigma_g" data-range="0:0.02:0.1"><label for="sg">σ_g</label><div class="ctl"><input class="one" id="sg" value="0.05"><span class="unit">线性值</span></div></div>
+        <div class="fld" data-sw="sphi" data-swname="相位误差 σ_φ" data-swunit="°" data-path="scenario.impairments[gain_phase].params.sigma_phi_deg" data-range="0:2:10"><label for="sphi">σ_φ</label><div class="ctl"><input class="one" id="sphi" value="5"><span class="unit">°</span></div></div>
+      </div>
     </div>
-    <h3 style="margin-top:16px">备注与标签</h3>
-    <textarea style="width:100%;height:60px;border:1px solid #d9d9d9;border-radius:6px">高 SNR 段 B 优于 FBSS</textarea>
-    <div><span class="tag">coherent</span><span class="tag">gain-phase</span><a href="#" style="font-size:12px">+ 标签</a></div>
+    <div class="imp" id="imp-pos" data-name="位置">
+      <div class="imp-hd"><label class="sw"><input type="checkbox" aria-label="位置误差"><i></i></label><b>位置误差</b><span class="imp-s">阵元实际位置偏离标称位置</span><select class="imp-real" aria-label="误差实现方式"><option>固定</option><option>每次随机</option></select></div>
+      <div class="imp-bd">
+        <div class="fld" data-sw="sp" data-swname="位置误差 σ_p" data-swunit="λ" data-path="scenario.impairments[position].params.sigma" data-range="0:0.01:0.05"><label for="sp">σ_p</label><div class="ctl"><input class="one" id="sp" value="0.02"><span class="unit">λ</span></div></div>
+      </div>
+    </div>
+    <div class="imp" id="imp-mc" data-name="互耦">
+      <div class="imp-hd"><label class="sw"><input type="checkbox" aria-label="互耦"><i></i></label><b>互耦</b><span class="imp-s">相邻阵元之间的信号耦合</span><select class="imp-real" aria-label="误差实现方式"><option>固定</option></select></div>
+      <div class="imp-bd">
+        <div class="fld"><label for="mcC">耦合系数</label><div class="ctl"><input id="mcC" value="0.3∠60, 0.1∠120" style="width:150px"></div><p class="help">幅度∠相位（°），按 c₁、c₂ … 的顺序</p></div>
+        <div class="fld" data-sw="mcs" data-swname="互耦强度" data-path="scenario.impairments[mutual_coupling].params.scale" data-range="0:0.25:1.5"><label for="mcs">强度倍数</label><div class="ctl"><input class="one" id="mcs" value="1"></div></div>
+      </div>
+    </div>
+    <div class="imp" id="imp-fault" data-name="阵元故障">
+      <div class="imp-hd"><label class="sw"><input type="checkbox" aria-label="阵元故障"><i></i></label><b>阵元故障</b><span class="imp-s">部分阵元没有输出</span><select class="imp-real" aria-label="误差实现方式"><option>固定</option><option>每次随机</option></select></div>
+      <div class="imp-bd">
+        <div class="fld" data-sw="fc" data-swname="故障阵元数" data-path="scenario.impairments[element_failure].params.count" data-range="0:1:4"><label for="fCnt">故障阵元数</label><div class="ctl"><input class="one" id="fCnt" type="number" value="1" min="0"></div></div>
+        <div class="fld"><label for="fIdx">位置</label><div class="ctl"><input id="fIdx" value="5" placeholder="随机"></div><p class="help">阵元下标，从 0 开始；留空为随机</p></div>
+        <div class="fld"><label for="fMode">故障表现</label><div class="ctl"><select id="fMode"><option>输出置零</option><option>只剩噪声</option></select></div></div>
+        <div class="fld"><label for="faultKnown">算法已知</label><div class="ctl"><label class="ck"><input type="checkbox" id="faultKnown" checked> 把故障位置告诉算法</label></div></div>
+      </div>
+    </div>
+  </div></details>
+
+  <details class="sec"><summary><span class="sec-t">高级</span><span class="sec-s" id="sAdv"></span></summary><div class="sec-b">
+    <div class="fld"><label for="seed">随机种子</label><div class="ctl"><input id="seed" value="12345"><button class="btn" id="seedBtn" type="button">换一个</button></div><p class="help">同样的配置和种子，结果逐位相同</p></div>
+    <div class="fld only-sweep"><label for="crn">公共随机数</label><div class="ctl"><label class="ck"><input type="checkbox" id="crn" checked> 各扫描点的第 t 次试验用同一组随机数</label></div></div>
+  </div></details>
+</div>
+
+<!-- 算法 -->
+<div class="panel" id="algos">
+  <div class="pn-h"><h3>算法</h3><span class="cnt" id="algoCnt"></span><span class="req">FR-ALG-02/03/05</span><span class="grow"></span>
+    <div class="menu-w"><button class="btn" data-pop="addPop">+ 添加算法</button>
+      <div class="pop" id="addPop" hidden><input id="addQ" placeholder="搜索名称或 id" aria-label="搜索算法"><div id="addList"></div></div></div>
   </div>
+  <div id="algoList"></div>
+  <p class="cap" style="margin-top:10px">点卡片展开参数。想比较同一算法的不同参数，用“复制一份”。</p>
 </div>
-<div class="card">
-  <div class="bar"><h3 style="margin:0">指标汇总（SNR = 10 dB）</h3><select style="width:auto"><option>SNR = 10 dB</option></select><button class="btn">修改指标参数并重新计算</button><span class="req">FR-RES-02 · 4.4 节</span></div>
-  <table id="sumTable"><tr><th>算法</th><th>RMSE (°)</th><th>sqrt(CRB) (°)</th><th>成功率</th><th>耗时中位数 (ms)</th><th>纳入统计</th><th>出错</th><th>状态</th></tr></table>
+
+<!-- 预览与摘要 -->
+<aside class="rail">
+  <div class="panel"><div class="pn-h"><h3>场景预览</h3><span class="req">FR-SCN-11</span></div>
+    <svg id="preview" viewBox="0 0 280 172" role="img" aria-label="阵列与信源方向示意"></svg>
+    <p class="cap" id="prevCap"></p></div>
+  <div class="panel"><div class="pn-h"><h3>配置摘要</h3></div><dl class="sum" id="sumList"></dl></div>
+</aside>
 </div>
-<div class="card">
-  <h3>警告与错误 <span class="req">FR-ALG-09 · FR-SYS-03</span></h3>
-  <div><span class="tag warn">警告</span> MUSIC：相干信源下未开启空间平滑，MUSIC 可能失效</div>
-  <div><span class="tag warn">警告</span> B：超出训练范围（训练数据不含幅相误差）；commit e3b0c44 有未提交修改，已保存 diff</div>
-  <div><span class="tag err">错误</span> B：RuntimeError CUDA out of memory（扫描点 1，第 37 次试验，共 2 次）<a href="#">查看堆栈</a></div>
+
+<div class="runbar">
+  <span id="est"></span><span class="req">FR-EXP-04</span>
+  <div class="menu-w"><button class="iss" id="issBtn" data-pop="issPop" hidden></button><div class="pop up" id="issPop" hidden></div></div>
+  <span class="grow"></span>
+  <span class="cap" id="runWhy"></span>
+  <button class="btn pri lg" id="runBtn">运行实验</button>
 </div>
 </section>
+
+<!-- ===== 运行与结果页 ===== -->
+<section class="page" id="p-run" data-type="sweep">
+<div class="demo"><span>原型演示：结果页随实验方式变化</span>
+  <div class="seg" id="demoSeg"><button data-demo="sweep">参数扫描</button><button data-demo="mc">蒙特卡罗</button><button data-demo="single">单次实验</button></div>
+  <button class="btn" id="replay">重播运行过程</button><span>正式界面没有这一行。</span></div>
+
+<p class="crumb"><a href="#history">历史实验</a> / 实验结果</p>
+<header class="ph">
+  <div class="ph-t"><h2 id="rName"></h2><span class="tag" id="rStatus"></span></div>
+  <div class="ph-a"><button class="btn dan" id="cancelBtn" hidden>中止</button><button class="btn" data-go="#config" data-say="已把这个实验的配置载入“新建实验”，改完后运行会生成一个新实验">复制并修改</button><button class="btn" data-say="原型演示：正式界面会用同一份配置和种子再跑一遍，并核对结果是否与原来一致">重新运行</button>
+    <div class="menu-w"><button class="btn" data-pop="expPop">导出数据与报告</button>
+      <div class="pop menu" id="expPop" hidden>
+        <button data-toast="results.mat">.mat<small>在 MATLAB 中重新画图</small></button>
+        <button data-toast="metrics.csv">CSV</button>
+        <button data-toast="table.tex">LaTeX 表格<small>可以直接 \input 进论文</small></button>
+        <button data-toast="report.html">HTML 报告<small>配置摘要、指标表和图</small></button>
+        <button data-toast="run_experiment.py">等价的 Python 脚本</button>
+      </div></div><span class="req">FR-RES-08/11 · FR-DAT-03/04/07</span></div>
+  <p class="ph-sub" id="rSub"></p>
+</header>
+
+<div class="panel" id="rProg"><div class="prog-t"><b id="progTxt"></b><span id="progEta" style="color:var(--ink-3)"></span></div><div class="pbar"><i id="progBar"></i></div></div>
+<div id="rIssues"></div>
+<div class="panel" id="rCond"></div>
+
+<div class="rmain">
+  <div class="rcol"><div class="panel" id="rChart">
+    <div class="ch-h">
+      <div class="tabs t-sweep" id="mTabs" role="tablist"><button role="tab" data-m="rmse">RMSE 与 CRB</button><button role="tab" data-m="succ">成功率</button><button role="tab" data-m="res">分辨概率</button><button role="tab" data-m="time">耗时</button></div>
+      <h3 class="t-mc">估计值分布</h3><h3 class="t-single">空间谱</h3>
+      <span class="req">FR-RES-01/03/04/05/06</span><span class="grow"></span>
+      <label class="ck t-sweep" id="logW"><input type="checkbox" id="logY" checked> 对数纵轴</label>
+      <div class="seg t-single" id="dbSeg"><button data-db="1">dB</button><button data-db="0">线性</button></div>
+      <select id="styleSel" aria-label="图表样式" style="width:auto"><option value="">样式：网页</option><option value="s1">样式：论文单栏</option><option value="s2">样式：论文双栏</option></select>
+      <div class="menu-w"><button class="btn" data-pop="figPop">导出图</button>
+        <div class="pop menu" id="figPop" hidden><button data-toast="figure.pdf">PDF<small>矢量图，用 \includegraphics 放进论文</small></button><button data-toast="figure.svg">SVG</button><button data-toast="figure.png">PNG<small>300 dpi</small></button></div></div>
+    </div>
+    <div class="lg" id="rLegend"></div>
+    <div class="chart-w" id="rChartW"><svg id="chart" role="img" aria-label="结果图"></svg><div class="tip" id="tip" hidden></div></div>
+    <p class="empty" id="rEmpty" hidden></p>
+    <p class="ch-f" id="rFoot"></p>
+  </div>
+  <div class="panel" id="rTable"></div>
+  </div>
+  <div class="panel" id="rNotes"><div class="pn-h"><h3>备注与标签</h3><span class="req">FR-DAT-02</span></div>
+    <textarea aria-label="备注">高 SNR 段 B 优于 FBSS</textarea>
+    <div><span class="tag">coherent</span><span class="tag">gain-phase</span><button class="link" style="font-size:12px">+ 标签</button></div>
+    <p class="cap" style="margin-top:8px">运行中也可以编辑，写入实验目录的 notes.json。</p></div>
+</div>
+
+</section>
+
 <!-- ===== 历史实验 ===== -->
 <section class="page" id="p-history">
-<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">历史实验</h2>
-  <input placeholder="搜索名称 / 备注" style="width:200px"><select style="width:auto"><option>全部算法</option></select>
-  <select style="width:auto"><option>全部模式</option><option>Web</option><option>脚本</option></select>
-  <select style="width:auto"><option>全部标签</option></select>
-  <span style="flex:1"></span><button class="btn">对比选中实验</button><span class="req">FR-DAT-02 · FR-RES-09</span></div>
-<div class="card"><table>
-  <tr><th></th><th>名称</th><th>时间</th><th>类型</th><th>算法</th><th>模式</th><th>状态</th><th>标签</th><th>操作</th></tr>
-  <tr><td><input type="checkbox"></td><td>★ 相干信源 SNR 扫描</td><td>10-29 14:30</td><td>扫描 SNR</td><td>MUSIC, MUSIC+FBSS, TLS-ESPRIT, B</td><td><span class="tag">Web</span></td><td><span class="tag ok">完成</span></td><td><span class="tag">coherent</span></td><td><a href="#run">查看</a> · 复制修改 · 重新运行 · 导出脚本 · 删除</td></tr>
-  <tr><td><input type="checkbox"></td><td>fig3 快拍数扫描</td><td>10-29 11:02</td><td>扫描 N</td><td>MUSIC, B</td><td><span class="tag blue">脚本</span></td><td><span class="tag ok">完成</span></td><td><span class="tag">paper-fig3</span></td><td>查看 · 复制修改 · 重新运行 · 删除</td></tr>
-  <tr><td><input type="checkbox"></td><td>互耦鲁棒性</td><td>10-28 20:15</td><td>扫描 scale</td><td>CBF, MVDR, MUSIC</td><td><span class="tag">Web</span></td><td><span class="tag warn">已中止（4/7 点）</span></td><td></td><td>查看 · 复制修改 · 删除</td></tr>
-  <tr><td><input type="checkbox"></td><td>大规模蒙特卡罗</td><td>10-28 18:40</td><td>蒙特卡罗</td><td>ESPRIT</td><td><span class="tag blue">脚本</span></td><td><span class="tag err">中断</span></td><td></td><td><a href="#">整理部分结果</a> · 删除</td></tr>
-</table>
-<div style="font-size:12px;color:#8c8c8c;margin-top:8px">数据来自工作目录 experiments/ 中的文件；索引可重建。删除移入 .trash/ <span class="req">FR-DAT-01a/05</span></div></div>
+<header class="ph">
+  <div class="ph-t"><h2>历史实验</h2><span class="cnt" id="hCnt"></span></div>
+  <div class="ph-a"><button class="btn" id="hRefresh">刷新</button><a class="btn pri" href="#config">新建实验</a><span class="req">FR-DAT-02 · FR-SYS-05</span></div>
+  <p class="ph-sub">列表来自工作目录 experiments/ 里的文件。在脚本里运行的实验，点“刷新”后出现在这里。</p>
+</header>
+<div class="tools">
+  <input class="q" id="hQ" type="search" placeholder="搜索名称、备注或标签" aria-label="搜索">
+  <select id="hType" aria-label="实验方式"><option value="">全部方式</option><option value="sweep">参数扫描</option><option value="mc">蒙特卡罗</option><option value="single">单次实验</option></select>
+  <select id="hAlgo" aria-label="算法"><option value="">全部算法</option></select>
+  <select id="hMode" aria-label="运行模式"><option value="">Web 和脚本</option><option>Web</option><option>脚本</option></select>
+  <select id="hTag" aria-label="标签"><option value="">全部标签</option></select>
+  <button class="chip" id="hStar" aria-pressed="false">★ 只看星标</button>
+  <button class="link" id="hClear" hidden>清除筛选</button>
+</div>
+<div class="panel flat"><table class="lt" id="hTable"></table><p class="empty" id="hEmpty" hidden></p></div>
+<p class="cap">点一行查看结果。勾选两个以上扫描变量相同的实验可以对比。删除会把实验文件夹移到工作目录的 .trash/。<span class="req">FR-DAT-01a/03/04/05 · FR-RES-09</span></p>
+<div class="selbar" id="hSel" hidden></div>
 </section>
 
 <!-- ===== 多实验对比 ===== -->
 <section class="page" id="p-compare">
-<h2>多实验对比 <span class="req">FR-RES-09</span></h2>
-<div class="card">选择扫描变量相同的实验，叠加同一指标曲线。图例格式：<code>实验名 / 算法</code>。
-<div class="bar" style="margin-top:8px"><span class="tag">相干信源 SNR 扫描 / B</span><span class="tag">不相干 SNR 扫描 / B</span><select style="width:auto"><option>RMSE</option></select></div>
-<svg id="chart2" width="560" height="260" viewBox="0 0 560 260" style="width:100%;max-width:760px;height:auto"></svg></div>
+<p class="crumb"><a href="#history">历史实验</a> / 多实验对比</p>
+<header class="ph">
+  <div class="ph-t"><h2>多实验对比</h2><span class="req">FR-RES-09</span></div>
+  <p class="ph-sub">把扫描变量相同的实验画在一张图上。颜色表示算法，线型和标记表示实验。</p>
+</header>
+<div id="cBody"></div>
 </section>
+
 <!-- ===== 算法库 ===== -->
 <section class="page" id="p-algorithms">
-<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">算法库</h2><button class="btn">刷新</button><button class="btn">导入模型包</button>
-  <span class="req">FR-ALG-01/01a/01b/01c/14 · 接口规范 10.1</span></div>
-<div class="card"><table>
-  <tr><th>名称</th><th>id</th><th>类别</th><th>来源</th><th>版本</th><th>Git</th><th>适用条件</th></tr>
-  <tr><td>CBF</td><td>cbf</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>任意阵列</td></tr>
-  <tr><td>MVDR</td><td>mvdr</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>任意阵列</td></tr>
-  <tr><td>MUSIC</td><td>music</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>需要 K；平滑仅 ULA</td></tr>
-  <tr><td>Root-MUSIC</td><td>root_music</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>仅 ULA</td></tr>
-  <tr><td>ESPRIT</td><td>esprit</td><td>传统</td><td><span class="tag">内置</span></td><td>1.0.0</td><td>—</td><td>仅 ULA</td></tr>
-  <tr><td>CNN 网格分类（B）</td><td>cnn_grid_b</td><td>学习型</td><td><span class="tag blue">fewshot-doa/algorithms/cnn_grid_b</span></td><td>0.1.0</td><td>e3b0c44 <span class="tag warn">未提交修改</span></td><td>ULA，M 与模型一致</td></tr>
-  <tr><td style="color:#cf1322">（加载失败）</td><td>—</td><td>—</td><td><span class="tag">fewshot-doa/algorithms/maml_cnn</span></td><td>—</td><td>—</td><td><span class="tag err">SyntaxError: line 42</span> <a href="#">堆栈</a></td></tr>
-</table></div>
-<div class="card"><h3>模型包（arena_ws/models/）</h3><table>
-  <tr><th>模型</th><th>插件</th><th>阵列</th><th>训练条件</th><th>信号模型版本</th><th>训练平台</th></tr>
-  <tr><td>cnn_grid_m16_v3</td><td>cnn_grid_b</td><td>ULA M=16 d=0.5λ</td><td>K∈{1,2,3}，SNR −10~20 dB，无误差</td><td>1 <span class="tag ok">一致</span></td><td>AutoDL A100</td></tr>
-</table></div>
+<header class="ph">
+  <div class="ph-t"><h2>算法库</h2><span class="cnt">6 个可用，1 个加载失败</span></div>
+  <div class="ph-a"><button class="btn" data-say="已重新扫描算法来源：6 个算法可用，1 个加载失败">刷新</button><button class="btn" id="lImport">导入模型包</button><span class="req">FR-ALG-01/01a/01b/01c/14 · 接口规范 10.1</span></div>
+  <p class="ph-sub">内置基线和已登记来源里的算法。改了课题仓库里的代码后点“刷新”，不需要重启。</p>
+</header>
+<div class="issues has-e"><div class="ir"><span class="lv e">加载失败</span><span class="who">maml_cnn</span>
+  <span class="tx">fewshot-doa/algorithms/maml_cnn/arena_plugin.py 第 42 行：SyntaxError: expected ':'。其他算法不受影响，改好后点“刷新”。</span>
+  <details class="stk"><summary>查看堆栈</summary><pre class="stack">Traceback (most recent call last):
+  File "arena/core/plugins/discovery.py", line 87, in _load_entry
+    spec.loader.exec_module(module)
+  File "fewshot-doa/algorithms/maml_cnn/arena_plugin.py", line 42
+    def estimate(self, obs, ctx)
+                                ^
+SyntaxError: expected ':'</pre></details></div></div>
+<div class="tools">
+  <input class="q" id="lQ" type="search" placeholder="搜索名称或 id" aria-label="搜索算法">
+  <select id="lSrc" aria-label="来源"><option value="">全部来源</option><option value="in">内置</option><option value="ext">外部</option></select>
+</div>
+<div class="panel flat"><table class="lt" id="lTable"></table></div>
+
+<div class="panel flat">
+  <div class="pn-h"><h3>模型包</h3><span class="cnt">工作目录的 models/ 里有 2 个</span><span class="req">FR-ALG-14 · FR-GEN-08</span></div>
+  <table class="lt">
+    <tr><th>模型包</th><th>插件</th><th>阵列</th><th>训练条件</th><th>信号模型版本</th><th>权重校验</th><th>训练平台</th><th>导入时间</th></tr>
+    <tr><td class="nm"><b>cnn_grid_m16_v3</b></td><td><code>cnn_grid_b</code></td><td>16 阵元均匀线阵，间距 0.5λ</td><td>K 为 1 到 3，SNR −10 到 20 dB，快拍数 10 到 500，无阵列误差</td><td>1 <span class="tag ok">与当前一致</span></td><td><span class="tag ok">通过</span></td><td>AutoDL，A100</td><td>10-29 09:40</td></tr>
+    <tr><td class="nm"><b>cnn_grid_m16_v2</b></td><td><code>cnn_grid_b</code></td><td>16 阵元均匀线阵，间距 0.5λ</td><td>K 为 1 到 2，SNR 0 到 20 dB，快拍数 100 到 500，无阵列误差</td><td>0 <span class="tag warn">当前是 1</span></td><td><span class="tag ok">通过</span></td><td>AutoDL，RTX 4090</td><td>10-21 16:12</td></tr>
+  </table>
+  <p class="cap">信号模型版本不一致的模型仍然可以评测，结果页会给出提示。测试条件超出“训练条件”时也会提示。</p>
+</div>
 </section>
 
 <!-- ===== 模板 ===== -->
 <section class="page" id="p-templates">
-<h2>模板 <span class="req">FR-SCN-10 · 数据格式 7.3</span></h2>
-<div class="card"><table>
-  <tr><th>名称</th><th>类型</th><th>层级</th><th>说明</th><th>操作</th></tr>
-  <tr><td>相干双信源</td><td>场景</td><td><span class="tag">工作目录</span></td><td>M=16 ULA，±10° 相干</td><td>新建实验 · 编辑 · 复制 · 删除</td></tr>
-  <tr><td>SNR 扫描（论文图）</td><td>实验</td><td><span class="tag">工作目录</span></td><td>−10~20 dB，每点 1000 次</td><td>新建实验 · 编辑 · 复制 · 删除</td></tr>
-  <tr><td>默认场景</td><td>场景</td><td><span class="tag">内置</span></td><td>M=16，K=2，θ=±10°，SNR 10 dB，N=200</td><td>新建实验 · 复制</td></tr>
-</table></div>
+<header class="ph">
+  <div class="ph-t"><h2>模板</h2><span class="req">FR-SCN-10 · 数据格式 7.3</span></div>
+  <p class="ph-sub">场景模板只保存阵列、信源和阵列误差；实验模板是一份完整的实验配置，还包括实验方式、扫描设置和算法。内置模板不能改，可以复制到工作目录后再改。</p>
+</header>
+<div class="tools"><div class="seg" id="tSeg"><button data-k="" aria-pressed="true">全部</button><button data-k="场景">场景模板</button><button data-k="实验">实验模板</button></div></div>
+<div class="panel flat"><table class="lt" id="tTable"></table></div>
 </section>
 
 <!-- ===== 排行榜 ===== -->
 <section class="page" id="p-leaderboard">
-<div class="bar" style="margin-bottom:12px"><h2 style="margin:0">排行榜（P1）</h2><select style="width:auto"><option>doa-basic v1.0</option></select><button class="btn pri">选择算法运行场景集</button><span class="req">FR-BEN</span></div>
-<div class="card"><table>
-  <tr><th>排名</th><th>算法</th><th>版本 / commit</th><th>RMSE @ SNR=0 dB</th><th>分辨概率 @ Δ=4°</th><th>相干成功率</th><th>耗时 (ms)</th></tr>
-  <tr><td>1</td><td>B</td><td>0.1.0 / e3b0c44</td><td>0.48</td><td>92%</td><td>97%</td><td>0.03</td></tr>
-  <tr><td>2</td><td>TLS-ESPRIT</td><td>内置 1.0.0</td><td>0.61</td><td>85%</td><td>95%</td><td>0.09</td></tr>
-  <tr><td>3</td><td>MUSIC+FBSS</td><td>内置 1.0.0</td><td>0.66</td><td>81%</td><td>96%</td><td>0.18</td></tr>
-</table><div style="font-size:12px;color:#8c8c8c;margin-top:8px">数值来自各实验的 summary.json；点击单元格打开对应实验。</div></div>
+<header class="ph">
+  <div class="ph-t"><h2>排行榜</h2><span class="tag">P1</span></div>
+  <div class="ph-a"><select aria-label="场景集" style="width:auto"><option>doa-basic 1.0</option><option>doa-basic 0.9</option></select><button class="btn pri" id="lbRun">运行场景集</button><span class="req">FR-BEN</span></div>
+  <p class="ph-sub">doa-basic 1.0 有 5 个场景：不相干 SNR 扫描、快拍数扫描、角度间隔扫描、相干信源、幅相误差强度扫描。同一版本内的配置和种子固定，不同时间跑出的结果可以放在一起比。</p>
+</header>
+<div class="panel flat"><table class="lt" id="lbT"></table></div>
+<p class="cap">点列名按这一项指标排名，每列最优值加粗。点数值打开对应的实验。数值来自各实验的 summary.json，只有同一场景集版本的结果排在一起。</p>
 </section>
 
 <!-- ===== 设置 ===== -->
 <section class="page" id="p-settings">
-<h2>设置 <span class="req">FR-SYS-02/04 · 数据格式 7.1/7.2</span></h2>
-<div class="card"><h3>工作目录</h3>
-  <div class="f"><label>当前</label><select style="width:420px"><option>D:/DOA_Estimation_Research/Projects/fewshot-doa/arena_ws</option></select><button class="btn" style="margin-left:6px">新建 / 添加</button></div></div>
-<div class="card"><h3>外部算法来源</h3>
-  <table><tr><th>层级</th><th>路径</th><th></th></tr>
-  <tr><td><span class="tag">工作目录</span></td><td>../algorithms</td><td>—</td></tr>
-  <tr><td><span class="tag">全局</span></td><td>（无）</td><td><button class="btn">添加目录</button></td></tr></table></div>
-<div class="card"><h3>运行环境</h3>
-  Python 3.12.4 · NumPy 2.1 · PyTorch 2.5.1+cu124 · <span class="tag ok">CUDA 可用</span> NVIDIA GeForce RTX 4060 Laptop GPU (8 GB)
-  <div class="f"><label>默认推理设备</label><select><option>自动</option></select></div></div>
+<header class="ph">
+  <div class="ph-t"><h2>设置</h2><span class="req">FR-SYS-02/04 · FR-DAT-01a/01b · 数据格式 7.1/7.2</span></div>
+  <p class="ph-sub">保存在竞技场配置文件 arena.json 里，也可以直接编辑这个文件。</p>
+</header>
+<div class="panel flat">
+  <div class="pn-h"><h3>工作目录</h3><span class="grow"></span><button class="btn" data-say="原型演示：正式界面会让你选一个文件夹，新建或登记为工作目录">添加工作目录</button></div>
+  <table class="lt">
+    <tr><th>名称</th><th>路径</th><th class="n">实验</th><th>索引</th><th></th></tr>
+    <tr><td class="nm"><b>少样本 DOA</b> <span class="tag blue">当前</span></td><td><code>D:/10_Projects/DOA_Estimation/Projects/fewshot-doa/arena_ws</code></td><td class="n">8</td><td>10-29 14:31 更新</td><td class="ra"><button class="btn" data-say="已重新扫描 experiments/：8 个实验，索引已重建">重建索引</button></td></tr>
+    <tr><td class="nm"><b>基线算法</b></td><td><code>D:/10_Projects/DOA_Estimation/Projects/doa-baselines/arena_ws</code></td><td class="n">23</td><td>10-27 09:12 更新</td><td class="ra"><button class="btn" data-say="原型演示：正式界面会切换到这个工作目录">切换到这里</button> <button class="btn" data-say="原型演示：只从列表里移除，不删除任何文件">从列表移除</button></td></tr>
+  </table>
+  <p class="cap">索引只用来加快历史列表，删掉也没关系：实验数据都在各自的文件夹里，重建索引会把工作目录重新扫描一遍。</p>
+</div>
+<div class="panel flat">
+  <div class="pn-h"><h3>外部算法来源</h3><span class="grow"></span><button class="btn" data-say="原型演示：正式界面会让你选一个目录，或填一个已安装的 Python 包名">添加全局来源</button></div>
+  <table class="lt">
+    <tr><th>层级</th><th>登记的来源</th><th>实际位置</th><th>状态</th><th></th></tr>
+    <tr><td><span class="tag">工作目录</span></td><td><code>../algorithms</code></td><td><code>D:/10_Projects/DOA_Estimation/Projects/fewshot-doa/algorithms</code></td><td>1 个算法可用，<a href="#algorithms">1 个加载失败</a></td><td class="ra"><span class="cap">在 arena_workspace.json 里修改</span></td></tr>
+    <tr><td><span class="tag">全局</span></td><td colspan="4" style="color:var(--ink-3)">还没有。两个以上课题共用的算法仓库适合登记在这里。</td></tr>
+  </table>
+  <p class="cap">工作目录层只对当前课题有效，全局层对所有工作目录有效；同名时工作目录层优先。改动后到算法库页点“刷新”。</p>
+</div>
+<div class="panel">
+  <div class="pn-h"><h3>推理设备</h3></div>
+  <div class="fld"><label for="dev">默认设备</label><div class="ctl"><select id="dev" style="width:220px"><option>自动（有 GPU 时用 GPU）</option><option>GPU</option><option>CPU</option></select></div><p class="help">只影响学习型算法；经典算法始终在 CPU 上运行。每个算法实例可以在新建实验时单独改。</p></div>
+</div>
+<div class="panel">
+  <div class="pn-h"><h3>运行环境</h3><span class="tag ok">CUDA 可用</span><span class="grow"></span><button class="btn" data-say="已复制运行环境信息">复制</button></div>
+  <div class="kv"><div><span>竞技场</span>0.1.0，commit 4f1c2aa</div><div><span>接口包</span>arena_api 1.0.0</div><div><span>信号模型版本</span>1</div><div><span>Python</span>3.12.4</div><div><span>NumPy</span>2.1.2</div><div><span>SciPy</span>1.14.1</div><div><span>PyTorch</span>2.5.1+cu124</div><div><span>GPU</span>NVIDIA GeForce RTX 4060 Laptop，8 GB</div></div>
+</div>
 </section>
+<dialog id="dlg"></dialog>
 </main>
 </div>
+
 <script>
-const $ = s => document.querySelector(s);
-// ---- 路由 ----
-function route(){
-  const id = (location.hash || '#config').slice(1);
-  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + id));
-  document.querySelectorAll('.side a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + id));
-}
-addEventListener('hashchange', route); route();
-
-// ---- 表单联动 ----
-$('#angMode').onchange = e => {
-  const v = e.target.value;
-  $('#angFixed').style.display = v === 'fixed' ? '' : 'none';
-  $('#angRand').style.display = v === 'random' ? '' : 'none';
-  $('#angSep').style.display = v === 'sep' ? '' : 'none';
-  drawPreview();
+/* 原型脚本。凡是标注“后端”的函数，在正式实现里都由后端提供（JSON Schema、check() 结果、
+   指标数值、图表描述），前端不出现任何具体算法的名字或计算（AGENTS.md 规则 1、2）。 */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const num = v => String(v).replace('-', '−');
+const fmtInt = v => v.toLocaleString('en-US');
+const sp = u => !u ? '' : u === '°' ? u : ' ' + u;   // 数值和单位之间留空格，角度符号除外
+const I = {
+  copy: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>',
+  x: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  chev: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>',
+  warn: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.2 14.3 13H1.7z" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.3v.2" stroke-linecap="round"/></svg>',
+  err: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>',
 };
-$('#corr').onchange = e => { $('#rhoRow').style.display = e.target.value === 'partial' ? '' : 'none'; };
-function checkK(){
-  const bad = +$('#K').value >= +$('#M').value;
-  $('#kErr').style.display = bad ? '' : 'none';
-  $('#runBtn').disabled = bad;           // 后端校验不通过时禁止提交（NFR-31）
-}
-$('#K').oninput = $('#M').oninput = () => { checkK(); drawPreview(); };
 
-// ---- 预览：阵元 + 信源方向 ----
-function drawPreview(){
-  const M = Math.min(+$('#M').value || 16, 64), svg = $('#preview'), cx = 114, cy = 130;
-  let h = '';
-  for (let m = 0; m < M; m++){
-    const x = 14 + m * (200 / Math.max(M - 1, 1));
-    h += `<circle cx="${x}" cy="${cy}" r="3.5" fill="${m === 5 ? '#ff4d4f' : '#1677ff'}"/>`;
+// ---------- 路由 ----------
+function route() {
+  const id = (location.hash || '#config').slice(1), nav = { run: 'history', compare: 'history' }[id] || id;   // 结果页和对比页从历史实验进入
+  $$('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + id));
+  $$('.side a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + nav));
+  if (id === 'run') { if (!R) R = build(snapshot()); drawRun(); }
+  const draw = { history: drawHist, compare: drawCompare, algorithms: drawLib, templates: drawTpl, leaderboard: drawLB }[id];
+  if (draw) draw();
+  drawTask(); scrollTo(0, 0);
+}
+function toast(msg) {
+  $$('.toast').forEach(t => t.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; t.setAttribute('role', 'status');
+  document.body.append(t); setTimeout(() => t.remove(), 2600);
+}
+
+// ---------- 算法的视觉身份：颜色 + 线型 + 标记，三者同时区分，黑白打印也能分辨 ----------
+const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const DASH = ['', '7 3', '2 3', '9 3 2 3'], MARK = ['circle', 'square', 'tri', 'diamond'];
+const styleOf = i => ({ slot: i, c: COLORS[i % 8], d: DASH[(i + (i >> 3)) % 4], m: MARK[(i + (i >> 2)) % 4] });
+const REF = { c: '#1c1f23', d: '5 4', m: null };   // CRB、真值等参考线统一用中性色虚线
+function mark(m, x, y, r, fill, stroke) {
+  if (!m) return '';
+  const a = `fill="${fill}" stroke="${stroke}" stroke-width="1.6"`;
+  x = +x.toFixed(1); y = +y.toFixed(1);
+  if (m === 'square') return `<rect x="${x - r + .4}" y="${y - r + .4}" width="${2 * r - .8}" height="${2 * r - .8}" ${a}/>`;
+  if (m === 'tri') return `<path d="M${x} ${y - r - .8}L${x + r + .6} ${y + r - .6}H${x - r - .6}Z" ${a}/>`;
+  if (m === 'diamond') return `<path d="M${x} ${y - r - 1}L${x + r + 1} ${y}L${x} ${y + r + 1}L${x - r - 1} ${y}Z" ${a}/>`;
+  return `<circle cx="${x}" cy="${y}" r="${r}" ${a}/>`;
+}
+const swatch = st => `<svg class="swt" width="34" height="14" viewBox="0 0 34 14" aria-hidden="true"><line x1="1" x2="33" y1="7" y2="7" stroke="${st.c}" stroke-width="2" ${st.d ? `stroke-dasharray="${st.d}"` : ''}/>${mark(st.m, 17, 7, 4, st.c, '#fff')}</svg>`;
+
+// ---------- 后端：已注册算法及其参数声明（正式界面来自 /api/schema） ----------
+const P = {
+  grid: { k: 'grid_step', label: '网格步长', type: 'number', unit: '°', def: 0.1 },
+  smooth: { k: 'smoothing', label: '空间平滑', type: 'select', def: 'none', opts: [['none', '不平滑'], ['forward', '前向'], ['fb', '前后向']] },
+  sub: { k: 'subarray', label: '子阵阵元数', type: 'number', def: null, none: '自动' },
+};
+const DEFS = {
+  cbf: { name: 'CBF', grp: '内置', ver: '1.0.0', desc: '常规波束形成，在角度网格上搜索功率谱峰', cond: '任意阵列', spec: true, params: [P.grid] },
+  mvdr: { name: 'MVDR', grp: '内置', ver: '1.0.0', desc: 'Capon 最小方差谱，分辨力高于 CBF', cond: '任意阵列', spec: true, params: [P.grid, { k: 'diag_load', label: '对角加载量', type: 'number', def: 0, adv: true }] },
+  music: { name: 'MUSIC', grp: '内置', ver: '1.0.0', desc: '噪声子空间伪谱搜索；相干信源需要开启空间平滑', cond: '需要信源数 K', spec: true, params: [P.grid, P.smooth, P.sub] },
+  root_music: { name: 'Root-MUSIC', grp: '内置', ver: '1.0.0', desc: '多项式求根，不受网格步长限制', cond: '均匀线阵，全部阵元可用', mask: false, params: [P.smooth, P.sub] },
+  esprit: { name: 'ESPRIT', grp: '内置', ver: '1.0.0', desc: '利用子阵之间的旋转不变性直接解出角度', cond: '均匀线阵，全部阵元可用', mask: false, params: [{ k: 'method', label: '方法', type: 'select', def: 'tls', opts: [['tls', 'TLS'], ['ls', 'LS']] }, P.smooth, P.sub] },
+  cnn_grid_b: { name: 'CNN 网格分类（B）', grp: 'fewshot-doa/algorithms', ver: '0.1.0', git: 'e3b0c44', dirty: true, desc: '多标签网格分类网络，输入归一化协方差', cond: '阵元数与模型一致', spec: true,
+    params: [{ k: 'model', label: '模型包', type: 'select', def: '', opts: [['', '请选择'], ['cnn_grid_m16_v3', 'models/cnn_grid_m16_v3'], ['cnn_grid_m16_v2', 'models/cnn_grid_m16_v2']] },
+      { k: 'device', label: '推理设备', type: 'select', def: 'auto', opts: [['auto', '自动（GPU）'], ['cuda', 'GPU'], ['cpu', 'CPU']] },
+      { k: 'threshold', label: '判决门限', type: 'number', def: 0.5, adv: true }, { k: 'batch_size', label: '推理批大小', type: 'number', def: 256, adv: true }] },
+};
+const param = (a, k) => DEFS[a.def].params.find(p => p.k === k);
+const val = (a, k) => { const p = param(a, k); return p ? (k in a.v ? a.v[k] : p.def) : undefined; };
+const show = (p, v) => p.type === 'select' ? (p.opts.find(o => o[0] === v) || ['', v])[1].replace(/^models\//, '') : (v === null || v === '' ? p.none || '—' : num(v) + (p.unit || ''));
+// 通用规则：摘要只列出与默认值不同的参数，不依赖具体算法
+const diffSummary = a => DEFS[a.def].params.filter(p => val(a, p.k) !== p.def).map(p => `${p.label}：${show(p, val(a, p.k))}`).join('，') || '默认参数';
+
+// ---------- 页面状态 ----------
+let uidSeq = 0;
+const S = { mode: 'sweep', sweep: 'snr', algos: [] };
+function addAlgo(def, label, v, at) {
+  const used = new Set(S.algos.map(a => a.sty.slot)); let i = 0; while (used.has(i)) i++;
+  const a = { uid: 'a' + (++uidSeq), def, label: label || DEFS[def].name, on: true, open: false, v: { ...(v || {}) }, rng: {}, sty: styleOf(i) };
+  if (at == null) S.algos.push(a); else S.algos.splice(at, 0, a);
+  return a;
+}
+addAlgo('music', 'MUSIC');
+addAlgo('music', 'MUSIC+FBSS', { smoothing: 'fb' });
+addAlgo('esprit', 'TLS-ESPRIT', { smoothing: 'fb' });
+addAlgo('cnn_grid_b', 'B', { model: 'cnn_grid_m16_v3' });
+
+const CORR = { none: '不相干', partial: '部分相关', coh: '相干' };
+function scene() {
+  const g = id => $('#' + id).value;
+  const angMode = g('angMode');
+  let angles = null;
+  if (angMode === 'fixed') angles = g('ang').replace(/−/g, '-').split(/[,，\s]+/).filter(Boolean).map(Number).filter(v => !isNaN(v));
+  else if (angMode === 'separation') angles = [+g('angC') - +g('angD') / 2, +g('angC') + +g('angD') / 2];
+  const imps = $$('.imp.on').map(e => ({ name: e.dataset.name, real: $('.imp-real', e).value }));
+  const fault = $('#imp-fault').classList.contains('on');
+  return { M: +g('M'), d: g('d'), Kmode: g('Kmode'), K: +g('K'), Kset: g('Kset'), angMode, angles, lo: +g('angLo'), hi: +g('angHi'), snr: g('snr'), corr: g('corr'), N: +g('N'), imps,
+    fault, faultKnown: fault && $('#faultKnown').checked, faultIdx: fault ? g('fIdx').split(/[,，\s]+/).filter(Boolean).map(Number) : [], pos: $('#imp-pos').classList.contains('on'), seed: g('seed') };
+}
+
+// ---------- 扫描：就地绑定在字段上 ----------
+function parseRange(s) {
+  s = String(s).trim().replace(/−/g, '-'); if (!s) return null;
+  const m = s.match(/^(-?[\d.]+)\s*:\s*(-?[\d.]+)\s*:\s*(-?[\d.]+)$/);
+  if (m) {
+    const a = +m[1], st = +m[2], b = +m[3]; if (!st || (b - a) / st < 0) return null;
+    const n = Math.floor((b - a) / st + 1e-9), o = [];
+    for (let i = 0; i <= n && i < 200; i++) o.push(+(a + i * st).toFixed(6));
+    return o;
   }
-  [-10, 10].forEach(t => {
-    const r = t * Math.PI / 180, x2 = cx + 110 * Math.sin(r), y2 = cy - 110 * Math.cos(r);
-    h += `<line x1="${cx}" y1="${cy}" x2="${x2}" y2="${y2}" stroke="#fa8c16" stroke-width="2"/>`;
-    h += `<text x="${x2 - 10}" y="${y2 - 4}">${t}°</text>`;
-  });
-  h += `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="12" stroke="#d9d9d9" stroke-dasharray="3"/>`;
-  svg.innerHTML = h;
+  const o = s.split(/[,，\s]+/).filter(Boolean).map(Number);
+  return o.length && !o.some(isNaN) ? o : null;
 }
-drawPreview();
-// ---- 假数据：RMSE vs SNR ----
-const SNR = [-10, -5, 0, 5, 10, 15, 20];
-const crb = SNR.map(s => 0.9 * Math.pow(10, -s / 20));
-const ALGOS = [
-  { name: 'MUSIC',      color: '#bfbfbf', f: i => 8 + i * 0.3 },
-  { name: 'MUSIC+FBSS', color: '#1677ff', f: i => crb[i] * (1.6 + 2.5 * Math.exp(-i)) },
-  { name: 'TLS-ESPRIT', color: '#52c41a', f: i => crb[i] * (1.4 + 2.0 * Math.exp(-i)) },
-  { name: 'B',          color: '#fa541c', f: i => crb[i] * (1.2 + 1.2 * Math.exp(-i)) },
-];
-function drawChart(svg, nPts, series){
-  const W = +svg.getAttribute('width'), H = +svg.getAttribute('height'), L = 50, R = 120, T = 12, B = 34;
-  const x = s => L + (s + 10) / 30 * (W - L - R);
-  const y = v => T + (1 - (Math.log10(v) + 2) / 3.2) * (H - T - B);   // 对数纵轴 0.01~15°
-  let h = `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="#f0f0f0"/>`;
-  [0.01, 0.1, 1, 10].forEach(v => h += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#f0f0f0"/><text x="${L - 34}" y="${y(v) + 4}">${v}</text>`);
-  SNR.forEach(s => h += `<text x="${x(s) - 8}" y="${H - 16}">${s}</text>`);
-  h += `<text x="${(W - R) / 2}" y="${H - 2}">SNR (dB)</text><text x="4" y="${T + 10}">RMSE (°)</text>`;
-  series.forEach((s, k) => {
-    const pts = SNR.slice(0, nPts).map((sn, i) => [x(sn), y(s.v[i])]);
-    if (pts.length) h += `<polyline fill="none" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="5 3"' : ''} points="${pts.join(' ')}"/>`;
-    pts.forEach(p => h += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${s.color}"/>`);
-    h += `<line x1="${W - R + 10}" x2="${W - R + 28}" y1="${T + 10 + k * 18}" y2="${T + 10 + k * 18}" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="5 3"' : ''}/><text x="${W - R + 32}" y="${T + 14 + k * 18}">${s.name}</text>`;
-  });
-  svg.innerHTML = h;
+const listVals = v => v.length > 8 ? v.slice(0, 3).map(num).join('，') + ' … ' + num(v[v.length - 1]) : v.map(num).join('，');
+const rangeInfo = v => v && v.length >= 2 ? `${v.length} 个取值：${listVals(v)}` : '写成 起:步长:止（如 −10:5:20），或用逗号分隔的列表，至少 2 个取值';
+const SW = {};
+$$('[data-sw]').forEach(f => {
+  const k = f.dataset.sw, one = $('.one', f);
+  const rng = Object.assign(document.createElement('input'), { className: 'rng', value: f.dataset.range });
+  rng.setAttribute('aria-label', f.dataset.swname + ' 的扫描取值'); one.after(rng);
+  const b = Object.assign(document.createElement('button'), { type: 'button', className: 'swp' }); $('.ctl', f).append(b);
+  const info = Object.assign(document.createElement('p'), { className: 'rng-info' }); f.append(info);
+  b.onclick = () => { S.sweep = S.sweep === k ? null : k; refresh(); if (S.sweep === k) rng.focus(); };
+  rng.oninput = () => refresh();
+  SW[k] = { f, rng, info, b, name: f.dataset.swname, unit: f.dataset.swunit || '', path: f.dataset.path };
+});
+const fieldLive = f => !f.closest('.imp:not(.on)') && !f.closest('[hidden]');
+function sweepInfo() {
+  if (S.mode !== 'sweep' || !S.sweep) return null;
+  if (S.sweep[0] === '|') {                       // 算法实例的参数：|uid|key
+    const [, uid, k] = S.sweep.split('|'), a = S.algos.find(x => x.uid === uid);
+    if (!a || !a.on) return null;
+    const p = param(a, k);
+    return { name: `${a.label} 的${p.label}`, unit: p.unit || '', path: `algorithms[${a.label}].params.${k}`, vals: parseRange(a.rng[k]), target: 'ac-' + uid };
+  }
+  const s = SW[S.sweep]; if (!s || !fieldLive(s.f)) return null;
+  return { name: s.name, unit: s.unit, path: s.path, vals: parseRange(s.rng.value), target: s.f.id || s.f.closest('[id]').id };
 }
-const runSeries = [...ALGOS.map(a => ({ name: a.name, color: a.color, v: SNR.map((_, i) => a.f(i)) })),
-                   { name: 'sqrt(CRB)', color: '#000', dash: 1, v: crb }];
-drawChart($('#chart'), 0, runSeries);
-drawChart($('#chart2'), 7, [
-  { name: '相干 / B', color: '#fa541c', v: runSeries[3].v },
-  { name: '不相干 / B', color: '#722ed1', v: crb.map(c => c * 1.1) },
-  { name: 'sqrt(CRB)', color: '#000', dash: 1, v: crb }]);
 
-// ---- 模拟运行：逐点推进 ----
-let timer = null;
-function fillTable(){
-  const i = 4, rows = ALGOS.map((a, k) => {
-    const v = a.f(i), ok = k === 0 ? '41%' : (k === 3 ? '99%' : '100%');
-    const st = k === 3 ? '<span class="tag warn">部分出错</span>' : '<span class="tag ok">正常</span>';
-    return `<tr><td>${a.name}</td><td>${v.toFixed(3)}</td><td>${crb[i].toFixed(3)}</td><td>${ok}</td><td>${[0.21, 0.18, 0.09, 0.03][k]}</td><td>${k === 0 ? 205 : 500}</td><td>${k === 3 ? 2 : 0}</td><td>${st}</td></tr>`;
+// ---------- 后端：语义校验、能力检查、插件 check() ----------
+const unavail = (def, sc) => DEFS[def].mask === false && sc.faultKnown ? '当前场景把故障阵元位置告诉了算法，这个算法需要全部阵元可用' : '';
+function checkAlgo(a, sc) {
+  const o = { e: [], w: [] }, u = unavail(a.def, sc);
+  if (u) o.e.push(u + '。关掉阵元故障的“算法已知”，或停用这个算法');
+  if (param(a, 'smoothing') && val(a, 'smoothing') === 'none' && sc.corr === 'coh') o.w.push('相干信源下没有开启空间平滑，估计可能失效');
+  if (param(a, 'model')) {
+    if (!val(a, 'model')) o.e.push('还没有选择模型包');
+    else {
+      if (sc.M !== 16) o.e.push(`模型按 16 阵元训练，当前阵列是 ${sc.M} 阵元。换一个模型包，或把阵元数改回 16`);
+      if (sc.imps.length) o.w.push(`超出训练范围：训练数据不含阵列误差，本实验开启了${sc.imps.map(i => i.name).join('、')}误差`);
+    }
+  }
+  return o;
+}
+function validate(sc, sw) {
+  const is = [], add = (lv, who, text, id) => is.push({ lv, who, text, id });
+  const fm = { M: '', K: '', N: '', ang: '' };
+  if (!(sc.M >= 2 && sc.M <= 128)) fm.M = '阵元数要在 2 到 128 之间';
+  if (sc.Kmode === 'fixed' && sc.K >= sc.M) fm.K = `信源数 K 必须小于阵元数 M（当前 K = ${sc.K}，M = ${sc.M}）`;
+  if (sc.Kmode === 'fixed' && sc.angMode === 'fixed' && sc.angles.length !== sc.K) fm.ang = `填了 ${sc.angles.length} 个角度，信源数 K 是 ${sc.K}，两者要一致`;
+  if (sc.Kmode === 'fixed' && sc.angMode === 'separation' && sc.K !== 2) fm.ang = '“中心 ± 间隔/2”只用于 2 个信源，请把 K 改成 2';
+  if (sc.Kmode === 'rand' && sc.angMode !== 'random') fm.ang = '信源数随机时，角度只能用“范围内随机”';
+  if (sc.N < sc.M) fm.N = `快拍数小于阵元数（${sc.N} < ${sc.M}），样本协方差秩亏，可以运行`;
+  if (fm.M) add('e', '场景', fm.M, 'f-M');
+  if (fm.K) add('e', '场景', fm.K, 'f-K');
+  if (fm.ang) add('e', '场景', fm.ang, 'f-ang');
+  if (fm.N) add('w', '场景', fm.N, 'f-N');
+  if (S.mode === 'sweep') {
+    if (!sw) add('e', '实验方式', '还没有选择扫描变量：在任一数值字段旁点“扫描”', 'modePanel');
+    else if (!sw.vals || sw.vals.length < 2) add('e', '实验方式', `${sw.name} 的扫描取值无法识别，至少要 2 个取值`, sw.target);
+  }
+  const chk = {};
+  S.algos.forEach(a => {
+    const c = chk[a.uid] = checkAlgo(a, sc); if (!a.on) return;
+    c.e.forEach(t => add('e', a.label, t, 'ac-' + a.uid)); c.w.forEach(t => add('w', a.label, t, 'ac-' + a.uid));
   });
-  $('#sumTable').innerHTML = $('#sumTable').rows[0].outerHTML + rows.join('');
+  if (!S.algos.some(a => a.on)) add('e', '算法', '至少启用一个算法', 'algos');
+  return { is, chk, fm };
 }
-$('#runBtn').onclick = () => {
-  location.hash = '#run';
-  let p = 0; $('#cancelBtn').disabled = false;
-  $('#runStatus').className = 'tag blue'; $('#runStatus').textContent = '运行中';
-  clearInterval(timer);
-  timer = setInterval(() => {
-    p++; drawChart($('#chart'), p, runSeries);
-    $('#progBar').style.width = (p / 7 * 100) + '%';
-    $('#progTxt').textContent = `扫描点 ${p}/7：SNR = ${SNR[p - 1]} dB`;
-    $('#eta').textContent = p < 7 ? `剩余约 ${(7 - p) * 6} 秒` : '';
-    if (p === 7){ clearInterval(timer); finish('完成', 'tag ok'); }
-  }, 700);
+
+// ---------- 算法列表 ----------
+function form(a) {
+  const d = DEFS[a.def];
+  const one = p => {
+    const key = `|${a.uid}|${p.k}`, fk = `${a.uid}:${p.k}`, v = val(a, p.k), act = S.mode === 'sweep' && S.sweep === key;
+    let ctl;
+    if (p.type === 'select') ctl = `<select data-k="${p.k}" data-fk="${fk}" id="${fk}" style="width:150px">${p.opts.map(o => `<option value="${o[0]}"${o[0] === v ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+    else if (act) ctl = `<input class="rng" data-rng="${p.k}" data-fk="${fk}" id="${fk}" value="${esc(a.rng[p.k])}" aria-label="扫描取值">`;
+    else ctl = `<input type="number" step="any" data-k="${p.k}" data-fk="${fk}" id="${fk}" value="${v ?? ''}" placeholder="${p.none || ''}">`;
+    const swp = p.type === 'number' ? `<button type="button" class="swp" data-swk="${p.k}">${act ? '取消扫描' : '扫描'}</button>` : '';
+    return `<div class="fld${act ? ' swon' : ''}"><label for="${fk}">${esc(p.label)}</label><div class="ctl">${ctl}${p.unit ? `<span class="unit">${p.unit}</span>` : ''}${swp}</div>${act ? `<p class="rng-info">${rangeInfo(parseRange(a.rng[p.k]))}</p>` : ''}</div>`;
+  };
+  const main = d.params.filter(p => !p.adv), adv = d.params.filter(p => p.adv);
+  return `<div class="ac-bd"><p class="ac-meta">插件 ${a.def}，来自 ${esc(d.grp)}，版本 ${d.ver}${d.git ? `，commit ${d.git}` : ''}${d.dirty ? '。<span class="tag warn">有未提交修改</span>运行时自动保存 diff' : ''}</p>
+    ${main.map(one).join('')}${adv.length ? `<details class="adv"${adv.some(p => val(a, p.k) !== p.def) ? ' open' : ''}><summary>高级</summary>${adv.map(one).join('')}</details>` : ''}</div>`;
+}
+function renderAlgos(chk) {
+  const ae = document.activeElement, fk = ae && ae.dataset ? ae.dataset.fk : null;
+  $('#algoList').innerHTML = S.algos.map(a => {
+    const c = chk[a.uid], ext = DEFS[a.def].grp !== '内置';
+    return `<div class="ac${a.open ? ' open' : ''}${a.on ? '' : ' off'}${a.on && c.e.length ? ' bad' : ''}" id="ac-${a.uid}" data-uid="${a.uid}">
+      <div class="ac-hd">${swatch(a.sty)}<input class="ac-name" data-fk="${a.uid}:name" value="${esc(a.label)}" aria-label="图例中显示的名称" title="图例中显示的名称，可以改">
+        ${ext ? '<span class="tag blue">外部</span>' : ''}
+        <button class="ib" data-act="dup" title="复制一份，用来比较不同参数" aria-label="复制一份">${I.copy}</button>
+        <button class="ib" data-act="del" title="移除" aria-label="移除">${I.x}</button>
+        <label class="sw" title="${a.on ? '参与本次实验' : '已停用'}"><input type="checkbox" data-act="on" ${a.on ? 'checked' : ''} aria-label="参与本次实验"><i></i></label>
+        <button class="ib chev" data-act="open" aria-expanded="${a.open}" aria-label="展开参数">${I.chev}</button></div>
+      ${a.open ? '' : `<div class="ac-sum">${esc(diffSummary(a))}</div>`}
+      ${c.e.map(t => `<div class="ac-msg e">${I.err}<span>${esc(t)}</span></div>`).join('')}${c.w.map(t => `<div class="ac-msg w">${I.warn}<span>${esc(t)}</span></div>`).join('')}
+      ${a.open ? form(a) : ''}</div>`;
+  }).join('') || '<p class="empty">还没有算法。点右上角“添加算法”，从内置基线或课题仓库里选。</p>';
+  if (fk) { const el = $(`[data-fk="${fk}"]`); if (el) el.focus(); }
+}
+const instOf = el => S.algos.find(a => a.uid === el.closest('.ac').dataset.uid);
+$('#algoList').addEventListener('click', e => {
+  const ac = e.target.closest('.ac'); if (!ac) return;
+  const a = instOf(ac), act = e.target.closest('[data-act]'), swk = e.target.closest('[data-swk]');
+  if (swk) {
+    const k = swk.dataset.swk, key = `|${a.uid}|${k}`, v = val(a, k) || 2;
+    if (!a.rng[k]) a.rng[k] = [v / 2, v, v * 2, v * 5].map(x => +x.toPrecision(3)).join(', ');
+    S.sweep = S.sweep === key ? null : key; return refresh();
+  }
+  if (act) {
+    const t = act.dataset.act;
+    if (t === 'on') return;                                    // 由 change 事件处理
+    if (t === 'dup') { const b = addAlgo(a.def, a.label + ' 副本', a.v, S.algos.indexOf(a) + 1); b.open = true; }
+    if (t === 'del') { S.algos.splice(S.algos.indexOf(a), 1); if (S.sweep && S.sweep.startsWith(`|${a.uid}|`)) S.sweep = null; }
+    if (t === 'open') a.open = !a.open;
+    return refresh();
+  }
+  if (e.target.closest('.ac-hd,.ac-sum') && !e.target.closest('input,button,label')) { a.open = !a.open; refresh(); }
+});
+$('#algoList').addEventListener('input', e => { if (e.target.classList.contains('ac-name')) { instOf(e.target).label = e.target.value; refresh(true); } });
+$('#algoList').addEventListener('change', e => {
+  const t = e.target, a = t.closest('.ac') && instOf(t); if (!a) return;
+  if (t.dataset.act === 'on') a.on = t.checked;
+  else if (t.dataset.rng) a.rng[t.dataset.rng] = t.value;
+  else if (t.dataset.k) { const p = param(a, t.dataset.k); a.v[p.k] = p.type === 'number' ? (t.value === '' ? null : +t.value) : t.value; }
+  else return;
+  refresh();
+});
+
+// ---------- 添加算法面板 ----------
+function renderAdd() {
+  const q = $('#addQ').value.trim().toLowerCase(), sc = scene(), groups = {};
+  Object.entries(DEFS).forEach(([id, d]) => { if (!q || (id + d.name + d.desc).toLowerCase().includes(q)) (groups[d.grp] = groups[d.grp] || []).push([id, d]); });
+  $('#addList').innerHTML = Object.entries(groups).map(([g, rows]) => `<div class="ar-g">${g === '内置' ? '内置基线' : '外部，来自 ' + esc(g)}</div>` + rows.map(([id, d]) => {
+    const u = unavail(id, sc);
+    return `<button class="ar" data-def="${id}"${u ? ' disabled' : ''}><b>${esc(d.name)}</b><span class="ar-c">${esc(d.cond)}</span><span class="ar-d">${esc(u ? '不能添加：' + u : d.desc)}</span></button>`;
+  }).join('')).join('') || '<p class="empty">没有匹配的算法。新写的算法要先在“算法库”页点刷新。</p>';
+}
+$('#addQ').oninput = renderAdd;
+$('#addList').onclick = e => {
+  const b = e.target.closest('.ar'); if (!b || b.disabled) return;
+  const n = S.algos.filter(a => a.def === b.dataset.def).length, a = addAlgo(b.dataset.def, DEFS[b.dataset.def].name + (n ? ' ' + (n + 1) : ''));
+  a.open = true; $('#addPop').hidden = true; refresh(); jump('ac-' + a.uid);
 };
-$('#cancelBtn').onclick = () => { clearInterval(timer); finish('已中止（保留已完成扫描点）', 'tag warn'); };
-function finish(txt, cls){
-  $('#runStatus').className = cls; $('#runStatus').textContent = txt;
-  $('#cancelBtn').disabled = true; fillTable();
+
+// ---------- 预览与摘要 ----------
+function drawPreview(sc) {
+  const cx = 140, cy = 142, Rd = 100, rad = Math.PI / 180, pt = (t, r) => [cx + r * Math.sin(t * rad), cy - r * Math.cos(t * rad)];
+  let h = `<path d="M${cx - Rd} ${cy}A${Rd} ${Rd} 0 0 1 ${cx + Rd} ${cy}" fill="none" stroke="#d5d9df"/>`;
+  [-90, -60, -30, 0, 30, 60, 90].forEach(t => { const a = pt(t, Rd), b = pt(t, Rd + 4), c = pt(t, Rd + 15); h += `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="#b9bfc8"/><text x="${c[0]}" y="${c[1] + 3}" text-anchor="middle">${num(t)}°</text>`; });
+  h += `<line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - Rd}" stroke="#d5d9df" stroke-dasharray="3 3"/>`;
+  if (sc.angMode === 'random') {
+    const lo = Math.max(-90, Math.min(sc.lo, sc.hi)), hi = Math.min(90, Math.max(sc.lo, sc.hi)), a = pt(lo, Rd), b = pt(hi, Rd);
+    h += `<path d="M${cx} ${cy}L${a[0]} ${a[1]}A${Rd} ${Rd} 0 0 1 ${b[0]} ${b[1]}Z" fill="#1c1f2314" stroke="#6b7280" stroke-dasharray="3 3"/>`;
+  } else (sc.angles || []).filter(t => Math.abs(t) < 90).forEach(t => { const p = pt(t, Rd); h += `<line x1="${cx}" y1="${cy}" x2="${p[0]}" y2="${p[1]}" stroke="#1c1f23" stroke-width="1.6"/><circle cx="${p[0]}" cy="${p[1]}" r="3" fill="#1c1f23"/>`; });
+  const M = Math.max(2, Math.min(sc.M || 2, 128)), span = Math.min(208, (M - 1) * 13), r = M <= 20 ? 3.2 : M <= 48 ? 2 : 1.2, jit = rnd(7);
+  for (let m = 0; m < M; m++) {
+    const bad = sc.faultIdx.includes(m), dx = sc.pos && m ? (jit() - .5) * span / (M - 1) * .5 : 0, dy = sc.pos && m ? (jit() - .5) * 6 : 0;
+    h += `<circle cx="${(cx - span / 2 + m * span / (M - 1) + dx).toFixed(1)}" cy="${(cy + dy).toFixed(1)}" r="${bad ? r + .8 : r}" fill="${bad ? '#c02626' : '#5b6777'}" stroke="#fff"/>`;
+  }
+  $('#preview').innerHTML = h;
+  const cap = [sc.angMode === 'random' ? `每次试验在 ${num(sc.lo)}° 至 ${num(sc.hi)}° 内随机抽取角度` : `黑线是信源方向：${(sc.angles || []).map(t => num(t) + '°').join('、')}`];
+  if (sc.faultIdx.length) cap.push('红点是故障阵元'); if (sc.pos) cap.push('阵元偏移为示意，已放大');
+  $('#prevCap').textContent = cap.join('；') + '。';
 }
+function texts(sc, sw) {
+  const K = sc.Kmode === 'rand' ? `K 在 {${sc.Kset}} 中随机` : `${sc.K} 个${CORR[sc.corr]}信源`;
+  const ang = sc.angMode === 'random' ? `角度在 ${num(sc.lo)}° 至 ${num(sc.hi)}° 内随机` : (sc.angles || []).map(t => num(t) + '°').join('、');
+  const way = S.mode === 'single' ? '单次实验' : S.mode === 'mc' ? `蒙特卡罗，${$('#trials').value} 次试验`
+    : sw && sw.vals ? `扫描 ${sw.name}：${num(sw.vals[0])} 到 ${num(sw.vals[sw.vals.length - 1])}${sp(sw.unit)}，${sw.vals.length} 个点，每点 ${$('#trials').value} 次试验` : '参数扫描（扫描变量未设置）';
+  return { way, arr: `${sc.M} 阵元均匀线阵，间距 ${sc.d}λ`, src: `${K}，${ang}`, sig: `${sw && sw.path.endsWith('snr_db') ? '' : `SNR ${num(sc.snr)} dB，`}快拍数 ${sc.N}`,
+    imp: sc.imps.length ? sc.imps.map(i => `${i.name}（${i.real}）`).join('、') : '无' };
+}
+
+// ---------- 刷新整个配置页 ----------
+function refresh(keepAlgos) {
+  document.body.className = 'm-' + S.mode + (document.body.classList.contains('show-req') ? ' show-req' : '');
+  $$('.mode').forEach(b => b.setAttribute('aria-checked', b.dataset.mode === S.mode));
+  const am = $('#angMode').value;
+  $('#angFixed').hidden = am !== 'fixed'; $('#angRand').hidden = $('#angGapF').hidden = am !== 'random'; $('#angCen').hidden = $('#f-sep').hidden = am !== 'separation';
+  $('#f-rho').hidden = $('#corr').value !== 'partial';
+  $('#K').hidden = $('#Kmode').value !== 'fixed'; $('#Kset').hidden = !$('#K').hidden;
+  $$('.imp').forEach(i => i.classList.toggle('on', $('.sw input', i).checked));
+  const sc = scene(), sw = sweepInfo(), V = validate(sc, sw), tx = texts(sc, sw);
+  Object.values(SW).forEach(s => {
+    const act = S.mode === 'sweep' && SW[S.sweep] === s && fieldLive(s.f);
+    s.f.classList.toggle('swon', act); s.b.textContent = act ? '取消扫描' : '扫描'; s.b.setAttribute('aria-pressed', act);
+    s.b.title = act ? '' : `把${s.name}设为扫描变量`; s.info.textContent = rangeInfo(parseRange(s.rng.value));
+  });
+  ['M', 'K', 'N', 'ang'].forEach(k => $('#m-' + k).textContent = V.fm[k]);
+  $('#m-ang').className = 'msg';
+  if (!keepAlgos) renderAlgos(V.chk);
+  // 实验方式
+  const chip = $('#swChip');
+  chip.className = 'swchip' + (sw ? '' : ' none');
+  chip.innerHTML = sw ? `<b>${esc(sw.name)}</b>　${sw.vals && sw.vals.length > 1 ? `${num(sw.vals[0])} 到 ${num(sw.vals[sw.vals.length - 1])}${sp(sw.unit)}，${sw.vals.length} 个取值` : '取值未填好'}` : '还没有选择，在下面任一数值字段旁点“扫描”';
+  chip.onclick = () => sw && jump(sw.target);
+  $('#trialsL').textContent = S.mode === 'sweep' ? '每点试验次数' : '试验次数';
+  // 分组摘要
+  $('#sArr').textContent = tx.arr; $('#sSrc').textContent = `${tx.src}，${tx.sig}`; $('#sImp').textContent = tx.imp; $('#sAdv').textContent = `种子 ${sc.seed}`;
+  const on = S.algos.filter(a => a.on);
+  $('#algoCnt').textContent = `${on.length} 个参与` + (on.length < S.algos.length ? `，${S.algos.length - on.length} 个停用` : '');
+  $('#sumList').innerHTML = [['实验方式', tx.way], ['阵列', tx.arr], ['信源', `${tx.src}；${tx.sig}`], ['阵列误差', tx.imp], ['算法', on.map(a => a.label).join('、') || '无'], ['随机种子', sc.seed]]
+    .map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('');
+  drawPreview(sc);
+  // 运行栏
+  const pts = S.mode === 'sweep' ? (sw && sw.vals ? sw.vals.length : 0) : 1, T = S.mode === 'single' ? 1 : Math.max(1, +$('#trials').value || 0), total = pts * T * on.length, sec = total * 0.0028;
+  const dur = sec < 1 ? '不到 1 秒' : sec < 90 ? `约 ${sec < 20 ? Math.round(sec) : Math.round(sec / 5) * 5} 秒` : `约 ${Math.round(sec / 60)} 分钟`;
+  $('#est').className = total > 200000 ? 'big' : '';
+  $('#est').innerHTML = (S.mode === 'sweep' ? `${pts} 个扫描点 × ${fmtInt(T)} 次试验 × ${on.length} 个算法，` : S.mode === 'mc' ? `${fmtInt(T)} 次试验 × ${on.length} 个算法，` : `${on.length} 个算法各运行一次，`)
+    + `共 <b>${fmtInt(total)}</b> 次估计，预计${dur}` + (total > 200000 ? '。次数较多，建议先用少量试验确认配置' : '');
+  const ne = V.is.filter(i => i.lv === 'e').length, nw = V.is.length - ne, ib = $('#issBtn');
+  ib.hidden = !V.is.length; ib.className = 'iss ' + (ne ? 'e' : 'w');
+  ib.innerHTML = (ne ? I.err : I.warn) + [ne ? `${ne} 个错误` : '', nw ? `${nw} 条警告` : ''].filter(Boolean).join('，');
+  $('#issPop').innerHTML = V.is.map((i, n) => `<button class="il" data-i="${n}"><span class="lv ${i.lv}">${i.lv === 'e' ? '错误' : '警告'}</span><span><b>${esc(i.who)}</b>　${esc(i.text)}</span></button>`).join('');
+  $('#issPop').onclick = e => { const b = e.target.closest('.il'); if (b) { $('#issPop').hidden = true; jump(V.is[+b.dataset.i].id); } };
+  $('#runBtn').disabled = !!ne; $('#runWhy').textContent = ne ? '改正错误后才能运行' : nw ? '警告不影响运行' : '';
+  S.last = { sc, sw, V, tx };
+}
+function jump(id) {
+  let el = document.getElementById(id); if (!el) return;
+  const det = el.closest('details:not([open])'); if (det) det.open = true;
+  const still = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  el.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1700);
+}
+$$('.mode').forEach(b => b.onclick = () => { S.mode = b.dataset.mode; refresh(); });
+$('#scene').addEventListener('input', e => { if (!e.target.classList.contains('rng')) refresh(); });
+$('#scene').addEventListener('change', () => refresh());
+$('#trials').oninput = () => refresh();
+$('#seedBtn').onclick = () => { $('#seed').value = Math.floor(Math.random() * 1e9); refresh(); };   // 界面随手生成种子，不参与仿真
+$('#metrics').innerHTML = ['RMSE', '成功率', '分辨概率', '耗时', 'CRB 参考线'].map(m => `<button type="button" class="chip" aria-pressed="true">${m}</button>`).join(' ');
+$('#metrics').onclick = e => { const c = e.target.closest('.chip'); if (c) c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') !== 'true'); };
+$('#reqTg').onchange = e => document.body.classList.toggle('show-req', e.target.checked);
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-pop]'), tb = e.target.closest('[data-toast]');
+  $$('.pop').forEach(p => {
+    if (b && p.id === b.dataset.pop) { p.hidden = !p.hidden; if (!p.hidden && p.id === 'addPop') { $('#addQ').value = ''; renderAdd(); $('#addQ').focus(); } }
+    else if (!p.contains(e.target) || tb) p.hidden = true;
+  });
+  if (tb) toast(`原型演示：正式界面会把 ${tb.dataset.toast} 写入实验目录的 exports/ 并下载`);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $$('.pop').forEach(p => p.hidden = true); });
+
+// ---------- 假数据（后端）：由配置快照生成一份结果 ----------
+function rnd(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ t >>> 15, 1 | t); r ^= r + Math.imul(r ^ r >>> 7, 61 | r); return ((r ^ r >>> 14) >>> 0) / 4294967296; }; }
+function hash(s) { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+const QUAL = { cbf: { q: 3, g: 3, fl: .25, s: .6, t: .12 }, mvdr: { q: 2, g: 2.6, fl: .02, s: .8, t: .2 }, music: { q: 1.5, g: 2.4, fl: .012, s: 1, t: .19 },
+  root_music: { q: 1.22, g: 2, fl: .01, s: 1.1, t: .11 }, esprit: { q: 1.32, g: 2, fl: .01, s: 1.05, t: .09 }, cnn_grid_b: { q: 1.12, g: 1.1, fl: .07, s: 1.5, t: .03 } };
+function snapshot(mode) {
+  const { sc, sw, V, tx } = S.last; mode = mode || S.mode;
+  const s = mode === 'sweep' ? (sw && sw.vals && sw.vals.length > 1 ? sw : { name: 'SNR', unit: 'dB', vals: [-10, -5, 0, 5, 10, 15, 20] }) : null;
+  return { name: $('#expName').value || '未命名实验', mode, sc, tx, sw: s, trials: mode === 'single' ? 1 : Math.max(1, +$('#trials').value || 500),
+    truth: sc.angles && sc.angles.length ? sc.angles : [-10, 10],
+    algos: S.algos.filter(a => a.on && !V.chk[a.uid].e.length).map(a => ({ id: a.uid, def: a.def, name: a.label, sty: a.sty, spec: !!DEFS[a.def].spec, d: DEFS[a.def],
+      model: val(a, 'model'), fail: !!param(a, 'smoothing') && val(a, 'smoothing') === 'none' && sc.corr === 'coh' })),
+    warns: V.is.filter(i => i.lv === 'w') };
+}
+function build(cfg) {
+  const n = cfg.sw ? cfg.sw.vals.length : 1, T = cfg.trials, U = i => n > 1 ? i / (n - 1) : 2 / 3;
+  const crb = [...Array(n)].map((_, i) => 0.18 * Math.pow(10, -(-10 + 30 * U(i)) / 20));
+  const algos = cfg.algos.map(a => {
+    const r = rnd(hash(a.id + a.def)), q = QUAL[a.def], o = { ...a, rmse: [], ratio: [], succ: [], res: [], time: [], incl: [], err: [] };
+    for (let i = 0; i < n; i++) {
+      const u = U(i), j = 1 + (r() - .5) * .08;
+      const rm = a.fail ? (8.4 - 1.2 * u) * j : Math.max(crb[i] * (q.q + q.g * Math.exp(-4 * u)), q.fl + (cfg.sc.imps.length ? .02 : 0)) * j;
+      const inc = a.fail ? Math.round(T * (.39 + .04 * u)) : Math.round(T * Math.min(1, .72 + .9 * u));
+      const sr = Math.min(inc / T, a.fail ? .34 + .05 * u : 1 - Math.exp(-(.55 + 6 * u) * q.s));
+      o.rmse.push(rm); o.ratio.push(rm / crb[i]); o.succ.push(sr * 100); o.res.push(Math.min(100, sr * (a.fail ? 60 : 102)));
+      o.time.push(q.t * (1 + (r() - .5) * .1)); o.incl.push(inc); o.err.push(a.def === 'cnn_grid_b' && cfg.mode !== 'single' && i === Math.min(1, n - 1) ? 2 : 0);
+    }
+    // 单次实验：估计角度与空间谱的形状
+    o.est = a.fail ? [1.4, -37.6] : cfg.truth.map(t => +(t + (r() - .5) * 2.4 * q.q * .06).toFixed(2));
+    o.peaks = a.fail ? [{ t: 1.4, a: 1, w: 5 }, { t: -37.6, a: .06, w: 3 }] : o.est.map(t => ({ t, a: 1, w: { cbf: 3.4, mvdr: 1.3, music: .5, cnn_grid_b: .9 }[a.def] || 1 }));
+    o.floor = { cbf: .004, mvdr: .0015, music: .0003, cnn_grid_b: .0008 }[a.def] || .001;
+    return o;
+  });
+  return { cfg, n, T, crb, algos, done: n, prog: 0, state: 'completed', metric: 'rmse', log: true, sel: n - 1, hidden: new Set(), sort: { k: null, dir: 1 }, db: true };
+}
+
+// ---------- 图：折线 ----------
+function hover(svg, tip, W, fn, onClick) {
+  const hit = $('.hit', svg), g = $('.hv', svg); if (!hit) return;
+  const vx = e => { const r = svg.getBoundingClientRect(); return (e.clientX - r.left) / r.width * W; };
+  hit.onmousemove = e => {
+    const res = fn(vx(e)); if (!res) return hit.onmouseleave();
+    g.innerHTML = res.svg; tip.innerHTML = res.html; tip.hidden = false;
+    const wr = tip.parentElement.getBoundingClientRect(); let left = e.clientX - wr.left + 16;
+    if (left + tip.offsetWidth > wr.width - 4) left = e.clientX - wr.left - tip.offsetWidth - 16;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - wr.top - 20) + 'px';
+  };
+  hit.onmouseleave = () => { g.innerHTML = ''; tip.hidden = true; };
+  hit.onclick = e => onClick && onClick(vx(e));
+}
+function niceTicks(max) { const p = Math.pow(10, Math.floor(Math.log10(max))), m = max / p, st = (m <= 1.2 ? .25 : m <= 2.5 ? .5 : m <= 5 ? 1 : 2) * p, o = []; for (let v = 0; v <= max * 1.0001 + st * .999; v += st) o.push(+v.toPrecision(6)); return o; }
+const tipRow = (sty, name, v) => `<div class="tr">${swatch(sty)}<span>${esc(name)}</span><em>${v}</em></div>`;
+function lineChart(svg, o) {
+  const W = 760, H = 336, L = 62, Rr = 18, T = 12, B = 48, pw = W - L - Rr, ph = H - T - B;
+  const xs = o.x, x0 = Math.min(...xs), xr = (Math.max(...xs) - x0) || 1, X = v => L + 22 + (v - x0) / xr * (pw - 44);
+  const [lo, hi] = o.dom, lg = Math.log10;
+  const Y = o.log ? v => T + (1 - (lg(Math.min(Math.max(v, lo), hi)) - lg(lo)) / (lg(hi) - lg(lo))) * ph : v => T + (1 - (v - lo) / (hi - lo)) * ph;
+  let h = '';
+  if (o.sel != null && o.sel < o.n) h += `<rect x="${X(xs[o.sel]) - 16}" y="${T}" width="32" height="${ph}" rx="4" fill="#eef1f5"/>`;
+  o.ticks.forEach(t => h += `<line x1="${L}" x2="${W - Rr}" y1="${Y(t)}" y2="${Y(t)}" stroke="#e9ebee"/><text x="${L - 8}" y="${Y(t) + 4}" text-anchor="end">${o.fmt(t)}</text>`);
+  h += `<line x1="${L}" x2="${W - Rr}" y1="${T + ph}" y2="${T + ph}" stroke="#b9bfc8"/>`;
+  const skip = Math.ceil(xs.length / 12);
+  xs.forEach((v, i) => { if (i % skip === 0 || i === o.sel) h += `<text x="${X(v)}" y="${T + ph + 18}" text-anchor="middle"${i === o.sel && i < o.n ? ' class="b"' : ''}>${num(v)}</text>`; });
+  h += `<text class="ax" x="${L + pw / 2}" y="${H - 8}" text-anchor="middle">${esc(o.xLabel)}</text><text class="ax" x="15" y="${T + ph / 2}" text-anchor="middle" transform="rotate(-90 15 ${T + ph / 2})">${esc(o.yLabel)}</text>`;
+  const vis = o.series.filter(s => !o.hidden.has(s.id));
+  vis.forEach(s => {
+    const pts = xs.slice(0, o.n).map((v, i) => [X(v), Y(s.v[i])]);
+    if (pts.length > 1) h += `<polyline fill="none" stroke="${s.sty.c}" stroke-width="2" stroke-linejoin="round" ${s.sty.d ? `stroke-dasharray="${s.sty.d}"` : ''} points="${pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}"/>`;
+    pts.forEach((p, i) => { const hol = s.hollow && s.hollow[i]; h += mark(s.sty.m, p[0], p[1], 4.2, hol ? '#fff' : s.sty.c, hol ? s.sty.c : '#fff'); });
+  });
+  h += `<g class="hv"></g><rect class="hit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = h;
+  const near = vx => { let b = -1, bd = 1e9; for (let i = 0; i < o.n; i++) { const dd = Math.abs(X(xs[i]) - vx); if (dd < bd) { bd = dd; b = i; } } return b; };
+  hover(svg, o.tip, W, vx => {
+    const i = near(vx); if (i < 0) return null;
+    return { svg: `<line x1="${X(xs[i])}" x2="${X(xs[i])}" y1="${T}" y2="${T + ph}" stroke="#6b7280" stroke-dasharray="3 3"/>`,
+      html: `<b>${esc(o.xName)} = ${num(xs[i])}${sp(o.xUnit)}</b>` + vis.map(s => tipRow(s.sty, s.name, o.tipFmt(s.v[i]))).join('') };
+  }, o.onSel && (vx => { const i = near(vx); if (i >= 0) o.onSel(i); }));
+}
+
+// ---------- 图：空间谱（单次实验） ----------
+function specChart(svg, tip) {
+  const al = R.algos.filter(a => !R.hidden.has(a.id)), truth = R.cfg.truth;
+  const W = 760, L = 62, Rr = 18, T = 26, ph = 236, lh = 15, laneT = T + ph + 8, axY = laneT + al.length * lh + 2, H = axY + 44, pw = W - L - Rr;
+  const X = t => L + (t + 90) / 180 * pw, lin = (a, t) => Math.min(1, a.floor + a.peaks.reduce((s, p) => s + p.a / Math.pow(1 + Math.pow((t - p.t) / p.w, 2), 2), 0));
+  const dB = v => Math.max(-50, 10 * Math.log10(v)), Y = v => R.db ? T + (-dB(v) / 50) * ph : T + (1 - v) * ph;
+  let h = '';
+  (R.db ? [0, -10, -20, -30, -40, -50] : [0, .25, .5, .75, 1]).forEach(t => { const y = R.db ? T + (-t / 50) * ph : T + (1 - t) * ph; h += `<line x1="${L}" x2="${W - Rr}" y1="${y}" y2="${y}" stroke="#e9ebee"/><text x="${L - 8}" y="${y + 4}" text-anchor="end">${num(t)}</text>`; });
+  truth.forEach(t => h += `<line x1="${X(t)}" x2="${X(t)}" y1="${T - 4}" y2="${axY}" stroke="${REF.c}" stroke-dasharray="${REF.d}"/><text class="ax" x="${X(t)}" y="${T - 10}" text-anchor="middle">${num(t)}°</text>`);
+  al.forEach((a, k) => {
+    const y = laneT + k * lh + lh / 2; h += `<line x1="${L}" x2="${W - Rr}" y1="${y}" y2="${y}" stroke="#eef0f2"/>`;
+    if (a.spec) { let pts = ''; for (let t = -90; t <= 90; t += .5) pts += `${X(t).toFixed(1)},${Y(lin(a, t)).toFixed(1)} `; h += `<polyline fill="none" stroke="${a.sty.c}" stroke-width="2" stroke-linejoin="round" ${a.sty.d ? `stroke-dasharray="${a.sty.d}"` : ''} points="${pts}"/>`; }
+  });
+  al.forEach((a, k) => a.est.forEach(t => h += mark(a.sty.m, X(t), laneT + k * lh + lh / 2, 4.2, a.sty.c, '#fff')));
+  h += `<text x="${L - 8}" y="${laneT + al.length * lh / 2 + 4}" text-anchor="end">估计角度</text><line x1="${L}" x2="${W - Rr}" y1="${axY}" y2="${axY}" stroke="#b9bfc8"/>`;
+  for (let t = -90; t <= 90; t += 30) h += `<text x="${X(t)}" y="${axY + 18}" text-anchor="middle">${num(t)}</text>`;
+  h += `<text class="ax" x="${L + pw / 2}" y="${H - 8}" text-anchor="middle">角度（°）</text><text class="ax" x="15" y="${T + ph / 2}" text-anchor="middle" transform="rotate(-90 15 ${T + ph / 2})">${R.db ? '归一化空间谱（dB）' : '归一化空间谱'}</text>`;
+  h += `<g class="hv"></g><rect class="hit" x="${L}" y="${T}" width="${pw}" height="${axY - T}" fill="transparent"/>`;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = h;
+  hover(svg, tip, W, vx => {
+    const t = Math.round(((vx - L) / pw * 180 - 90) * 2) / 2; if (t < -90 || t > 90) return null;
+    return { svg: `<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${axY}" stroke="#6b7280" stroke-dasharray="3 3"/>`,
+      html: `<b>θ = ${num(t.toFixed(1))}°</b>` + al.map(a => tipRow(a.sty, a.name, a.spec ? (R.db ? num(dB(lin(a, t)).toFixed(1)) + ' dB' : lin(a, t).toFixed(3)) : '无空间谱')).join('') };
+  });
+}
+
+// ---------- 图：估计值分布（蒙特卡罗） ----------
+function histChart(svg, tip) {
+  const al = R.algos.filter(a => !R.hidden.has(a.id)), truth = R.cfg.truth.slice(0, 3), np = truth.length;
+  const W = 760, H = 320, L = 62, Rr = 18, T = 30, B = 48, gap = 30, pw = (W - L - Rr - gap * (np - 1)) / np, ph = H - T - B, win = .6, nb = 24;
+  const data = al.map(a => truth.map((t, j) => {
+    const r = rnd(hash(a.id + 'h' + j)), c = Array(nb).fill(0), sd = a.rmse[0];
+    for (let i = 0; i < a.incl[0]; i++) { const z = Math.sqrt(-2 * Math.log(r() + 1e-12)) * Math.cos(6.2832 * r()) * sd, b = Math.floor((z + win) / (2 * win) * nb); if (b >= 0 && b < nb) c[b]++; }
+    return c;
+  }));
+  const ymax = niceTicks(Math.max(10, ...data.flat(2))), top = ymax[ymax.length - 1], Y = v => T + (1 - v / top) * ph, P0 = j => L + j * (pw + gap);
+  let h = '';
+  ymax.forEach(t => { h += `<text x="${L - 8}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`; truth.forEach((_, j) => h += `<line x1="${P0(j)}" x2="${P0(j) + pw}" y1="${Y(t)}" y2="${Y(t)}" stroke="#e9ebee"/>`); });
+  truth.forEach((t, j) => {
+    const X = v => P0(j) + (v - (t - win)) / (2 * win) * pw;
+    h += `<text class="b" x="${P0(j) + pw / 2}" y="14" text-anchor="middle">信源 ${j + 1}，真值 ${num(t)}°</text><line x1="${X(t)}" x2="${X(t)}" y1="${T - 4}" y2="${T + ph}" stroke="${REF.c}" stroke-dasharray="${REF.d}"/><line x1="${P0(j)}" x2="${P0(j) + pw}" y1="${T + ph}" y2="${T + ph}" stroke="#b9bfc8"/>`;
+    [-.4, -.2, 0, .2, .4].forEach(d => h += `<text x="${X(t + d)}" y="${T + ph + 18}" text-anchor="middle">${num(+(t + d).toFixed(2))}</text>`);
+    al.forEach((a, k) => { let pts = ''; data[k][j].forEach((c, b) => pts += `${(P0(j) + b * pw / nb).toFixed(1)},${Y(c).toFixed(1)} ${(P0(j) + (b + 1) * pw / nb).toFixed(1)},${Y(c).toFixed(1)} `); h += `<polyline fill="none" stroke="${a.sty.c}" stroke-width="2" stroke-linejoin="round" ${a.sty.d ? `stroke-dasharray="${a.sty.d}"` : ''} points="${pts}"/>`; });
+  });
+  h += `<text class="ax" x="${L + (W - L - Rr) / 2}" y="${H - 8}" text-anchor="middle">估计角度（°）</text><text class="ax" x="15" y="${T + ph / 2}" text-anchor="middle" transform="rotate(-90 15 ${T + ph / 2})">试验数</text>`;
+  h += `<g class="hv"></g><rect class="hit" x="${L}" y="${T}" width="${W - L - Rr}" height="${ph}" fill="transparent"/>`;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.innerHTML = h;
+  hover(svg, tip, W, vx => {
+    const j = Math.min(np - 1, Math.floor((vx - L) / (pw + gap))), b = Math.floor((vx - P0(j)) / pw * nb); if (b < 0 || b >= nb) return null;
+    const a0 = truth[j] - win + b * 2 * win / nb;
+    return { svg: `<rect x="${P0(j) + b * pw / nb}" y="${T}" width="${pw / nb}" height="${ph}" fill="#1c1f2312"/>`,
+      html: `<b>信源 ${j + 1}：${num(a0.toFixed(2))}° 至 ${num((a0 + 2 * win / nb).toFixed(2))}°</b>` + al.map((a, k) => tipRow(a.sty, a.name, data[k][j][b] + ' 次')).join('') };
+  });
+}
+
+// ---------- 运行与结果页 ----------
+let R = null, timer = null;
+const MET = {
+  rmse: { y: 'RMSE（°）', logOk: true, get: a => a.rmse, fmt: v => v.toFixed(3) + '°' },
+  succ: { y: '成功率（%）', pct: true, get: a => a.succ, fmt: v => v.toFixed(1) + '%' },
+  res: { y: '分辨概率（%）', pct: true, get: a => a.res, fmt: v => v.toFixed(1) + '%' },
+  time: { y: '单次估计耗时中位数（ms）', get: a => a.time, fmt: v => v.toFixed(3) + ' ms' },
+};
+const LOW = (a, i) => a.incl[i] / R.T < .8;      // 纳入统计的试验不足 80%
+function drawRun() {
+  const c = R.cfg, type = c.mode, run = R.state === 'running', pg = $('#p-run');
+  pg.dataset.type = type;
+  $$('#demoSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.demo === type));
+  $('#rName').textContent = c.name;
+  const st = $('#rStatus'), stMap = { running: ['运行中', 'tag blue'], completed: ['完成', 'tag ok'], cancelled: ['已中止', 'tag warn'] };
+  st.textContent = stMap[R.state][0] + (R.state === 'cancelled' && type === 'sweep' ? `，保留 ${R.done}/${R.n} 个扫描点` : ''); st.className = stMap[R.state][1];
+  const mt = R.meta || { id: `20261030-093012_${type === 'sweep' ? 'sweep' : type}_a1b2`, mode: 'Web', t: '10-30 09:30' };
+  $('#rSub').textContent = `实验 ID ${mt.id}，${mt.mode === '脚本' ? '由脚本运行' : '在网页上运行'}，${mt.t} 开始` + (R.state === 'completed' ? '，用时 ' + (type === 'single' ? '不到 1 秒' : type === 'mc' ? '6 秒' : '42 秒') : '');
+  $('#cancelBtn').hidden = !run;
+  // 进度
+  $('#rProg').hidden = !run;
+  if (run) {
+    const steps = type === 'sweep' ? R.n : 10, x = c.sw;
+    $('#progTxt').textContent = type === 'sweep' ? (R.prog < R.n ? `正在计算第 ${R.prog + 1}/${R.n} 个扫描点：${x.name} = ${num(x.vals[R.prog])}${sp(x.unit)}` : '正在整理结果') : `已完成 ${Math.round(R.prog / steps * R.T)}/${R.T} 次试验`;
+    $('#progEta').textContent = `${Math.round(R.prog / steps * 100)}%，剩余约 ${Math.max(1, (steps - R.prog) * (type === 'sweep' ? 6 : 1))} 秒`;
+    $('#progBar').style.width = R.prog / steps * 100 + '%';
+  }
+  // 警告与错误：放在结果之前
+  const hasErr = R.algos.some(a => a.err.some(Boolean)) && R.done > 1 || (R.algos.some(a => a.err.some(Boolean)) && type === 'mc' && R.done);
+  const who = (name) => { const a = R.algos.find(x => x.name === name); return `<span class="who">${a ? swatch(a.sty) : ''}${esc(name)}</span>`; };
+  const rows = c.warns.map(w => `<div class="ir"><span class="lv w">警告</span>${who(w.who)}<span class="tx">${esc(w.text)}</span></div>`);
+  if (hasErr) R.algos.filter(a => a.err.some(Boolean)).forEach(a => rows.push(`<div class="ir"><span class="lv e">错误</span>${who(a.name)}<span class="tx">RuntimeError: CUDA out of memory，出现 2 次，首次在${type === 'sweep' ? `扫描点 2（${c.sw.name} = ${num(c.sw.vals[1])}${sp(c.sw.unit)}）` : ''}第 37 次试验。这 2 次试验不计入该算法的指标</span><button class="link" id="stackBtn">${R.stack ? '收起堆栈' : '查看堆栈'}</button>${R.stack ? `<pre class="stack">Traceback (most recent call last):
+  File "arena/core/runner/trial.py", line 118, in _call_estimate
+    est = algo.estimate_batch(chunk, ctx)
+  File "fewshot-doa/algorithms/cnn_grid_b/arena_plugin.py", line 64, in infer
+    logits = self.net(x.to(ctx.device))
+RuntimeError: CUDA out of memory. Tried to allocate 512.00 MiB (GPU 0; 8.00 GiB total capacity)</pre>` : ''}</div>`));
+  $('#rIssues').innerHTML = rows.length ? `<div class="issues${hasErr ? ' has-e' : ''}">${rows.join('')}</div>` : '';
+  const sb = $('#stackBtn'); if (sb) sb.onclick = () => { R.stack = !R.stack; drawRun(); };
+  // 实验条件与复现信息
+  $('#rCond').innerHTML = `<div class="cond"><h3>实验条件</h3><p>${esc(`${c.tx.arr}；${c.tx.src}；${c.tx.sig}；阵列误差：${c.tx.imp}。` + (type === 'sweep' ? `扫描 ${c.sw.name}，${c.sw.vals.length} 个点，每点 ${R.T} 次试验。` : type === 'mc' ? `${R.T} 次试验。` : '单次实验。'))}</p>
+    ${R.algos.some(a => a.d.dirty) ? '<span class="tag warn">有算法的代码未提交，diff 已保存</span>' : ''}<button class="link" id="condBtn">${R.cond ? '收起复现信息' : '查看复现信息'}</button><span class="req">NFR-14</span></div>` + (R.cond ? `<div class="kv"><div><span>随机种子</span>${esc(c.sc.seed)}</div><div><span>信号模型版本</span>1</div><div><span>竞技场</span>0.1.0，commit 4f1c2aa</div><div><span>接口包</span>arena_api 1.0.0</div><div><span>运行环境</span>Python 3.12.4，NumPy 2.1</div><div><span>设备</span>CPU；学习型算法 cuda:0</div></div>
+    <table><tr><th>算法</th><th>插件</th><th>版本</th><th>代码</th><th>模型包</th></tr>${R.algos.map(a => `<tr><td><span class="al" style="display:flex;gap:8px;align-items:center">${swatch(a.sty)}${esc(a.name)}</span></td><td>${a.def}</td><td>${a.d.ver}</td><td>${a.d.git ? `commit ${a.d.git}` + (a.d.dirty ? ' <span class="tag warn">有未提交修改，diff 已保存</span>' : '') : '随竞技场'}</td><td>${a.model ? `${a.model}，sha256 9f2c…a71e` : '—'}</td></tr>`).join('')}</table>` : '');
+  $('#condBtn').onclick = () => { R.cond = !R.cond; drawRun(); };
+  // 图
+  $$('#mTabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.m === R.metric));
+  $$('#dbSeg button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.db === '1') === R.db));
+  $('#logW').style.visibility = MET[R.metric].logOk ? '' : 'hidden'; $('#logY').checked = R.log;
+  $('#rChartW').className = 'chart-w ' + $('#styleSel').value;
+  const has = R.done > 0, empty = $('#rEmpty'), cw = $('#rChartW');
+  empty.hidden = has; cw.hidden = !has; $('#tip').hidden = true;
+  const lgI = (id, sty, name, extra) => `<button class="lg-i" data-id="${id}" aria-pressed="${!R.hidden.has(id)}" title="点击隐藏或显示这条曲线">${swatch(sty)}${esc(name)}${extra || ''}</button>`;
+  $('#rLegend').innerHTML = !R.algos.length ? '' : R.algos.map(a => lgI(a.id, a.sty, a.name, type === 'single' && !a.spec ? '<small>无空间谱，只标估计角度</small>' : '')).join('')
+    + (type === 'sweep' && R.metric === 'rmse' ? lgI('crb', REF, 'CRB') : type !== 'sweep' ? `<span class="lg-s">${swatch(REF)}真值</span>` : '');
+  if (!R.algos.length) { empty.hidden = false; cw.hidden = true; empty.textContent = '没有可以运行的算法。回到实验配置页，启用至少一个没有错误的算法。'; }
+  else if (!has) empty.textContent = R.state === 'cancelled' ? '这次蒙特卡罗在完成前被中止，没有已完成的扫描点可以显示。可以点“复制并修改”后重新运行。' : type === 'sweep' ? '第一个扫描点完成后，这里开始画曲线。' : '全部试验完成后显示估计值分布。';
+  else if (type === 'sweep') {
+    const m = MET[R.metric], log = m.logOk && R.log, ser = R.algos.map(a => ({ id: a.id, name: a.name, sty: a.sty, v: m.get(a), hollow: R.metric === 'rmse' ? a.rmse.map((_, i) => LOW(a, i)) : null }));
+    if (R.metric === 'rmse') ser.push({ id: 'crb', name: 'CRB', sty: REF, v: R.crb });
+    const all = ser.filter(s => !R.hidden.has(s.id)).flatMap(s => s.v), mx = Math.max(...all, 1e-6), mn = Math.min(...all, mx);
+    let dom, ticks, fmt = v => num(v);
+    if (m.pct) { dom = [0, 100]; ticks = [0, 25, 50, 75, 100]; }
+    else if (log) { const a = Math.floor(Math.log10(mn)), b = Math.ceil(Math.log10(mx)) + (Math.ceil(Math.log10(mx)) === a ? 1 : 0); dom = [10 ** a, 10 ** b]; ticks = []; for (let e = a; e <= b; e++) ticks.push(+(10 ** e).toPrecision(1)); }
+    else { ticks = niceTicks(mx); dom = [0, ticks[ticks.length - 1]]; }
+    lineChart($('#chart'), { x: c.sw.vals, n: R.done, series: ser, log, dom, ticks, fmt, xLabel: c.sw.name + (c.sw.unit ? `（${c.sw.unit}）` : ''), yLabel: m.y, xName: c.sw.name, xUnit: c.sw.unit,
+      hidden: R.hidden, sel: R.sel, tip: $('#tip'), tipFmt: m.fmt, onSel: i => { R.sel = i; drawRun(); } });
+  } else if (type === 'single') specChart($('#chart'), $('#tip'));
+  else histChart($('#chart'), $('#tip'));
+  $('#rFoot').textContent = !has || !R.algos.length ? '' : type === 'sweep' ? '点击图上的扫描点，下方表格切到该点。' + (R.metric === 'rmse' ? '空心标记表示该点纳入 RMSE 统计的试验不足 80%，数值要谨慎解读。' : '')
+    : type === 'single' ? '虚线是真值。谱线下方的标记是各算法的估计角度，每个算法占一行。' : '虚线是真值。只统计成功检出全部信源的试验；落在窗口外的估计没有画出。';
+  drawTable(); drawTask();
+}
+function drawTable() {
+  const c = R.cfg, type = c.mode, el = $('#rTable');
+  if (!R.done || !R.algos.length) { el.innerHTML = `<div class="tb-h"><h3>${type === 'single' ? '估计结果' : '指标汇总'}</h3></div><p class="empty">${R.state === 'running' ? '第一批结果完成后显示。' : '没有结果。'}</p>`; return; }
+  const al = (a) => `<td><span class="al">${swatch(a.sty)}${esc(a.name)}</span></td>`;
+  if (type === 'single') {
+    el.innerHTML = `<div class="tb-h"><h3>估计结果</h3><span class="req">FR-RES-01</span><span class="grow"></span><button class="btn" data-toast="estimates.csv">复制表格</button></div><table class="rt"><tr><th>算法</th><th>估计角度</th><th class="n">最大误差（°）</th><th class="n">耗时（ms）</th><th>结论</th></tr>`
+      + R.algos.map(a => { const sorted = [...a.est].sort((x, y) => x - y), tr = [...c.truth].sort((x, y) => x - y), e = Math.max(...sorted.map((v, i) => Math.abs(v - (tr[i] ?? v)))), ok = e <= 1;
+        return `<tr>${al(a)}<td>${sorted.map(v => num(v.toFixed(2)) + '°').join('，')}</td><td class="n">${e.toFixed(2)}</td><td class="n">${a.time[0].toFixed(3)}</td><td>${ok ? '<span class="tag ok">误差在 1° 门限内</span>' : '<span class="tag err">超出 1° 门限</span>'}</td></tr>`; }).join('') + '</table>';
+    return;
+  }
+  const i = type === 'sweep' ? Math.min(R.sel ?? R.done - 1, R.done - 1) : 0, x = c.sw;
+  const cols = [['rmse', 'RMSE（°）', a => a.rmse[i], v => v.toFixed(3), -1], ['ratio', 'RMSE / CRB', a => a.ratio[i], v => v.toFixed(2), -1], ['succ', '成功率', a => a.succ[i], v => v.toFixed(1) + '%', 1],
+    ['res', '分辨概率', a => a.res[i], v => v.toFixed(1) + '%', 1], ['time', '耗时中位数（ms）', a => a.time[i], v => v.toFixed(3), -1]];
+  let rows = [...R.algos];
+  if (R.sort.k) { const g = R.sort.k === 'incl' ? a => a.incl[i] : cols.find(q => q[0] === R.sort.k)[2]; rows.sort((p, q) => (g(p) - g(q)) * R.sort.dir); }
+  const best = Object.fromEntries(cols.map(q => [q[0], q[4] > 0 ? Math.max(...R.algos.map(q[2])) : Math.min(...R.algos.map(q[2]))]));
+  const th = (k, t) => `<th class="n"><button data-sort="${k}" title="点击排序">${t}${R.sort.k === k ? `<i>${R.sort.dir > 0 ? '↑' : '↓'}</i>` : ''}</button></th>`;
+  el.innerHTML = `<div class="tb-h"><h3>指标汇总</h3>` + (type === 'sweep' ? `<span class="step"><button class="ib" id="pPrev" aria-label="上一个扫描点"${i ? '' : ' disabled'}><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 4L6 8l4 4"/></svg></button><b>${esc(x.name)} = ${num(x.vals[i])}${sp(x.unit)}</b><button class="ib" id="pNext" aria-label="下一个扫描点"${i < R.done - 1 ? '' : ' disabled'}><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg></button></span><span class="cnt">CRB ${R.crb[i].toFixed(3)}°${R.state === 'running' ? '，运行中显示最新完成的点' : ''}</span>` : `<span class="cnt">CRB ${R.crb[0].toFixed(3)}°</span>`)
+    + `<span class="req">FR-RES-02 · 数据格式 3.7</span><span class="grow"></span><button class="btn" data-toast="summary（按新门限重算，不重跑实验）">修改指标参数并重新计算</button><button class="btn" data-toast="metrics.csv">复制表格</button></div>
+    <table class="rt"><tr><th>算法</th>${cols.map(q => th(q[0], q[1])).join('')}${th('incl', '纳入 RMSE 统计')}<th class="n">出错</th><th>状态</th></tr>`
+    + rows.map(a => { const low = LOW(a, i), er = a.err[i];
+      return `<tr>${al(a)}${cols.map(q => `<td class="n${q[2](a) === best[q[0]] ? ' best' : ''}">${q[3](q[2](a))}</td>`).join('')}<td class="n"><span class="incl${low ? ' low' : ''}" style="--p:${a.incl[i] / R.T * 100}%">${a.incl[i]}/${R.T}<i></i></span></td><td class="n">${er || '—'}</td><td>${low ? '<span class="tag warn">纳入统计不足</span>' : er ? '<span class="tag warn">部分出错</span>' : '<span class="tag ok">正常</span>'}</td></tr>`; }).join('')
+    + `</table><p class="ch-f">每列最优值加粗。RMSE 只统计成功检出全部信源的试验，“纳入 RMSE 统计”是这样的试验数。</p>`;
+  if (type === 'sweep') { $('#pPrev').onclick = () => { R.sel = i - 1; drawRun(); }; $('#pNext').onclick = () => { R.sel = i + 1; drawRun(); }; }
+  $$('[data-sort]', el).forEach(b => b.onclick = () => { const k = b.dataset.sort; R.sort = R.sort.k !== k ? { k, dir: 1 } : R.sort.dir > 0 ? { k, dir: -1 } : { k: null, dir: 1 }; drawTable(); });
+}
+function startRun(cfg) {
+  clearInterval(timer); R = build(cfg);
+  if (cfg.mode !== 'single' && R.algos.length) {
+    R.state = 'running'; R.done = 0; R.sel = null;
+    const sweep = cfg.mode === 'sweep', steps = sweep ? R.n : 10;
+    timer = setInterval(() => {
+      R.prog++; if (sweep) { R.done = R.prog; R.sel = R.prog - 1; }
+      if (R.prog >= steps) { clearInterval(timer); R.state = 'completed'; R.done = R.n; }
+      drawRun();
+    }, sweep ? 800 : 280);
+  }
+  drawRun();
+}
+$('#runBtn').onclick = () => { const cfg = snapshot(); location.hash = '#run'; startRun(cfg); };
+$('#cancelBtn').onclick = () => { clearInterval(timer); R.state = 'cancelled'; if (R.cfg.mode === 'sweep' && R.done) R.sel = R.done - 1; drawRun(); };
+$('#replay').onclick = () => startRun(snapshot(R.cfg.mode));
+$('#demoSeg').onclick = e => { const b = e.target.closest('button'); if (b) { clearInterval(timer); R = build(snapshot(b.dataset.demo)); drawRun(); } };
+$('#mTabs').onclick = e => { const b = e.target.closest('button'); if (b) { R.metric = b.dataset.m; drawRun(); } };
+$('#dbSeg').onclick = e => { const b = e.target.closest('button'); if (b) { R.db = b.dataset.db === '1'; drawRun(); } };
+$('#logY').onchange = e => { R.log = e.target.checked; drawRun(); };
+$('#styleSel').onchange = () => drawRun();
+$('#rLegend').onclick = e => { const b = e.target.closest('.lg-i'); if (!b) return; const id = b.dataset.id; R.hidden.has(id) ? R.hidden.delete(id) : R.hidden.add(id); drawRun(); };
+
+// ---------- 通用：对话框、提示、跳转 ----------
+I.more = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>';
+const closePops = () => $$('.pop').forEach(p => p.hidden = true);
+function dialog(title, body, ok, onOk, danger) {
+  const d = $('#dlg');
+  d.innerHTML = `<div class="dl-h">${esc(title)}</div><div class="dl-b">${body}</div><div class="dl-f"><button class="btn" data-x>取消</button><button class="btn ${danger ? 'danf' : 'pri'}" data-ok>${esc(ok)}</button></div>`;
+  d.onclick = e => {
+    if (e.target === d || e.target.closest('[data-x]')) d.close();
+    else if (e.target.closest('[data-ok]')) { d.close(); if (onOk) onOk(); }
+  };
+  closePops(); d.showModal();
+}
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-say]'), g = e.target.closest('[data-go]');
+  if (s) { toast(s.dataset.say); closePops(); }
+  if (g) { closePops(); location.hash = g.dataset.go; }
+});
+
+// ---------- 导航底部：当前任务，离开结果页也能看到进度 ----------
+function drawTask() {
+  const el = $('#task');
+  if (!R) { el.textContent = '没有正在运行的实验'; return; }
+  const run = R.state === 'running', sweep = R.cfg.mode === 'sweep', pct = Math.round(R.prog / (sweep ? R.n : 10) * 100);
+  el.innerHTML = `<a class="tl" href="#run">${run ? '正在运行' : R.state === 'cancelled' ? '最近查看，已中止' : '最近查看，已完成'}<b>${esc(R.cfg.name)}</b>`
+    + (run ? `<div class="pbar"><i style="width:${pct}%"></i></div>${sweep ? `扫描点 ${R.prog}/${R.n}` : pct + '%'}` : '') + '</a>';
+}
+
+// ---------- 假数据（后端）：工作目录里的历史实验 ----------
+const N2D = { 'CBF': 'cbf', 'MVDR': 'mvdr', 'MUSIC': 'music', 'MUSIC+FBSS': 'music', 'Root-MUSIC': 'root_music', 'ESPRIT': 'esprit', 'TLS-ESPRIT': 'esprit', 'B': 'cnn_grid_b' };
+const SWV = { 'SNR': { u: 'dB', v: [-10, -5, 0, 5, 10, 15, 20] }, '快拍数 N': { u: '', v: [10, 20, 50, 100, 200, 500] }, '两信源间隔 Δ': { u: '°', v: [2, 4, 6, 8, 10, 12] },
+  '相位误差 σ_φ': { u: '°', v: [0, 2, 4, 6, 8, 10] }, '互耦强度': { u: '', v: [0, .25, .5, .75, 1, 1.25, 1.5] } };
+const HX = [
+  { id: '20261029-143012_snr-sweep_a1b2', name: '相干信源 SNR 扫描', star: true, t: '10-29 14:30', type: 'sweep', sw: 'SNR', pts: 7, T: 500, algos: ['MUSIC', 'MUSIC+FBSS', 'TLS-ESPRIT', 'B'], mode: 'Web', st: 'completed', tags: ['coherent', 'gain-phase'], note: '高 SNR 段 B 优于 FBSS', coh: true, imp: '幅相', impR: '固定' },
+  { id: '20261029-114005_snr-sweep_77c0', name: '不相干 SNR 扫描', t: '10-29 11:40', type: 'sweep', sw: 'SNR', pts: 7, T: 500, algos: ['MUSIC', 'TLS-ESPRIT', 'B'], mode: 'Web', st: 'completed', tags: ['baseline'], k: .7 },
+  { id: '20261029-110233_fig3-snapshots_5e21', name: 'fig3 快拍数扫描', t: '10-29 11:02', type: 'sweep', sw: '快拍数 N', pts: 6, T: 1000, algos: ['MUSIC', 'B'], mode: '脚本', st: 'completed', tags: ['paper-fig3'], note: '由 scripts/run_fig3.py 运行' },
+  { id: '20261028-211047_gain-phase_c9d4', name: '幅相误差鲁棒性', t: '10-28 21:10', type: 'sweep', sw: '相位误差 σ_φ', pts: 6, T: 500, algos: ['MUSIC+FBSS', 'TLS-ESPRIT', 'B'], mode: 'Web', st: 'completed', tags: ['gain-phase'], imp: '幅相', rev: true },
+  { id: '20261028-201530_coupling_03fa', name: '互耦鲁棒性', t: '10-28 20:15', type: 'sweep', sw: '互耦强度', pts: 7, done: 4, T: 500, algos: ['CBF', 'MVDR', 'MUSIC'], mode: 'Web', st: 'cancelled', tags: [], imp: '互耦', impR: '固定', rev: true },
+  { id: '20261028-184011_mc-large_b7e6', name: '大规模蒙特卡罗', t: '10-28 18:40', type: 'mc', T: 20000, algos: ['ESPRIT'], mode: '脚本', st: 'interrupted', tags: [] },
+  { id: '20261028-160512_single_44aa', name: '单次谱对比', t: '10-28 16:05', type: 'single', algos: ['CBF', 'MVDR', 'MUSIC'], mode: 'Web', st: 'completed', tags: [] },
+  { id: '20261028-152040_mc-newmodel_e1f0', name: 'B 新模型试跑', t: '10-28 15:20', type: 'mc', T: 500, algos: ['B'], mode: 'Web', st: 'failed', tags: [], note: '模型包与阵列不匹配' },
+];
+const HNEW = { id: '20261030-091455_fig4-separation_2b6c', name: 'fig4 角度间隔扫描', t: '10-30 09:14', type: 'sweep', sw: '两信源间隔 Δ', pts: 6, T: 1000, algos: ['MUSIC', 'TLS-ESPRIT', 'B'], mode: '脚本', st: 'completed', tags: ['paper-fig4'], note: '由 scripts/run_fig4.py 运行' };
+const ST = { completed: ['完成', 'ok'], cancelled: ['已中止', 'warn'], interrupted: ['中断', 'err'], failed: ['失败', 'err'] };
+const how = e => e.type === 'sweep' ? `扫描 ${e.sw}，${e.pts} 点 × ${fmtInt(e.T)} 次` : e.type === 'mc' ? `蒙特卡罗，${fmtInt(e.T)} 次` : '单次实验';
+const how2 = e => e.type === 'sweep' ? `扫描 ${esc(e.sw)}<small>${e.pts} 点 × ${fmtInt(e.T)} 次</small>` : e.type === 'mc' ? `蒙特卡罗<small>${fmtInt(e.T)} 次试验</small>` : '单次实验';
+const usable = e => e.st === 'completed' || e.st === 'cancelled';
+function expCfg(e) {
+  const base = snapshot(e.type), sv = e.sw && SWV[e.sw], real = e.impR || '每次随机';
+  return { ...base, name: e.name, mode: e.type, trials: e.T || 1, sw: sv ? { name: e.sw, unit: sv.u, vals: sv.v } : null, truth: [-10, 10],
+    sc: { ...base.sc, imps: e.imp ? [{ name: e.imp, real }] : [], seed: 12345 },
+    tx: { arr: '16 阵元均匀线阵，间距 0.5λ', src: `2 个${e.coh ? '相干' : '不相干'}信源，−10°、10°`, sig: [e.sw === 'SNR' ? '' : 'SNR 10 dB', e.sw === '快拍数 N' ? '' : '快拍数 200'].filter(Boolean).join('，'), imp: e.imp ? `${e.imp}（${real}）` : '无' },
+    algos: e.algos.map((n, i) => { const def = N2D[n]; return { id: e.id + n, def, name: n, sty: styleOf(i), spec: !!DEFS[def].spec, d: DEFS[def], model: def === 'cnn_grid_b' ? 'cnn_grid_m16_v3' : undefined, fail: n === 'MUSIC' && !!e.coh }; }),
+    warns: [...(e.coh && e.algos.includes('MUSIC') ? [{ who: 'MUSIC', text: '相干信源下没有开启空间平滑，估计可能失效' }] : []),
+      ...(e.imp && e.algos.includes('B') ? [{ who: 'B', text: `超出训练范围：训练数据不含阵列误差，本实验开启了${e.imp}误差` }] : [])] };
+}
+function expData(e) {
+  const r = build(expCfg(e));
+  if (e.rev) {                                   // 扫描误差强度：误差越大指标越差，标称 CRB 不随它变化
+    const c0 = Math.min(...r.crb); r.crb = r.crb.map(() => c0);
+    r.algos.forEach(a => { ['rmse', 'succ', 'res', 'incl'].forEach(k => a[k].reverse()); a.ratio = a.rmse.map(v => v / c0); });
+  }
+  if (e.k) { r.crb = r.crb.map(v => v * e.k); r.algos.forEach(a => { a.rmse = a.rmse.map(v => v * e.k); }); }
+  return r;
+}
+function openExp(e) {
+  if (e.st === 'interrupted') return toast('这个实验的进程意外结束了。先点“整理部分结果”，把已完成的部分保存下来');
+  if (e.st === 'failed') return toast(`这个实验没有结果：${e.note || '运行失败'}。完整日志在实验目录的 log.txt`);
+  clearInterval(timer); R = expData(e); R.meta = { id: e.id, mode: e.mode, t: e.t };
+  if (e.st === 'cancelled') { R.state = 'cancelled'; if (e.type === 'sweep') { R.done = e.done; R.sel = e.done - 1; } }
+  if (location.hash === '#run') route(); else location.hash = '#run';
+}
+
+// ---------- 历史实验 ----------
+const HSEL = new Set(); let hAsc = false;
+const HF = ['hQ', 'hType', 'hAlgo', 'hMode', 'hTag'];
+function drawHist() {
+  const v = id => $('#' + id).value, q = v('hQ').trim().toLowerCase(), star = $('#hStar').getAttribute('aria-pressed') === 'true';
+  const live = HX.filter(e => !e.del);
+  let rows = live.filter(e => (!q || [e.name, e.note, ...e.tags].join(' ').toLowerCase().includes(q)) && (!v('hType') || e.type === v('hType')) && (!v('hAlgo') || e.algos.includes(v('hAlgo')))
+    && (!v('hMode') || e.mode === v('hMode')) && (!v('hTag') || e.tags.includes(v('hTag'))) && (!star || e.star));
+  if (hAsc) rows = [...rows].reverse();
+  $('#hCnt').textContent = rows.length < live.length ? `共 ${live.length} 个，显示 ${rows.length} 个` : `共 ${live.length} 个`;
+  $('#hClear').hidden = !(HF.some(id => v(id)) || star);
+  $('#hEmpty').hidden = !!rows.length; $('#hTable').hidden = !rows.length;
+  $('#hEmpty').textContent = live.length ? '没有符合条件的实验。换个关键词，或者清除筛选。' : '这个工作目录里还没有实验。到“新建实验”运行第一个。';
+  $('#hTable').innerHTML = `<tr><th></th><th></th><th>名称</th><th><button id="hSort" title="点击切换先后顺序">时间 ${hAsc ? '↑' : '↓'}</button></th><th>实验方式</th><th>算法</th><th>模式</th><th>状态</th><th></th></tr>` + rows.map(e => {
+    const [sl, sc] = ST[e.st], al = e.algos.length > 3 ? e.algos.slice(0, 3).join('、') + ` 等 ${e.algos.length} 个` : e.algos.join('、');
+    return `<tr class="row" data-id="${e.id}"><td><input type="checkbox" data-sel aria-label="选择 ${esc(e.name)}"${HSEL.has(e.id) ? ' checked' : ''}></td>
+      <td><button class="star" aria-pressed="${!!e.star}" aria-label="星标" title="${e.star ? '取消星标' : '加星标'}">★</button></td>
+      <td class="nm"><b>${esc(e.name)}</b>${e.note ? `<small>${esc(e.note)}</small>` : ''}${e.tags.length ? `<div class="tgs">${e.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}</td><td class="nw">${e.t}</td><td class="nm nw">${how2(e)}</td><td>${esc(al)}</td>
+      <td><span class="tag${e.mode === '脚本' ? ' blue' : ''}">${e.mode}</span></td>
+      <td><span class="tag ${sc}">${sl}${e.st === 'cancelled' && e.type === 'sweep' ? `，完成 ${e.done}/${e.pts} 点` : ''}</span>${e.st === 'interrupted' ? '<button class="link" data-fix>整理部分结果</button>' : ''}</td>
+      <td class="ra"><div class="menu-w"><button class="ib" data-pop="hm-${e.id}" aria-label="更多操作" title="更多操作">${I.more}</button><div class="pop menu" id="hm-${e.id}" hidden>
+        <button data-act="copy">复制并修改</button><button data-act="rerun">重新运行<small>用同一份配置和种子，核对结果是否一致</small></button><button data-act="script">导出为脚本</button><button data-act="del">删除</button></div></div></td></tr>`;
+  }).join('');
+  drawSel();
+}
+function drawSel() {
+  const sel = HX.filter(e => HSEL.has(e.id) && !e.del), bar = $('#hSel');
+  bar.hidden = !sel.length; if (!sel.length) return;
+  const vars = [...new Set(sel.map(e => e.sw))];
+  const why = sel.length < 2 ? '再选一个实验就可以对比' : sel.some(e => e.type !== 'sweep') ? '只有参数扫描实验可以对比' : vars.length > 1 ? `扫描变量不同（${vars.join('、')}），不能画在一张图上`
+    : !sel.every(usable) ? '选中的实验里有的没有可用结果' : sel.length > 4 ? '一次最多对比 4 个实验' : '';
+  bar.innerHTML = `<b>已选 ${sel.length} 个实验</b><span class="why">${esc(why)}</span><span class="grow"></span><button class="btn pri" id="hCmp"${why ? ' disabled' : ''}>对比</button><button class="btn" id="hDel">移入回收区</button><button class="btn" id="hNone">取消选择</button>`;
+  $('#hCmp').onclick = () => { CMP.ids = sel.map(e => e.id); CMP.sel = null; CMP.off.clear(); location.hash = '#compare'; };
+  $('#hNone').onclick = () => { HSEL.clear(); drawHist(); };
+  $('#hDel').onclick = () => trash(sel);
+}
+function trash(list) {
+  dialog(list.length > 1 ? `删除选中的 ${list.length} 个实验？` : `删除“${list[0].name}”？`, '<p>实验文件夹会移到工作目录的回收区 <code>.trash/</code>，不会立刻消失；需要时可以从那里拿回来。</p>', '移入回收区',
+    () => { list.forEach(e => { e.del = true; HSEL.delete(e.id); }); toast(`已把 ${list.length} 个实验移入回收区 .trash/`); drawHist(); }, true);
+}
+$('#hTable').addEventListener('click', ev => {
+  const t = ev.target; if (t.closest('#hSort')) { hAsc = !hAsc; return drawHist(); }
+  const tr = t.closest('tr.row'); if (!tr) return;
+  const e = HX.find(x => x.id === tr.dataset.id), act = t.closest('[data-act]');
+  if (t.closest('.star')) { e.star = !e.star; return drawHist(); }
+  if (t.closest('[data-fix]')) { e.st = 'cancelled'; toast('已把完成的 12,400 次试验整理成结果，状态改为“已中止”'); return drawHist(); }
+  if (act) {
+    closePops();
+    if (act.dataset.act === 'copy') { $('#expName').value = e.name + ' 副本'; refresh(); toast(`已把“${e.name}”的配置载入“新建实验”，改完后运行会生成一个新实验`); location.hash = '#config'; }
+    if (act.dataset.act === 'rerun') toast('原型演示：正式界面会用同一份配置和种子再跑一遍，并核对结果是否与原来一致');
+    if (act.dataset.act === 'script') toast('原型演示：正式界面会生成与这个实验等价的 Python 脚本并下载');
+    if (act.dataset.act === 'del') trash([e]);
+    return;
+  }
+  if (!t.closest('input,button,.menu-w') && t.closest('td') !== tr.cells[0]) openExp(e);
+});
+$('#hTable').addEventListener('change', ev => {
+  if (ev.target.dataset.sel == null) return;
+  const id = ev.target.closest('tr').dataset.id; ev.target.checked ? HSEL.add(id) : HSEL.delete(id); drawSel();
+});
+HF.forEach(id => $('#' + id).addEventListener('input', drawHist));
+$('#hStar').onclick = e => { const b = e.currentTarget; b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); drawHist(); };
+$('#hClear').onclick = () => { HF.forEach(id => $('#' + id).value = ''); $('#hStar').setAttribute('aria-pressed', 'false'); drawHist(); };
+$('#hRefresh').onclick = () => {
+  if (HX.includes(HNEW)) return toast('已重新扫描 experiments/，没有新的实验');
+  HX.unshift(HNEW); fillFilters(); drawHist(); toast('发现 1 个新实验：fig4 角度间隔扫描，由脚本运行');
+};
+function fillFilters() {
+  const fill = (id, first, list) => { const el = $('#' + id), cur = el.value; el.innerHTML = `<option value="">${first}</option>` + list.map(x => `<option>${esc(x)}</option>`).join(''); el.value = cur; };
+  fill('hAlgo', '全部算法', [...new Set(HX.flatMap(e => e.algos))]); fill('hTag', '全部标签', [...new Set(HX.flatMap(e => e.tags))]);
+}
+
+// ---------- 多实验对比 ----------
+const CMP = { ids: [HX[0].id, HX[1].id], metric: 'rmse', log: true, sel: null, off: new Set(), crb: true, cache: {} };
+const CM = { rmse: ['RMSE 与 CRB', 'RMSE'], succ: ['成功率', '成功率'], res: ['分辨概率', '分辨概率'], time: ['耗时', '耗时中位数'] };
+const cmpData = e => CMP.cache[e.id] || (CMP.cache[e.id] = expData(e));
+function axisFor(m, log, all) {
+  const mx = Math.max(...all, 1e-6), mn = Math.min(...all, mx);
+  if (m.pct) return { dom: [0, 100], ticks: [0, 25, 50, 75, 100] };
+  if (log) { const a = Math.floor(Math.log10(mn)), b0 = Math.ceil(Math.log10(mx)), b = b0 === a ? a + 1 : b0, ticks = []; for (let k = a; k <= b; k++) ticks.push(+(10 ** k).toPrecision(1)); return { dom: [10 ** a, 10 ** b], ticks }; }
+  const ticks = niceTicks(mx); return { dom: [0, ticks[ticks.length - 1]], ticks };
+}
+function drawCompare() {
+  const el = $('#cBody'), ex = CMP.ids.map(id => HX.find(e => e.id === id && !e.del)).filter(Boolean);
+  if (ex.length < 2) { el.innerHTML = '<div class="panel"><p class="empty">对比至少需要 2 个实验。到历史实验页勾选扫描变量相同的实验，再点“对比”。<br><a class="btn" href="#history" style="margin-top:12px">去历史实验</a></p></div>'; return; }
+  const sw = ex[0].sw, sv = SWV[sw], x = sv.v, D = ex.map(cmpData), names = [...new Set(ex.flatMap(e => e.algos))], m = MET[CMP.metric], log = !!m.logOk && CMP.log;
+  const xsty = i => ({ c: '#1c1f23', d: DASH[i], m: MARK[i] }), col = n => COLORS[names.indexOf(n) % 8], si = Math.min(CMP.sel ?? x.length - 1, x.length - 1);
+  const ser = [];
+  ex.forEach((e, i) => {
+    D[i].algos.forEach(a => { if (!CMP.off.has(a.name)) ser.push({ id: i + a.name, name: `${e.name} / ${a.name}`, sty: { c: col(a.name), d: DASH[i], m: MARK[i] }, v: m.get(a) }); });
+    if (CMP.metric === 'rmse' && CMP.crb) ser.push({ id: i + 'crb', name: `${e.name} / CRB`, sty: { c: '#1c1f23', d: DASH[i], m: null }, v: D[i].crb });
+  });
+  const fields = [['信源相关性', e => e.coh ? '相干' : '不相干'], ['阵列误差', e => e.imp ? `${e.imp}（${e.impR || '每次随机'}）` : '无'], ['每点试验次数', e => fmtInt(e.T)], ['算法', e => e.algos.join('、')]];
+  const diff = fields.filter(f => new Set(ex.map(f[1])).size > 1), xh = (e, i) => `<span class="chipc" style="padding:0">${swatch(xsty(i))}${esc(e.name)}</span>`;
+  const cand = HX.filter(e => !e.del && !CMP.ids.includes(e.id)).map(e => {
+    const why = e.type !== 'sweep' ? '不是参数扫描实验' : e.sw !== sw ? `扫描变量是 ${e.sw}` : !usable(e) ? '没有可用结果' : '';
+    return `<button class="ar" data-addx="${e.id}"${why ? ' disabled' : ''}><b>${esc(e.name)}</b><span class="ar-c">${e.t}</span><span class="ar-d">${esc(why ? '不能加入：' + why : how(e))}</span></button>`;
+  }).join('');
+  el.innerHTML = `<div class="panel"><div class="pn-h"><h3>参与对比的实验</h3><span class="cnt">扫描变量都是 ${esc(sw)}</span><span class="grow"></span>
+      <div class="menu-w"><button class="btn" data-pop="cAdd"${ex.length >= 4 ? ' disabled title="一次最多对比 4 个实验"' : ''}>+ 添加实验</button><div class="pop" id="cAdd" hidden style="width:380px;max-width:calc(100vw - 48px);padding:8px">${cand}</div></div></div>
+    <div class="cx">${ex.map((e, i) => `<span class="cx-i">${swatch(xsty(i))}<b>${esc(e.name)}</b><small>${e.t}，${e.mode}</small><button class="ib" data-rm="${e.id}" title="从对比中移除" aria-label="从对比中移除">${I.x}</button></span>`).join('')}</div>
+    ${diff.length ? `<table><tr><th>不同的设置</th>${ex.map((e, i) => `<th>${xh(e, i)}</th>`).join('')}</tr>${diff.map(f => `<tr><td>${f[0]}</td>${ex.map(e => `<td>${esc(f[1](e))}</td>`).join('')}</tr>`).join('')}</table><p class="cap" style="margin-top:8px">只列出不同的设置，其余相同。</p>` : '<p class="cap">这些实验的设置完全相同。</p>'}</div>
+  <div class="panel"><div class="ch-h"><div class="tabs" role="tablist">${Object.entries(CM).map(([k, t]) => `<button role="tab" data-cm="${k}" aria-selected="${k === CMP.metric}">${t[0]}</button>`).join('')}</div><span class="grow"></span>
+      ${m.logOk ? `<label class="ck"><input type="checkbox" id="cLog"${CMP.log ? ' checked' : ''}> 对数纵轴</label>` : ''}
+      <div class="menu-w"><button class="btn" data-pop="cFig">导出图</button><div class="pop menu" id="cFig" hidden><button data-say="原型演示：正式界面会下载这张对比图的 PDF">PDF<small>矢量图，用 \\includegraphics 放进论文</small></button><button data-say="原型演示：正式界面会下载这张对比图的 SVG">SVG</button><button data-say="原型演示：正式界面会下载这张对比图的 PNG">PNG<small>300 dpi</small></button></div></div></div>
+    <div class="lgg"><span>颜色是算法，点击隐藏或显示</span>${names.map(n => `<button class="lg-i" data-calgo="${esc(n)}" aria-pressed="${!CMP.off.has(n)}"><i class="dot" style="background:${col(n)}"></i>${esc(n)}</button>`).join('')}${CMP.metric === 'rmse' ? `<button class="lg-i" data-ccrb aria-pressed="${CMP.crb}"><i class="dot" style="background:#1c1f23"></i>CRB，无标记</button>` : ''}</div>
+    <div class="lgg"><span>线型和标记是实验</span>${ex.map((e, i) => `<span class="chipc">${swatch(xsty(i))}${esc(e.name)}</span>`).join('')}</div>
+    ${ser.length ? '<div class="chart-w" style="max-width:980px"><svg id="chart2" role="img" aria-label="多实验对比图"></svg><div class="tip" id="tip2" hidden></div></div><p class="ch-f">点击图上的扫描点，下方表格切到该点。</p>' : '<p class="empty">所有曲线都被隐藏了。点上面的算法名把它们显示出来。</p>'}</div>
+  <div class="panel"><div class="tb-h"><h3>${esc(sw)} = ${num(x[si])}${sp(sv.u)} 处的${CM[CMP.metric][1]}</h3></div>
+    <table class="rt"><tr><th>算法</th>${ex.map((e, i) => `<th class="n">${xh(e, i)}</th>`).join('')}</tr>
+    ${names.map(n => `<tr><td><span class="al"><i class="dot" style="background:${col(n)}"></i>${esc(n)}</span></td>${ex.map((e, i) => { const a = D[i].algos.find(a => a.name === n); return `<td class="n">${a ? m.fmt(m.get(a)[si]) : '—'}</td>`; }).join('')}</tr>`).join('')}
+    ${CMP.metric === 'rmse' ? `<tr><td><span class="al"><i class="dot" style="background:#1c1f23"></i>CRB</span></td>${D.map(d => `<td class="n">${m.fmt(d.crb[si])}</td>`).join('')}</tr>` : ''}</table>
+    <p class="ch-f">“—”表示这个实验没有运行该算法。</p></div>`;
+  if (!ser.length) return;
+  const ax = axisFor(m, log, ser.flatMap(s => s.v));
+  lineChart($('#chart2'), { x, n: x.length, series: ser, log, dom: ax.dom, ticks: ax.ticks, fmt: v => num(v), xLabel: sw + (sv.u ? `（${sv.u}）` : ''), yLabel: m.y, xName: sw, xUnit: sv.u,
+    hidden: new Set(), sel: si, tip: $('#tip2'), tipFmt: m.fmt, onSel: i => { CMP.sel = i; drawCompare(); } });
+}
+$('#cBody').addEventListener('click', ev => {
+  const g = k => ev.target.closest(`[data-${k}]`);
+  if (g('rm')) CMP.ids = CMP.ids.filter(id => id !== g('rm').dataset.rm);
+  else if (g('addx')) CMP.ids.push(g('addx').dataset.addx);
+  else if (g('cm')) CMP.metric = g('cm').dataset.cm;
+  else if (g('calgo')) { const n = g('calgo').dataset.calgo; CMP.off.has(n) ? CMP.off.delete(n) : CMP.off.add(n); }
+  else if (g('ccrb')) CMP.crb = !CMP.crb;
+  else return;
+  drawCompare();
+});
+$('#cBody').addEventListener('change', ev => { if (ev.target.id === 'cLog') { CMP.log = ev.target.checked; drawCompare(); } });
+
+// ---------- 算法库 ----------
+const LIBX = {
+  cbf: { cat: '传统', caps: { '信源数 K': '可选', '相干信源': '可以用，分辨力低', '输出': '空间谱和角度', '运行设备': 'CPU' }, ref: 'H. L. Van Trees, Optimum Array Processing, 2002' },
+  mvdr: { cat: '传统', caps: { '信源数 K': '可选', '相干信源': '不适用', '输出': '空间谱和角度', '运行设备': 'CPU' }, ref: 'J. Capon, Proc. IEEE, 1969' },
+  music: { cat: '传统', caps: { '信源数 K': '需要', '相干信源': '需要开启空间平滑，仅均匀线阵', '输出': '空间谱和角度', '运行设备': 'CPU' }, ref: 'R. O. Schmidt, IEEE Trans. Antennas Propag., 1986' },
+  root_music: { cat: '传统', caps: { '信源数 K': '需要', '相干信源': '需要开启空间平滑', '输出': '只有角度', '运行设备': 'CPU' }, ref: 'A. Barabell, ICASSP, 1983' },
+  esprit: { cat: '传统', caps: { '信源数 K': '需要', '相干信源': '需要开启空间平滑', '输出': '只有角度', '运行设备': 'CPU' }, ref: 'R. Roy, T. Kailath, IEEE Trans. ASSP, 1989' },
+  cnn_grid_b: { cat: '学习型', caps: { '信源数 K': '需要，取概率最高的 K 个峰', '相干信源': '取决于训练数据', '输出': '网格概率谱和角度', '运行设备': 'GPU 或 CPU，支持批量推理' }, ref: '课题仓库 algorithms/cnn_grid_b/README.md' },
+};
+const LOPEN = new Set();
+function drawLib() {
+  const q = $('#lQ').value.trim().toLowerCase(), src = $('#lSrc').value;
+  const rows = Object.entries(DEFS).filter(([id, d]) => (!q || (id + d.name + d.desc).toLowerCase().includes(q)) && (!src || (src === 'in') === (d.grp === '内置')));
+  $('#lTable').innerHTML = '<tr><th>名称</th><th>id</th><th>类别</th><th>来源</th><th>版本</th><th>代码</th><th>适用条件</th><th></th></tr>' + (rows.map(([id, d]) => {
+    const x = LIBX[id], open = LOPEN.has(id);
+    return `<tr class="row" data-id="${id}"><td class="nm"><b>${esc(d.name)}</b></td><td><code>${id}</code></td><td>${x.cat}</td><td>${d.grp === '内置' ? '<span class="tag">内置</span>' : `<span class="tag blue">${esc(d.grp)}/${id}</span>`}</td><td>${d.ver}</td>
+      <td>${d.git ? `commit ${d.git}` + (d.dirty ? ' <span class="tag warn">有未提交修改</span>' : '') : '随竞技场'}</td><td>${esc(d.cond)}</td><td class="ra"><button class="ib chev" aria-expanded="${open}" aria-label="展开详情">${I.chev}</button></td></tr>`
+      + (open ? `<tr class="xrow"><td colspan="8"><p>${esc(d.desc)}。</p>
+        <h4>能力</h4><div class="kv" style="margin:0">${Object.entries(x.caps).map(([k, v]) => `<div><span>${k}</span>${esc(v)}</div>`).join('')}</div>
+        <h4>参数</h4><table><tr><th>参数</th><th>键</th><th>类型</th><th>默认值</th><th>说明</th></tr>${d.params.map(p => `<tr><td>${esc(p.label)}${p.adv ? ' <span class="tag">高级</span>' : ''}</td><td><code>${p.k}</code></td><td>${p.type === 'select' ? '选项' : '数值'}</td><td>${esc(show(p, p.def))}</td><td>${p.type === 'select' ? '可选：' + p.opts.filter(o => o[0] !== '').map(o => esc(o[1])).join('、') : p.unit ? '单位 ' + p.unit : ''}</td></tr>`).join('')}</table>
+        <h4>参考</h4><p>${esc(x.ref)}</p><p style="margin-top:12px"><button class="btn" data-use="${id}">加入新建实验</button></p></td></tr>` : '');
+  }).join('') || '<tr><td colspan="8" class="empty">没有匹配的算法。</td></tr>');
+}
+$('#lQ').oninput = $('#lSrc').onchange = drawLib;
+$('#lTable').addEventListener('click', ev => {
+  const use = ev.target.closest('[data-use]'), tr = ev.target.closest('tr.row');
+  if (use) {
+    const id = use.dataset.use, n = S.algos.filter(a => a.def === id).length, a = addAlgo(id, DEFS[id].name + (n ? ' ' + (n + 1) : ''));
+    a.open = true; refresh(); toast(`已把 ${DEFS[id].name} 加入“新建实验”的算法列表`); location.hash = '#config'; return;
+  }
+  if (tr) { const id = tr.dataset.id; LOPEN.has(id) ? LOPEN.delete(id) : LOPEN.add(id); drawLib(); }
+});
+$('#lImport').onclick = () => dialog('导入模型包', `<p>选择从云端下载的模型包目录或 zip 文件。导入前会逐项校验：</p>
+  <div class="fld" style="margin-top:8px"><label for="mPath">模型包</label><div class="ctl"><input type="text" id="mPath" value="D:/Downloads/cnn_grid_m16_v4.zip" style="width:300px"></div></div>
+  <ul class="vl"><li>元数据 model.json 结构完整</li><li>权重文件哈希与元数据一致</li><li>对应的插件 cnn_grid_b 已经注册</li><li>信号模型版本 1，与当前一致</li></ul>
+  <p class="cap">哈希不一致时不能导入；版本不一致可以导入，评测时会提示。</p>`, '导入到 models/', () => toast('原型演示：正式界面会把模型包复制到工作目录的 models/，并出现在下面的列表里'));
+
+// ---------- 模板 ----------
+const TPLS = [
+  { id: 'default', name: '默认场景', kind: '场景', lvl: '内置', t: '随竞技场', sum: '16 阵元均匀线阵，2 个不相干信源 ±10°，SNR 10 dB，快拍数 200，无阵列误差', set: { M: 16, d: 0.5, Kmode: 'fixed', K: 2, angMode: 'fixed', ang: '-10, 10', snr: 10, corr: 'none', N: 200 }, imp: [] },
+  { id: 'coh2', name: '相干双信源', kind: '场景', lvl: '工作目录', t: '10-28 15:02', sum: '16 阵元均匀线阵，2 个相干信源 ±10°，SNR 10 dB，快拍数 200，无阵列误差', set: { M: 16, d: 0.5, Kmode: 'fixed', K: 2, angMode: 'fixed', ang: '-10, 10', snr: 10, corr: 'coh', N: 200 }, imp: [] },
+  { id: 'snr', name: 'SNR 扫描（论文图）', kind: '实验', lvl: '工作目录', t: '10-29 10:20', sum: '默认场景；扫描 SNR −10 到 20 dB 共 7 点，每点 1000 次；MUSIC、Root-MUSIC、TLS-ESPRIT', mode: 'sweep', sweep: 'snr', algos: [['music', 'MUSIC'], ['root_music', 'Root-MUSIC'], ['esprit', 'TLS-ESPRIT']], set: { Kmode: 'fixed', K: 2, angMode: 'fixed', ang: '-10, 10', corr: 'none', N: 200, trials: 1000 }, imp: [] },
+  { id: 'gp', name: '幅相误差鲁棒性', kind: '实验', lvl: '内置', t: '随竞技场', sum: '默认场景加幅相误差；扫描相位误差 σ_φ 0° 到 10°，每点 500 次；MUSIC、TLS-ESPRIT', mode: 'sweep', sweep: 'sphi', algos: [['music', 'MUSIC'], ['esprit', 'TLS-ESPRIT']], set: { Kmode: 'fixed', K: 2, angMode: 'fixed', ang: '-10, 10', corr: 'none', trials: 500 }, imp: ['gp'] },
+  { id: 'res', name: '分辨力（角度间隔扫描）', kind: '实验', lvl: '内置', t: '随竞技场', sum: '两个不相干信源以 0° 为中心；扫描间隔 Δ 2° 到 20°，每点 500 次；CBF、MVDR、MUSIC', mode: 'sweep', sweep: 'sep', algos: [['cbf', 'CBF'], ['mvdr', 'MVDR'], ['music', 'MUSIC']], set: { Kmode: 'fixed', K: 2, angMode: 'separation', angC: 0, corr: 'none', trials: 500 }, imp: [] },
+];
+function applyTpl(t) {
+  Object.entries(t.set || {}).forEach(([id, v]) => { $('#' + id).value = v; });
+  if (t.imp) ['gp', 'pos', 'mc', 'fault'].forEach(k => { $(`#imp-${k} .sw input`).checked = t.imp.includes(k); });
+  if (t.kind === '实验') { S.mode = t.mode; S.sweep = t.sweep; $('#expName').value = t.name; S.algos.length = 0; t.algos.forEach(([def, label]) => addAlgo(def, label)); }
+  refresh(); toast(`已载入模板“${t.name}”` + (t.kind === '场景' ? '，实验方式和算法没有改动' : '，场景、实验方式和算法都已替换')); closePops(); location.hash = '#config';
+}
+let tKind = '';
+function drawTpl() {
+  $$('#tSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === tKind));
+  $('#tTable').innerHTML = '<tr><th>名称</th><th>类型</th><th>层级</th><th>修改时间</th><th></th></tr>' + TPLS.filter(t => !tKind || t.kind === tKind).map(t => {
+    const own = t.lvl !== '内置';
+    return `<tr class="row" data-id="${t.id}"><td class="nm"><b>${esc(t.name)}</b><small>${esc(t.sum)}</small></td><td>${t.kind}模板</td><td><span class="tag${own ? ' blue' : ''}">${t.lvl}</span></td><td>${t.t}</td>
+      <td class="ra"><button class="btn" data-apply>用它新建实验</button> <div class="menu-w" style="display:inline-block"><button class="ib" data-pop="tm-${t.id}" aria-label="更多操作" title="更多操作">${I.more}</button><div class="pop menu" id="tm-${t.id}" hidden>
+        ${own ? '<button data-say="原型演示：正式界面会打开这个模板进行编辑">编辑</button><button data-say="原型演示：正式界面会复制出一个新模板">复制</button><button data-say="原型演示：正式界面会在确认后删除这个模板">删除</button>'
+          : '<button data-say="原型演示：正式界面会把它复制到工作目录的 templates/，之后可以编辑">复制到工作目录<small>内置模板不能直接修改</small></button>'}</div></div></td></tr>`;
+  }).join('');
+}
+$('#tSeg').onclick = e => { const b = e.target.closest('button'); if (b) { tKind = b.dataset.k; drawTpl(); } };
+$('#tTable').addEventListener('click', ev => {
+  const tr = ev.target.closest('tr.row'); if (!tr) return;
+  if (ev.target.closest('[data-apply]') || !ev.target.closest('button,.menu-w')) applyTpl(TPLS.find(t => t.id === tr.dataset.id));
+});
+$('#tplPop').innerHTML = TPLS.map(t => `<button data-tpl="${t.id}">${esc(t.name)}<small>${t.kind}模板，${t.lvl}</small></button>`).join('');
+$('#tplPop').onclick = e => { const b = e.target.closest('[data-tpl]'); if (b) applyTpl(TPLS.find(t => t.id === b.dataset.tpl)); };
+
+// ---------- 排行榜 ----------
+const deg = v => v.toFixed(2) + '°', pct = v => v + '%';
+const LB = { by: 'rmse0', cols: [
+  { k: 'rmse0', label: 'RMSE，SNR = 0 dB', better: -1, f: deg, sw: 'SNR', sc: '不相干 SNR 扫描' }, { k: 'n20', label: 'RMSE，快拍数 20', better: -1, f: deg, sw: '快拍数 N', sc: '快拍数扫描' },
+  { k: 'res4', label: '分辨概率，Δ = 4°', better: 1, f: pct, sw: '两信源间隔 Δ', sc: '角度间隔扫描' }, { k: 'coh', label: '相干信源成功率', better: 1, f: pct, sw: 'SNR', coh: true, sc: '相干信源' },
+  { k: 'gp5', label: 'RMSE，σ_φ = 5°', better: -1, f: deg, sw: '相位误差 σ_φ', imp: '幅相', rev: true, sc: '幅相误差强度扫描' }, { k: 'time', label: '耗时中位数', better: -1, f: v => v.toFixed(2) + ' ms', sw: 'SNR', sc: '不相干 SNR 扫描' }],
+  rows: [
+    { name: 'B', ver: '0.1.0', git: 'e3b0c44', dirty: true, v: { rmse0: .48, n20: .71, res4: 92, coh: 97, gp5: .61, time: .03 } },
+    { name: 'B', ver: '0.0.9', git: 'a41d9f0', v: { rmse0: .55, n20: .83, res4: 88, coh: 93, gp5: .74, time: .03 } },
+    { name: 'Root-MUSIC', ver: '内置 1.0.0', v: { rmse0: .58, n20: .92, res4: 87, coh: 96, gp5: null, time: .11 } },
+    { name: 'TLS-ESPRIT', ver: '内置 1.0.0', v: { rmse0: .61, n20: .97, res4: 85, coh: 95, gp5: .55, time: .09 } },
+    { name: 'MUSIC+FBSS', ver: '内置 1.0.0', v: { rmse0: .66, n20: 1.04, res4: 81, coh: 96, gp5: .63, time: .18 } },
+    { name: 'MVDR', ver: '内置 1.0.0', v: { rmse0: 1.12, n20: 2.35, res4: 46, coh: 12, gp5: 1.30, time: .20 } },
+    { name: 'CBF', ver: '内置 1.0.0', v: { rmse0: 2.85, n20: 3.10, res4: 3, coh: 9, gp5: 2.90, time: .12 } }] };
+function drawLB() {
+  const c = LB.cols.find(c => c.k === LB.by), val = r => r.v[c.k];
+  const rows = LB.rows.map((r, i) => ({ r, i })).sort((a, b) => (val(a.r) == null) - (val(b.r) == null) || (val(a.r) - val(b.r)) * -c.better || 0);
+  const best = Object.fromEntries(LB.cols.map(c => [c.k, (c.better > 0 ? Math.max : Math.min)(...LB.rows.map(r => r.v[c.k]).filter(v => v != null))]));
+  $('#lbT').innerHTML = `<tr><th class="n">排名</th><th>算法</th>${LB.cols.map(q => `<th class="n"><button data-by="${q.k}" title="按这一项排名">${q.label}${q.k === LB.by ? ' ↓' : ''}<small>${q.better > 0 ? '越大越好' : '越小越好'}</small></button></th>`).join('')}</tr>`
+    + rows.map(({ r, i }, n) => `<tr><td class="n">${val(r) == null ? '—' : n + 1}</td><td class="nm"><b>${esc(r.name)}</b><small>${r.ver}${r.git ? `，commit ${r.git}` : ''}${r.dirty ? ' <span class="tag warn">有未提交修改</span>' : ''}</small></td>`
+      + LB.cols.map(q => { const v = r.v[q.k]; return `<td class="n">${v == null ? '<button class="link" data-say="原型演示：正式界面会只补跑这个算法缺的场景">未运行，补跑</button>' : `<button class="cellb${v === best[q.k] ? ' best' : ''}" data-cell="${i}|${q.k}" title="打开对应的实验">${q.f(v)}</button>`}</td>`; }).join('') + '</tr>').join('');
+}
+$('#lbT').addEventListener('click', ev => {
+  const by = ev.target.closest('[data-by]'), cell = ev.target.closest('[data-cell]');
+  if (by) { LB.by = by.dataset.by; drawLB(); }
+  if (cell) { const [i, k] = cell.dataset.cell.split('|'), r = LB.rows[+i], q = LB.cols.find(c => c.k === k), sv = SWV[q.sw];
+    openExp({ id: `20261030-100001_doa-basic-${k}_1c2d`, name: `doa-basic 1.0 / ${q.sc}`, t: '10-30 10:00', type: 'sweep', sw: q.sw, pts: sv.v.length, T: 500, algos: [r.name], mode: 'Web', st: 'completed', tags: [], coh: q.coh, imp: q.imp, rev: q.rev }); }
+});
+$('#lbRun').onclick = () => {
+  const list = S.algos.filter(a => a.on);
+  dialog('运行场景集 doa-basic 1.0', `<p>场景集有 5 个场景。选中的每个算法都会跑一遍，结果按普通实验存进工作目录，并出现在排行榜里。</p>
+    <div class="chk">${list.map(a => `<label><input type="checkbox" checked> ${esc(a.label)} <span class="cnt">${esc(diffSummary(a))}</span></label>`).join('') || '<p class="cap">“新建实验”页还没有启用的算法。</p>'}</div>
+    <p class="cap">算法和参数取自“新建实验”页当前的算法列表。预计约 3 分钟。</p>`, '开始运行', () => toast('原型演示：正式界面会依次运行 5 个场景，进度显示在左下角'));
+};
+
+fillFilters();
+
+refresh();
+addEventListener('hashchange', route); route();
 </script>
 </body>
 </html>
