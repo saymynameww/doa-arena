@@ -127,3 +127,56 @@ def test_cancel_task(client):
 
     # 可能已经完成，所以不一定成功
     assert response.status_code in [200, 404]
+
+
+def test_list_algorithms(client):
+    """测试列出算法。"""
+    response = client.get("/api/algorithms")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "algorithms" in data
+    assert len(data["algorithms"]) > 0
+
+    # 验证算法结构
+    algo = data["algorithms"][0]
+    assert "id" in algo
+    assert "name" in algo
+    assert "description" in algo
+
+
+def test_get_algorithm(client):
+    """测试获取算法详情。"""
+    response = client.get("/api/algorithms/music")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == "music"
+    assert "params" in data
+
+
+def test_get_task_result(client):
+    """测试获取任务结果。"""
+    # 创建并运行任务
+    config = {
+        "name": "结果测试",
+        "trials": 2,
+        "algorithms": [{"id": "music"}],
+    }
+
+    response = client.post("/api/experiments/run", json=config)
+    task_id = response.json()["task_id"]
+
+    # 等待完成（简化：直接查询）
+    import time
+
+    time.sleep(2)
+
+    # 获取结果
+    response = client.get(f"/api/experiments/tasks/{task_id}/result")
+
+    # 可能未完成
+    if response.status_code == 200:
+        data = response.json()
+        assert "result_path" in data
+        assert "files" in data

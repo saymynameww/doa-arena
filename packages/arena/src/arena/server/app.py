@@ -9,7 +9,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import experiments, health
+from .routes import algorithms, experiments, health
 
 logger = logging.getLogger(__name__)
 
@@ -49,5 +49,6 @@ def create_app() -> FastAPI:
     # 注册路由
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(experiments.router, prefix="/api", tags=["experiments"])
+    app.include_router(algorithms.router, prefix="/api", tags=["algorithms"])
 
     return app
