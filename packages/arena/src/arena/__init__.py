@@ -3,10 +3,16 @@
 脚本模式门面，提供简洁的顶层API。
 """
 
-__version__ = "0.2.0"  # M2 版本
+__version__ = "0.3.0"  # M3 版本
 
 # M2: 导出基础 API
-from .core.config import ExperimentConfig, ExperimentType, ScenarioConfig
+from .core.config import (
+    AlgorithmConfig,
+    ExperimentConfig,
+    ExperimentType,
+    ScenarioConfig,
+    SweepConfig,
+)
 from .core.runner import run_experiment
 
 __all__ = [
@@ -14,6 +20,8 @@ __all__ = [
     "ScenarioConfig",
     "ExperimentConfig",
     "ExperimentType",
+    "AlgorithmConfig",
+    "SweepConfig",
     "run_experiment",
 ]
 
