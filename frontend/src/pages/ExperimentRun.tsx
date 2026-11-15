@@ -23,6 +23,7 @@ import {
 } from '@ant-design/icons';
 import { getTask, subscribeTaskProgress, getTaskResult } from '@/services/api';
 import ResultCharts from '@/components/ResultCharts';
+import ExportMenu from '@/components/ExportMenu';
 import type { Task } from '@/types';
 
 const ExperimentRunPage: React.FC = () => {
@@ -212,11 +213,7 @@ const ExperimentRunPage: React.FC = () => {
               type="success"
               showIcon
               action={
-                <Space>
-                  <Button type="primary" icon={<DownloadOutlined />}>
-                    下载数据
-                  </Button>
-                </Space>
+                <ExportMenu taskId={task.task_id} resultPath={resultPath || undefined} />
               }
             />
 

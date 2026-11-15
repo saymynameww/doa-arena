@@ -140,14 +140,34 @@ const ExperimentConfigPage: React.FC = () => {
         <Card
           title="新建实验"
           extra={
-            <Button
-              type="primary"
-              onClick={handleSubmit}
-              loading={loading}
-              icon={<PlayCircleOutlined />}
-            >
-              运行实验
-            </Button>
+            <Space>
+              <Button
+                onClick={() => {
+                  const config = form.getFieldsValue();
+                  const blob = new Blob([JSON.stringify(config, null, 2)], {
+                    type: 'application/json',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = 'experiment_config.json';
+                  link.click();
+                  URL.revokeObjectURL(url);
+                  message.success('配置已导出');
+                }}
+              >
+                导出 JSON
+              </Button>
+              <Button>保存为模板</Button>
+              <Button
+                type="primary"
+                onClick={handleSubmit}
+                loading={loading}
+                icon={<PlayCircleOutlined />}
+              >
+                运行实验
+              </Button>
+            </Space>
           }
         >
         <Form form={form} layout="vertical">
