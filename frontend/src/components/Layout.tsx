@@ -5,6 +5,7 @@ import {
   ExperimentOutlined,
   HistoryOutlined,
   DatabaseOutlined,
+  FileTextOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 
@@ -30,6 +31,11 @@ const AppLayout: React.FC = () => {
       key: '/algorithms',
       icon: <DatabaseOutlined />,
       label: '算法库',
+    },
+    {
+      key: '/templates',
+      icon: <FileTextOutlined />,
+      label: '模板',
     },
     {
       key: '/settings',

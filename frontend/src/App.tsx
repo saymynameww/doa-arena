@@ -7,6 +7,8 @@ import ExperimentConfigPage from './pages/ExperimentConfig';
 import ExperimentRunPage from './pages/ExperimentRun';
 import HistoryPage from './pages/History';
 import AlgorithmsPage from './pages/Algorithms';
+import TemplatesPage from './pages/Templates';
+import SettingsPage from './pages/Settings';
 
 const App: React.FC = () => {
   return (
@@ -18,6 +20,8 @@ const App: React.FC = () => {
             <Route path="runs/:id" element={<ExperimentRunPage />} />
             <Route path="history" element={<HistoryPage />} />
             <Route path="algorithms" element={<AlgorithmsPage />} />
+            <Route path="templates" element={<TemplatesPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

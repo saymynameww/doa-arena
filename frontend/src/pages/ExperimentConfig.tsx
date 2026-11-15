@@ -159,7 +159,18 @@ const ExperimentConfigPage: React.FC = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="试验次数" name="trials" initialValue={50}>
+              <Form.Item
+                label={
+                  experimentType === 'sweep'
+                    ? '每点试验次数'
+                    : experimentType === 'monte_carlo'
+                    ? '试验次数'
+                    : '快拍数'
+                }
+                name="trials"
+                initialValue={50}
+                hidden={experimentType === 'single'}
+              >
                 <InputNumber min={1} max={10000} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -167,28 +178,101 @@ const ExperimentConfigPage: React.FC = () => {
 
           {/* 实验类型 */}
           <Form.Item label="实验类型">
-            <Radio.Group value={experimentType} onChange={(e) => setExperimentType(e.target.value)}>
-              <Radio.Button value="single">单次实验</Radio.Button>
-              <Radio.Button value="monte_carlo">蒙特卡洛</Radio.Button>
-              <Radio.Button value="sweep">参数扫描</Radio.Button>
+            <Radio.Group
+              value={experimentType}
+              onChange={(e) => setExperimentType(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Card
+                  size="small"
+                  style={{
+                    border: experimentType === 'single' ? '2px solid #1890ff' : undefined,
+                  }}
+                >
+                  <Radio value="single">
+                    <strong>单次实验</strong>
+                  </Radio>
+                  <div style={{ marginLeft: 24, color: '#8c8c8c', fontSize: 12 }}>
+                    生成一次场景并估计，查看空间谱和估计角度
+                  </div>
+                </Card>
+
+                <Card
+                  size="small"
+                  style={{
+                    border: experimentType === 'monte_carlo' ? '2px solid #1890ff' : undefined,
+                  }}
+                >
+                  <Radio value="monte_carlo">
+                    <strong>蒙特卡洛</strong>
+                  </Radio>
+                  <div style={{ marginLeft: 24, color: '#8c8c8c', fontSize: 12 }}>
+                    重复多次试验，统计 RMSE、成功率等指标
+                  </div>
+                </Card>
+
+                <Card
+                  size="small"
+                  style={{
+                    border: experimentType === 'sweep' ? '2px solid #1890ff' : undefined,
+                  }}
+                >
+                  <Radio value="sweep">
+                    <strong>参数扫描</strong>
+                  </Radio>
+                  <div style={{ marginLeft: 24, color: '#8c8c8c', fontSize: 12 }}>
+                    扫描某个参数（如 SNR），绘制指标曲线
+                  </div>
+                </Card>
+              </Space>
             </Radio.Group>
           </Form.Item>
 
           {/* 参数扫描配置 */}
           {experimentType === 'sweep' && (
-            <Card size="small" title="扫描配置" style={{ marginBottom: 16 }}>
+            <Card
+              size="small"
+              title="扫描配置"
+              style={{ marginBottom: 16, backgroundColor: '#fafafa' }}
+            >
               <Row gutter={16}>
                 <Col span={8}>
                   <Form.Item label="扫描路径" name="sweepPath">
                     <Select placeholder="选择扫描变量">
-                      <Option value="scenario.sources.snr_db">SNR (dB)</Option>
-                      <Option value="scenario.snapshots">快拍数</Option>
-                      <Option value="scenario.sources.K">信源数</Option>
+                      <Option value="scenario.sources.snr_db">
+                        <Space direction="vertical" size={0}>
+                          <span>SNR (dB)</span>
+                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                            信噪比
+                          </span>
+                        </Space>
+                      </Option>
+                      <Option value="scenario.snapshots">
+                        <Space direction="vertical" size={0}>
+                          <span>快拍数</span>
+                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                            采样点数
+                          </span>
+                        </Space>
+                      </Option>
+                      <Option value="scenario.sources.K">
+                        <Space direction="vertical" size={0}>
+                          <span>信源数 K</span>
+                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                            入射信号数量
+                          </span>
+                        </Space>
+                      </Option>
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={8}>
-                  <Form.Item label="扫描范围" name="sweepValues">
+                <Col span={10}>
+                  <Form.Item
+                    label="扫描范围"
+                    name="sweepValues"
+                    tooltip="格式：起:步长:止 或 逗号分隔，如 0,5,10,15,20"
+                  >
                     <Select mode="tags" placeholder="例如: 0, 5, 10, 15, 20">
                       {[0, 5, 10, 15, 20].map((v) => (
                         <Option key={v} value={v}>
@@ -197,13 +281,18 @@ const ExperimentConfigPage: React.FC = () => {
                       ))}
                     </Select>
                   </Form.Item>
+                  {form.getFieldValue('sweepValues')?.length > 0 && (
+                    <div style={{ marginTop: -16, marginBottom: 8, fontSize: 12, color: '#52c41a' }}>
+                      ✓ {form.getFieldValue('sweepValues').length} 个取值
+                    </div>
+                  )}
                 </Col>
-                <Col span={4}>
+                <Col span={3}>
                   <Form.Item label="标签" name="sweepLabel" initialValue="SNR">
                     <Input />
                   </Form.Item>
                 </Col>
-                <Col span={4}>
+                <Col span={3}>
                   <Form.Item label="单位" name="sweepUnit" initialValue="dB">
                     <Input />
                   </Form.Item>
