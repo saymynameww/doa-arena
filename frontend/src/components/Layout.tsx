@@ -5,6 +5,8 @@ import {
   ExperimentOutlined,
   HistoryOutlined,
   DatabaseOutlined,
+  FileTextOutlined,
+  BarChartOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 
@@ -27,9 +29,19 @@ const AppLayout: React.FC = () => {
       label: '历史实验',
     },
     {
+      key: '/compare',
+      icon: <BarChartOutlined />,
+      label: '实验对比',
+    },
+    {
       key: '/algorithms',
       icon: <DatabaseOutlined />,
       label: '算法库',
+    },
+    {
+      key: '/templates',
+      icon: <FileTextOutlined />,
+      label: '模板',
     },
     {
       key: '/settings',

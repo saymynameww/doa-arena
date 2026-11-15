@@ -1,19 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Card, Button, Tag, Space, message } from 'antd';
-import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Tag, Space, message, Select, Input } from 'antd';
+import { EyeOutlined, ReloadOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { getTasks } from '@/services/api';
 import type { Task } from '@/types';
 import type { ColumnsType } from 'antd/es/table';
 
+const { Option } = Select;
+
 const HistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchText, setSearchText] = useState<string>('');
 
   useEffect(() => {
     loadTasks();
   }, []);
+
+  useEffect(() => {
+    filterTasks();
+  }, [tasks, statusFilter, searchText]);
+
+  const filterTasks = () => {
+    let filtered = tasks;
+
+    // 状态筛选
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((task) => task.status === statusFilter);
+    }
+
+    // 搜索筛选
+    if (searchText) {
+      filtered = filtered.filter((task) =>
+        task.task_id.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    setFilteredTasks(filtered);
+  };
 
   const loadTasks = async () => {
     try {
@@ -104,18 +131,39 @@ const HistoryPage: React.FC = () => {
     <Card
       title="历史实验"
       extra={
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={loadTasks}
-          loading={loading}
-        >
-          刷新
-        </Button>
+        <Space>
+          <Input
+            placeholder="搜索任务 ID"
+            prefix={<SearchOutlined />}
+            style={{ width: 200 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+          />
+          <Select
+            value={statusFilter}
+            onChange={setStatusFilter}
+            style={{ width: 120 }}
+          >
+            <Option value="all">全部状态</Option>
+            <Option value="completed">已完成</Option>
+            <Option value="running">运行中</Option>
+            <Option value="failed">失败</Option>
+            <Option value="cancelled">已取消</Option>
+          </Select>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={loadTasks}
+            loading={loading}
+          >
+            刷新
+          </Button>
+        </Space>
       }
     >
       <Table
         columns={columns}
-        dataSource={tasks}
+        dataSource={filteredTasks}
         rowKey="task_id"
         loading={loading}
         pagination={{
