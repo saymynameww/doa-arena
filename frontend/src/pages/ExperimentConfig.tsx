@@ -23,6 +23,7 @@ import AlgorithmCard from '@/components/AlgorithmCard';
 import ScenePreview from '@/components/ScenePreview';
 import ConfigSummary from '@/components/ConfigSummary';
 import ValidationAlert from '@/components/ValidationAlert';
+import { ImpairmentConfig } from '@/components/ImpairmentConfig';
 import {
   validateArrayAndSources,
   validateSnapshots,
@@ -48,6 +49,7 @@ const ExperimentConfigPage: React.FC = () => {
   );
   const [loading, setLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [impairments, setImpairments] = useState<Record<string, any>>({});
 
   useEffect(() => {
     loadAlgorithms();
@@ -404,6 +406,13 @@ const ExperimentConfigPage: React.FC = () => {
                   </Form.Item>
                 </Col>
               </Row>
+            </Panel>
+
+            <Panel header="阵列误差" key="impairments">
+              <ImpairmentConfig
+                value={impairments}
+                onChange={setImpairments}
+              />
             </Panel>
           </Collapse>
 

@@ -1,14 +1,17 @@
-import React from 'react';
-import { Form, Input, InputNumber, Select, Switch, Row, Col } from 'antd';
+import React, { useState } from 'react';
+import { Form, Input, InputNumber, Select, Switch, Row, Col, Collapse, Typography } from 'antd';
 import type { ParamSchema } from '@/types';
 
 const { Option } = Select;
+const { Panel } = Collapse;
+const { Text } = Typography;
 
 interface SchemaFormProps {
   schema: Record<string, ParamSchema>;
   values?: Record<string, any>;
   onChange?: (values: Record<string, any>) => void;
   prefix?: string;
+  showAdvanced?: boolean; // 是否支持高级参数折叠
 }
 
 /**
@@ -21,6 +24,7 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
   values = {},
   onChange,
   prefix = '',
+  showAdvanced = true,
 }) => {
   const handleValueChange = (key: string, value: any) => {
     const newValues = { ...values, [key]: value };
@@ -110,19 +114,48 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
 
   const fields = Object.entries(schema);
 
+  // 区分基本参数和高级参数（通过 x-advanced 字段标记）
+  const basicFields = fields.filter(([key, paramSchema]) => !(paramSchema as any)['x-advanced']);
+  const advancedFields = fields.filter(([key, paramSchema]) => (paramSchema as any)['x-advanced']);
+
   // 分为两列显示
-  const leftFields = fields.filter((_, index) => index % 2 === 0);
-  const rightFields = fields.filter((_, index) => index % 2 === 1);
+  const renderFieldsInColumns = (fieldsToRender: [string, ParamSchema][]) => {
+    const leftFields = fieldsToRender.filter((_, index) => index % 2 === 0);
+    const rightFields = fieldsToRender.filter((_, index) => index % 2 === 1);
+
+    return (
+      <Row gutter={16}>
+        <Col span={12}>
+          {leftFields.map(([key, paramSchema]) => renderField(key, paramSchema))}
+        </Col>
+        <Col span={12}>
+          {rightFields.map(([key, paramSchema]) => renderField(key, paramSchema))}
+        </Col>
+      </Row>
+    );
+  };
 
   return (
-    <Row gutter={16}>
-      <Col span={12}>
-        {leftFields.map(([key, paramSchema]) => renderField(key, paramSchema))}
-      </Col>
-      <Col span={12}>
-        {rightFields.map(([key, paramSchema]) => renderField(key, paramSchema))}
-      </Col>
-    </Row>
+    <>
+      {/* 基本参数 */}
+      {basicFields.length > 0 && renderFieldsInColumns(basicFields)}
+
+      {/* 高级参数（折叠） */}
+      {showAdvanced && advancedFields.length > 0 && (
+        <Collapse
+          ghost
+          bordered={false}
+          style={{ marginTop: 8 }}
+          items={[
+            {
+              key: 'advanced',
+              label: <Text type="secondary">高级参数</Text>,
+              children: renderFieldsInColumns(advancedFields),
+            },
+          ]}
+        />
+      )}
+    </>
   );
 };
 

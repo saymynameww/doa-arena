@@ -4,6 +4,7 @@ import { Card } from 'antd';
 interface ScenePreviewProps {
   arraySize?: number;
   sourceAngles?: number[];
+  sourceRanges?: Array<{ min: number; max: number }>; // 动态范围
   faultyElements?: number[];
 }
 
@@ -15,6 +16,7 @@ interface ScenePreviewProps {
 const ScenePreview: React.FC<ScenePreviewProps> = ({
   arraySize = 16,
   sourceAngles = [-20, 20],
+  sourceRanges = [],
   faultyElements = [],
 }) => {
   const width = 300;
@@ -99,9 +101,29 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
       const rad = (angle * Math.PI) / 180;
       const x = centerX + radius * Math.sin(rad);
       const y = centerY - radius * Math.cos(rad);
+      const hasRange = sourceRanges[index];
 
       return (
         <g key={index}>
+          {/* 如果有动态范围，绘制扇形区域 */}
+          {hasRange && (
+            <path
+              d={createArcPath(
+                centerX,
+                centerY,
+                radius * 0.9,
+                hasRange.min,
+                hasRange.max
+              )}
+              fill="#52c41a"
+              fillOpacity="0.15"
+              stroke="#52c41a"
+              strokeWidth="1"
+              strokeDasharray="3,3"
+            />
+          )}
+
+          {/* 信源方向线 */}
           <line
             x1={centerX}
             y1={centerY}
@@ -121,10 +143,37 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
             fill="#52c41a"
           >
             {angle}°
+            {hasRange && <tspan fontSize="9" fill="#8c8c8c"> (范围)</tspan>}
           </text>
         </g>
       );
     });
+  };
+
+  // 创建扇形路径
+  const createArcPath = (
+    cx: number,
+    cy: number,
+    r: number,
+    startAngle: number,
+    endAngle: number
+  ): string => {
+    const startRad = (startAngle * Math.PI) / 180;
+    const endRad = (endAngle * Math.PI) / 180;
+
+    const x1 = cx + r * Math.sin(startRad);
+    const y1 = cy - r * Math.cos(startRad);
+    const x2 = cx + r * Math.sin(endRad);
+    const y2 = cy - r * Math.cos(endRad);
+
+    const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+
+    return `
+      M ${cx} ${cy}
+      L ${x1} ${y1}
+      A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2}
+      Z
+    `;
   };
 
   return (
