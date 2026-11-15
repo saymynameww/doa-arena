@@ -15,13 +15,18 @@ import {
   message,
   Collapse,
   Tag,
+  Typography,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { getAlgorithms, runExperiment } from '@/services/api';
+import AlgorithmCard from '@/components/AlgorithmCard';
+import ScenePreview from '@/components/ScenePreview';
+import ConfigSummary from '@/components/ConfigSummary';
 import type { Algorithm, ExperimentConfig, AlgorithmInstance } from '@/types';
 
 const { Panel } = Collapse;
 const { Option } = Select;
+const { Text } = Typography;
 
 const ExperimentConfigPage: React.FC = () => {
   const [form] = Form.useForm();
@@ -62,6 +67,27 @@ const ExperimentConfigPage: React.FC = () => {
   const handleRemoveAlgorithm = (index: number) => {
     const newAlgorithms = [...selectedAlgorithms];
     newAlgorithms.splice(index, 1);
+    setSelectedAlgorithms(newAlgorithms);
+  };
+
+  const handleCopyAlgorithm = (index: number) => {
+    const algo = selectedAlgorithms[index];
+    const newInstance: AlgorithmInstance = {
+      ...algo,
+      label: `${algo.label} (副本)`,
+    };
+    setSelectedAlgorithms([...selectedAlgorithms, newInstance]);
+  };
+
+  const handleAlgorithmLabelChange = (index: number, label: string) => {
+    const newAlgorithms = [...selectedAlgorithms];
+    newAlgorithms[index].label = label;
+    setSelectedAlgorithms(newAlgorithms);
+  };
+
+  const handleAlgorithmParamsChange = (index: number, params: Record<string, any>) => {
+    const newAlgorithms = [...selectedAlgorithms];
+    newAlgorithms[index].params = params;
     setSelectedAlgorithms(newAlgorithms);
   };
 
@@ -109,8 +135,21 @@ const ExperimentConfigPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <Card title="新建实验" extra={<Button type="primary" onClick={handleSubmit} loading={loading} icon={<PlayCircleOutlined />}>运行实验</Button>}>
+    <Row gutter={16}>
+      <Col span={16}>
+        <Card
+          title="新建实验"
+          extra={
+            <Button
+              type="primary"
+              onClick={handleSubmit}
+              loading={loading}
+              icon={<PlayCircleOutlined />}
+            >
+              运行实验
+            </Button>
+          }
+        >
         <Form form={form} layout="vertical">
           {/* 基本信息 */}
           <Row gutter={16}>
@@ -180,6 +219,11 @@ const ExperimentConfigPage: React.FC = () => {
             <Panel header="场景配置" key="scene">
               <Row gutter={16}>
                 <Col span={8}>
+                  <Form.Item label="阵元数 M" name="arraySize" initialValue={16}>
+                    <InputNumber min={2} max={64} style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
                   <Form.Item label="快拍数" name="snapshots" initialValue={100}>
                     <InputNumber min={10} max={10000} style={{ width: '100%' }} />
                   </Form.Item>
@@ -199,7 +243,7 @@ const ExperimentConfigPage: React.FC = () => {
           <div>
             <div style={{ marginBottom: 16 }}>
               <Space>
-                <span style={{ fontWeight: 'bold' }}>算法</span>
+                <Text strong>算法</Text>
                 <Select
                   placeholder="添加算法"
                   style={{ width: 200 }}
@@ -216,30 +260,53 @@ const ExperimentConfigPage: React.FC = () => {
               </Space>
             </div>
 
-            <Space direction="vertical" style={{ width: '100%' }}>
-              {selectedAlgorithms.map((algo, index) => (
-                <Card
-                  key={index}
-                  size="small"
-                  title={algo.label}
-                  extra={
-                    <Button
-                      type="text"
-                      danger
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={() => handleRemoveAlgorithm(index)}
-                    />
-                  }
-                >
-                  <div style={{ color: '#8c8c8c' }}>算法 ID: {algo.id}</div>
-                </Card>
-              ))}
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              {selectedAlgorithms.map((instance, index) => {
+                const algo = algorithms.find((a) => a.id === instance.id);
+                if (!algo) return null;
+
+                return (
+                  <AlgorithmCard
+                    key={index}
+                    algorithm={algo}
+                    instance={instance}
+                    index={index}
+                    onLabelChange={handleAlgorithmLabelChange}
+                    onParamsChange={handleAlgorithmParamsChange}
+                    onRemove={handleRemoveAlgorithm}
+                    onCopy={handleCopyAlgorithm}
+                  />
+                );
+              })}
             </Space>
           </div>
         </Form>
       </Card>
-    </div>
+    </Col>
+
+    <Col span={8}>
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        {/* 场景预览 */}
+        <ScenePreview
+          arraySize={form.getFieldValue('arraySize') || 16}
+          sourceAngles={[-20, 20]}
+          faultyElements={[]}
+        />
+
+        {/* 配置摘要 */}
+        <ConfigSummary
+          config={{
+            experimentType,
+            trials: form.getFieldValue('trials'),
+            arraySize: form.getFieldValue('arraySize') || 16,
+            sourceCount: 2,
+            algorithms: selectedAlgorithms.map((a) => a.label),
+            seed: form.getFieldValue('seed'),
+          }}
+        />
+      </Space>
+    </Col>
+  </Row>
   );
 };
 

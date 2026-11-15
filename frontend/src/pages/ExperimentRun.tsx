@@ -12,14 +12,17 @@ import {
   Spin,
   Descriptions,
   Tag,
+  Tabs,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { getTask, subscribeTaskProgress, getTaskResult } from '@/services/api';
+import ResultCharts from '@/components/ResultCharts';
 import type { Task } from '@/types';
 
 const ExperimentRunPage: React.FC = () => {
@@ -28,6 +31,7 @@ const ExperimentRunPage: React.FC = () => {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resultPath, setResultPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -39,6 +43,11 @@ const ExperimentRunPage: React.FC = () => {
       id,
       (data) => {
         setTask(data);
+
+        // 任务完成时加载结果
+        if (data.status === 'completed') {
+          loadResult();
+        }
       },
       (err) => {
         console.error('进度订阅失败:', err);
@@ -57,10 +66,26 @@ const ExperimentRunPage: React.FC = () => {
       setLoading(true);
       const data = await getTask(id);
       setTask(data);
+
+      // 如果已完成，加载结果
+      if (data.status === 'completed') {
+        loadResult();
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || '加载任务失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadResult = async () => {
+    if (!id) return;
+
+    try {
+      const result = await getTaskResult(id);
+      setResultPath(result.result_path);
+    } catch (err) {
+      console.error('加载结果失败:', err);
     }
   };
 
@@ -180,18 +205,26 @@ const ExperimentRunPage: React.FC = () => {
 
         {/* 完成信息 */}
         {task.status === 'completed' && (
-          <Alert
-            message="实验完成"
-            description="结果已保存，可以查看图表和数据。"
-            type="success"
-            showIcon
-            action={
-              <Space>
-                <Button type="primary">查看结果</Button>
-                <Button>下载数据</Button>
-              </Space>
-            }
-          />
+          <>
+            <Alert
+              message="实验完成"
+              description="结果已保存，可以查看图表和数据。"
+              type="success"
+              showIcon
+              action={
+                <Space>
+                  <Button type="primary" icon={<DownloadOutlined />}>
+                    下载数据
+                  </Button>
+                </Space>
+              }
+            />
+
+            {/* 结果图表 */}
+            {resultPath && (
+              <ResultCharts taskId={task.task_id} resultPath={resultPath} />
+            )}
+          </>
         )}
 
         {/* 任务详情 */}
