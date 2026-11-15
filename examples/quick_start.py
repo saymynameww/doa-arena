@@ -39,14 +39,14 @@ print()
 # 2. 运行实验
 print("开始运行实验...")
 result = run_experiment(config)
-print(f"✓ 实验完成！总耗时: {result.metadata['elapsed_seconds']:.2f} 秒")
+print(f"实验完成！总耗时: {result.metadata['elapsed_seconds']:.2f} 秒")
 print()
 
 # 3. 生成图表
 print("生成图表...")
 gen = ChartGenerator(result)
 charts = gen.create_all_charts()
-print(f"✓ 生成了 {len(charts)} 个图表:")
+print(f"生成了 {len(charts)} 个图表:")
 for name in charts.keys():
     print(f"  - {name}")
 print()
@@ -57,16 +57,16 @@ output_dir.mkdir(exist_ok=True)
 
 print("导出数据...")
 export_to_csv(result, output_dir / "results.csv")
-print(f"✓ CSV: {output_dir / 'results.csv'}")
+print(f"CSV: {output_dir / 'results.csv'}")
 
 export_to_latex(result, output_dir / "results.tex", caption="实验结果")
-print(f"✓ LaTeX: {output_dir / 'results.tex'}")
+print(f"LaTeX: {output_dir / 'results.tex'}")
 print()
 
 # 5. 生成 HTML 报告
 print("生成 HTML 报告...")
 generate_html_report(result, output_dir / "report.html", title="快速开始示例")
-print(f"✓ 报告: {output_dir / 'report.html'}")
+print(f"报告: {output_dir / 'report.html'}")
 print()
 
 print("=" * 60)

@@ -1,0 +1,54 @@
+{
+  "name": "API 测试实验",
+  "scenario": {
+    "seed": 42,
+    "array": {
+      "type": "ula",
+      "params": {
+        "M": 16,
+        "d": 0.5
+      }
+    },
+    "sources": {
+      "K": 2,
+      "angles": {
+        "mode": "fixed",
+        "values": null,
+        "range_deg": null,
+        "delta": null
+      },
+      "snr_db": 10.0,
+      "correlation": {
+        "mode": "none",
+        "rho_mag": null,
+        "phases_deg": "random"
+      }
+    },
+    "snapshots": 50,
+    "noise_power": 1.0,
+    "impairments": []
+  },
+  "algorithms": [
+    {
+      "id": "music",
+      "label": "MUSIC",
+      "enabled": true,
+      "params": {}
+    },
+    {
+      "id": "esprit",
+      "label": "ESPRIT",
+      "enabled": true,
+      "params": {}
+    }
+  ],
+  "type": "monte_carlo",
+  "trials": 10,
+  "sweep": null,
+  "options": {
+    "workers": 1,
+    "common_random_numbers": true,
+    "warmup": true,
+    "save_estimates": true
+  }
+}
