@@ -22,7 +22,17 @@ import { getAlgorithms, runExperiment } from '@/services/api';
 import AlgorithmCard from '@/components/AlgorithmCard';
 import ScenePreview from '@/components/ScenePreview';
 import ConfigSummary from '@/components/ConfigSummary';
+import ValidationAlert from '@/components/ValidationAlert';
+import {
+  validateArrayAndSources,
+  validateSnapshots,
+  validateTrials,
+  validateSweep,
+  validateAlgorithms,
+  debounce,
+} from '@/utils/validation';
 import type { Algorithm, ExperimentConfig, AlgorithmInstance } from '@/types';
+import type { ValidationError } from '@/utils/validation';
 
 const { Panel } = Collapse;
 const { Option } = Select;
@@ -37,10 +47,58 @@ const ExperimentConfigPage: React.FC = () => {
     'monte_carlo'
   );
   const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
 
   useEffect(() => {
     loadAlgorithms();
   }, []);
+
+  // 防抖校验
+  const debouncedValidate = React.useMemo(
+    () => debounce(() => validateConfig(), 300),
+    [selectedAlgorithms]
+  );
+
+  useEffect(() => {
+    debouncedValidate();
+  }, [
+    experimentType,
+    selectedAlgorithms,
+    form.getFieldValue('arraySize'),
+    form.getFieldValue('snapshots'),
+    form.getFieldValue('trials'),
+  ]);
+
+  const validateConfig = () => {
+    const errors: ValidationError[] = [];
+
+    // 校验阵元数和信源数
+    const arraySize = form.getFieldValue('arraySize') || 16;
+    const sourceCount = 2; // TODO: 从表单获取
+    errors.push(...validateArrayAndSources(arraySize, sourceCount));
+
+    // 校验快拍数
+    const snapshots = form.getFieldValue('snapshots') || 100;
+    errors.push(...validateSnapshots(snapshots, arraySize));
+
+    // 校验试验次数
+    if (experimentType !== 'single') {
+      const trials = form.getFieldValue('trials') || 50;
+      errors.push(...validateTrials(trials));
+    }
+
+    // 校验扫描配置
+    if (experimentType === 'sweep') {
+      const sweepPath = form.getFieldValue('sweepPath');
+      const sweepValues = form.getFieldValue('sweepValues');
+      errors.push(...validateSweep(sweepPath, sweepValues));
+    }
+
+    // 校验算法选择
+    errors.push(...validateAlgorithms(selectedAlgorithms));
+
+    setValidationErrors(errors);
+  };
 
   const loadAlgorithms = async () => {
     try {
@@ -170,7 +228,10 @@ const ExperimentConfigPage: React.FC = () => {
             </Space>
           }
         >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" onValuesChange={() => validateConfig()}>
+          {/* 校验提示 */}
+          <ValidationAlert errors={validationErrors} />
+
           {/* 基本信息 */}
           <Row gutter={16}>
             <Col span={12}>
