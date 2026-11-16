@@ -25,24 +25,16 @@ function Stop-PortProcess([int]$Port) {
 Stop-PortProcess 8765
 Stop-PortProcess 3000
 
-$backendCommand = @"
-`$env:PYTHONPATH = `"$ProjectRoot\packages\arena\src;$ProjectRoot\packages\arena_api\src`"
-Set-Location `"$ProjectRoot`"
-& `"$Python`" -m arena.server.cli
-"@
+# 让子进程继承模块搜索路径，直接启动可执行文件，避免嵌套 PowerShell 的转义问题。
+$env:PYTHONPATH = "$ProjectRoot\packages\arena\src;$ProjectRoot\packages\arena_api\src"
 
-$frontendCommand = @"
-Set-Location `"$FrontendRoot`"
-npm run dev -- --host 127.0.0.1
-"@
+Start-Process -FilePath $Python `
+    -ArgumentList @("-m", "arena.server.cli") `
+    -WorkingDirectory $ProjectRoot | Out-Null
 
-Start-Process powershell.exe -ArgumentList @(
-    "-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $backendCommand
-) -WorkingDirectory $ProjectRoot | Out-Null
-
-Start-Process powershell.exe -ArgumentList @(
-    "-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $frontendCommand
-) -WorkingDirectory $FrontendRoot | Out-Null
+Start-Process -FilePath "npm.cmd" `
+    -ArgumentList @("run", "dev", "--", "--host", "127.0.0.1") `
+    -WorkingDirectory $FrontendRoot | Out-Null
 
 Start-Sleep -Seconds 2
 Write-Host "后端: http://127.0.0.1:8765"
