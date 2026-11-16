@@ -10,7 +10,6 @@ import {
   Button,
   Space,
   Radio,
-  Divider,
   Row,
   Col,
   message,
@@ -43,6 +42,7 @@ const { Text } = Typography;
 
 const ExperimentConfigPage: React.FC = () => {
   const [form] = Form.useForm();
+  Form.useWatch([], form);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
@@ -102,7 +102,7 @@ const ExperimentConfigPage: React.FC = () => {
     }
 
     // 校验算法选择
-    errors.push(...validateAlgorithms(selectedAlgorithms));
+    errors.push(...validateAlgorithms(selectedAlgorithms.filter((item) => item.enabled !== false)));
 
     setValidationErrors(errors);
   };
@@ -183,7 +183,7 @@ const ExperimentConfigPage: React.FC = () => {
     try {
       const values = await form.validateFields();
 
-      if (selectedAlgorithms.length === 0) {
+      if (!selectedAlgorithms.some((item) => item.enabled !== false)) {
         message.error('请至少选择一个算法');
         return;
       }
@@ -196,7 +196,7 @@ const ExperimentConfigPage: React.FC = () => {
       const config: ExperimentConfig = {
         name: values.name || '未命名实验',
         type: experimentType,
-        trials: values.trials || 50,
+        trials: experimentType === 'single' ? 1 : (values.trials ?? 50),
         scenario: {
           seed: values.seed || 42,
           array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
@@ -255,7 +255,7 @@ const ExperimentConfigPage: React.FC = () => {
         config: {
           name,
           type: experimentType,
-          trials: values.trials || 50,
+          trials: experimentType === 'single' ? 1 : (values.trials ?? 50),
           scenario: {
             seed: values.seed || 42,
             array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
@@ -284,7 +284,7 @@ const ExperimentConfigPage: React.FC = () => {
     const payload = {
       name: values.name || '未命名实验',
       type: experimentType,
-      trials: values.trials || 50,
+      trials: experimentType === 'single' ? 1 : (values.trials ?? 50),
       scenario: {
         seed: values.seed || 42,
         array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
@@ -313,11 +313,11 @@ const ExperimentConfigPage: React.FC = () => {
   };
 
   return (
-    <Row gutter={16}>
-      <Col span={16}>
-        <Card
-          title="新建实验"
-          extra={
+    <Form form={form} layout="vertical" onValuesChange={() => validateConfig()} className="experiment-workbench">
+      <header className="experiment-heading">
+        <div className="experiment-heading-name"><Typography.Title level={3}>新建实验</Typography.Title>
+          <Form.Item name="name"><Input aria-label="实验名称" placeholder="输入实验名称" /></Form.Item>
+        </div>
             <Space>
               <Dropdown
                 menu={{
@@ -342,37 +342,9 @@ const ExperimentConfigPage: React.FC = () => {
                 <Button>导出 JSON / 脚本</Button>
               </Dropdown>
             </Space>
-          }
-        >
-        <Form form={form} layout="vertical" onValuesChange={() => validateConfig()}>
-          {/* 校验提示 */}
-          <ValidationAlert errors={validationErrors} />
 
-          {/* 基本信息 */}
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="实验名称" name="name">
-                <Input placeholder="输入实验名称" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                label={
-                  experimentType === 'sweep'
-                    ? '每点试验次数'
-                    : experimentType === 'monte_carlo'
-                    ? '试验次数'
-                    : '快拍数'
-                }
-                name="trials"
-                initialValue={50}
-                hidden={experimentType === 'single'}
-              >
-                <InputNumber min={1} max={10000} style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-
+      </header>
+      <Card className="experiment-mode-panel">
           {/* 实验类型 */}
           <Form.Item label="实验类型">
             <Radio.Group
@@ -380,7 +352,7 @@ const ExperimentConfigPage: React.FC = () => {
               onChange={(e) => setExperimentType(e.target.value)}
               style={{ width: '100%' }}
             >
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <div className="experiment-modes">
                 <Card
                   size="small"
                   style={{
@@ -422,7 +394,7 @@ const ExperimentConfigPage: React.FC = () => {
                     扫描某个参数（如 SNR），绘制指标曲线
                   </div>
                 </Card>
-              </Space>
+              </div>
             </Radio.Group>
           </Form.Item>
 
@@ -482,8 +454,13 @@ const ExperimentConfigPage: React.FC = () => {
             </Card>
           )}
 
-          <Divider />
 
+        <Form.Item label={experimentType === 'sweep' ? '每点试验次数' : '试验次数'} name="trials" initialValue={50} hidden={experimentType === 'single'}>
+          <InputNumber min={1} max={10000} />
+        </Form.Item>
+      </Card>
+      <div className="experiment-columns">
+        <Card title="场景" className="experiment-scene">
           {/* 场景配置 */}
           <Collapse defaultActiveKey="scene">
             <Panel header="场景配置" key="scene">
@@ -529,8 +506,11 @@ const ExperimentConfigPage: React.FC = () => {
             </Panel>
           </Collapse>
 
-          <Divider />
 
+
+
+        </Card>
+        <Card className="experiment-algorithms">
           {/* 算法选择 */}
           <div>
             <div style={{ marginBottom: 16 }}>
@@ -550,7 +530,7 @@ const ExperimentConfigPage: React.FC = () => {
                     </Option>
                   ))}
                 </Select>
-                <Tag color="blue">{selectedAlgorithms.length} 个算法</Tag>
+                <Tag color="blue">{selectedAlgorithms.filter((item) => item.enabled !== false).length} 个算法</Tag>
               </Space>
             </div>
 
@@ -569,35 +549,16 @@ const ExperimentConfigPage: React.FC = () => {
                     onParamsChange={handleAlgorithmParamsChange}
                     onRemove={handleRemoveAlgorithm}
                     onCopy={handleCopyAlgorithm}
+                    onToggle={(target, enabled) => setSelectedAlgorithms((items) => items.map((item, idx) => idx === target ? { ...item, enabled } : item))}
                   />
                 );
               })}
             </Space>
           </div>
-        </Form>
-        <div className="experiment-runbar">
-          <div>
-            <strong>{experimentType === 'sweep' ? `${form.getFieldValue('sweepValues')?.length || 0} 个扫描点 × ` : ''}</strong>
-            {experimentType === 'single' ? '单次实验' : `${form.getFieldValue('trials') || 50} 次试验`} × {selectedAlgorithms.length} 个算法
-            {validationErrors.filter((error) => error.severity === 'warning').length > 0 && (
-              <Tag color="warning" style={{ marginLeft: 12 }}>
-                {validationErrors.filter((error) => error.severity === 'warning').length} 条警告
-              </Tag>
-            )}
-          </div>
-          <Button
-            type="primary"
-            onClick={handleSubmit}
-            loading={loading}
-            icon={<PlayCircleOutlined />}
-          >
-            运行实验
-          </Button>
-        </div>
-      </Card>
-    </Col>
 
-    <Col span={8}>
+          {selectedAlgorithms.length === 0 && <Typography.Paragraph type="secondary">添加要比较的算法。可复制同一算法并修改参数进行对照。</Typography.Paragraph>}
+        </Card>
+        <aside className="experiment-rail">
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         {/* 场景预览 */}
         <ScenePreview
@@ -618,8 +579,32 @@ const ExperimentConfigPage: React.FC = () => {
           }}
         />
       </Space>
-    </Col>
-  </Row>
+
+        </aside>
+      </div>
+      <ValidationAlert errors={validationErrors} />
+        <div className="experiment-runbar">
+          <div>
+            <strong>{experimentType === 'sweep' ? `${form.getFieldValue('sweepValues')?.length || 0} 个扫描点 × ` : ''}</strong>
+            {experimentType === 'single' ? '单次实验' : `${form.getFieldValue('trials') || 50} 次试验`} × {selectedAlgorithms.filter((item) => item.enabled !== false).length} 个算法
+            {validationErrors.filter((error) => error.severity === 'warning').length > 0 && (
+              <Tag color="warning" style={{ marginLeft: 12 }}>
+                {validationErrors.filter((error) => error.severity === 'warning').length} 条警告
+              </Tag>
+            )}
+          </div>
+          <Button
+            type="primary"
+            onClick={handleSubmit}
+            loading={loading}
+            disabled={validationErrors.some((error) => error.severity === 'error')}
+            icon={<PlayCircleOutlined />}
+          >
+            运行实验
+          </Button>
+        </div>
+
+    </Form>
   );
 };
 

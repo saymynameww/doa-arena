@@ -43,7 +43,7 @@ const AlgorithmCard: React.FC<AlgorithmCardProps> = ({
   onToggle,
 }) => {
   const [expanded, setExpanded] = useState(false);
-  const [enabled, setEnabled] = useState(true);
+  const enabled = instance.enabled !== false;
 
   // 算法类型对应的颜色
   const getAlgorithmColor = (type: string) => {
@@ -87,7 +87,6 @@ const AlgorithmCard: React.FC<AlgorithmCardProps> = ({
   };
 
   const handleToggle = (checked: boolean) => {
-    setEnabled(checked);
     onToggle?.(index, checked);
   };
 

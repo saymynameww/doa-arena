@@ -42,6 +42,7 @@ export interface ScenarioConfig {
 }
 
 export interface AlgorithmInstance {
+  enabled?: boolean;
   id: string;
   label: string;
   params?: Record<string, any>;

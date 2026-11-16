@@ -76,3 +76,31 @@ body {
   border-top: 1px solid #e8e8e8;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
 }
+
+.experiment-workbench { min-width: 0; }
+.experiment-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.experiment-heading-name { display: flex; align-items: center; gap: 16px; }
+.experiment-heading-name .ant-typography, .experiment-heading-name .ant-form-item { margin: 0; }
+.experiment-heading-name input { width: 280px; }
+.experiment-mode-panel { margin-bottom: 16px; }
+.experiment-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.experiment-modes .ant-card { height: 100%; }
+.experiment-modes .ant-card:has(.ant-radio-checked) { background: #edf4ff; }
+.experiment-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 288px; gap: 16px; align-items: start; }
+.experiment-columns > * { min-width: 0; }
+.experiment-rail { position: sticky; top: 16px; }
+.experiment-scene .ant-row { display: block; }
+.experiment-scene .ant-col { max-width: 100%; }
+.experiment-scene .ant-form-item { margin-bottom: 16px; }
+.experiment-workbench .experiment-runbar { bottom: 0; margin: 16px 0 0; }
+@media (max-width: 1340px) {
+  .experiment-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .experiment-scene { grid-row: 1 / span 2; }
+  .experiment-rail { grid-column: 2; position: static; }
+}
+@media (max-width: 900px) {
+  .experiment-columns, .experiment-modes { grid-template-columns: minmax(0, 1fr); }
+  .experiment-scene { grid-row: auto; }
+  .experiment-rail { grid-column: auto; }
+  .experiment-heading-name { flex-wrap: wrap; }
+}
