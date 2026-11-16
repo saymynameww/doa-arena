@@ -85,7 +85,7 @@ class ScenarioGenerator:
         self,
     ) -> dict[str, list[ImpairmentInstance]]:
         """按阶段分组误差。"""
-        stages = {
+        stages: dict[str, list[ImpairmentInstance]] = {
             "positions": [],
             "manifold": [],
             "signal": [],
@@ -198,7 +198,7 @@ class ScenarioGenerator:
                     imp_inst.impairment.id,
                     "fixed",
                 )
-                imp_inst.draw = imp_inst.impairment.sample(rng, M)
+                imp_inst.draw = dict(imp_inst.impairment.sample(rng, M))
             return imp_inst.draw
         else:
             # 每次随机
@@ -206,7 +206,7 @@ class ScenarioGenerator:
                 imp_inst.impairment.id,
                 "random",
             )
-            return imp_inst.impairment.sample(rng, M)
+            return dict(imp_inst.impairment.sample(rng, M))
 
 
 def generate_trial_data(

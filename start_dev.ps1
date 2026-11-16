@@ -35,11 +35,11 @@ $env:PYTHONPATH = "$ProjectRoot\packages\arena\src;$ProjectRoot\packages\arena_a
 
 Start-Process -FilePath $Python `
     -ArgumentList @("-m", "arena.server.cli") `
-    -WorkingDirectory $ProjectRoot | Out-Null
+    -WorkingDirectory $ProjectRoot -WindowStyle Hidden | Out-Null
 
 Start-Process -FilePath "npm.cmd" `
     -ArgumentList @("run", "dev", "--", "--host", "127.0.0.1") `
-    -WorkingDirectory $FrontendRoot | Out-Null
+    -WorkingDirectory $FrontendRoot -WindowStyle Hidden | Out-Null
 
 if ($WithPrototype) {
     if (-not (Test-Path (Join-Path $PrototypeRoot "index.html"))) {

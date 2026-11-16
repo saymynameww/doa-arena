@@ -5,8 +5,6 @@
 
 from typing import ClassVar, Literal
 
-import numpy as np
-
 from arena_api import (
     Algorithm,
     ArrayDescriptor,
@@ -48,7 +46,7 @@ class RootMUSIC(Algorithm):
             "none",
             label="空间平滑",
         )
-        subarray_size: int | None = Param(
+        subarray: int | None = Param(
             None,
             ge=2,
             label="子阵阵元数",
@@ -62,7 +60,7 @@ class RootMUSIC(Algorithm):
 
     def configure(
         self,
-        params: Params,
+        params: ParamsModel,
         array: ArrayDescriptor,
         ctx: RunContext,
     ) -> None:
@@ -73,6 +71,7 @@ class RootMUSIC(Algorithm):
             array: 阵列描述
             ctx: 运行上下文
         """
+        params = self.Params.model_validate(params)
         self.params = params
         self.d = array.ula_spacing
 
@@ -93,6 +92,9 @@ class RootMUSIC(Algorithm):
         """
         if self.params is None or self.d is None:
             raise RuntimeError("Root-MUSIC 未配置")
+
+        if obs.K is None or not 1 <= obs.K < obs.M:
+            raise ValueError("该算法需要已知且小于阵元数的正整数信源数")
 
         # 协方差
         R = obs.covariance()
@@ -118,14 +120,5 @@ class RootMUSIC(Algorithm):
 
     def _get_subarray_size(self, M: int, K: int) -> int:
         """确定子阵大小。"""
-        if self.params.subarray_size is not None:
-            L = self.params.subarray_size
-        else:
-            L = int(np.ceil(2 * M / 3))
-
-        if L > M:
-            L = M
-        if L <= K:
-            L = K + 1
-
-        return L
+        assert self.params is not None
+        return kit.checked_subarray(M, K, self.params.smoothing, self.params.subarray)

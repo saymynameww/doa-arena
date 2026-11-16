@@ -14,7 +14,7 @@ router = APIRouter()
 async def list_scenarios() -> dict[str, Any]:
     """从已完成实验配置生成可选场景集。"""
     manager = get_task_manager()
-    scenarios = []
+    scenarios: list[dict[str, Any]] = []
     seen: set[str] = set()
     for task in manager.tasks.values():
         if task.status.value != "completed" or task.config is None:
@@ -36,7 +36,7 @@ async def list_scenarios() -> dict[str, Any]:
 @router.get("/leaderboard")
 async def get_leaderboard() -> dict[str, Any]:
     """返回已完成实验的最佳 RMSE 排名。"""
-    rows = []
+    rows: list[dict[str, Any]] = []
     manager = get_task_manager()
     for task in manager.tasks.values():
         if task.status.value != "completed" or task.result_path is None:

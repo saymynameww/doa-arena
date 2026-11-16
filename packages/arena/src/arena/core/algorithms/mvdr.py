@@ -3,7 +3,7 @@
 按接口规范第 13.1 节实现。
 """
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 
@@ -35,7 +35,7 @@ class MVDR(Algorithm):
 
     capabilities: ClassVar[Capabilities] = Capabilities(
         needs_K=False,
-        coherent="yes",
+        coherent="no",
         batch=False,
         parallel=True,
         uses_gpu=False,
@@ -44,11 +44,14 @@ class MVDR(Algorithm):
     class Params(ParamsModel):
         """MVDR 参数。"""
 
-        grid_start: float = Param(-90, label="搜索起始角度", unit="°")
-        grid_stop: float = Param(90, label="搜索终止角度", unit="°")
+        scan_min: float = Param(-90, label="搜索起始角度", unit="°")
+        scan_max: float = Param(90, label="搜索终止角度", unit="°")
         grid_step: float = Param(0.1, gt=0, label="网格步长", unit="°")
-        diagonal_loading: float = Param(
-            1e-6,
+        refine: bool = Param(True, label="抛物线峰值细化")
+        peak_mode: Literal["top_k", "threshold"] = Param("top_k", label="取峰方式")
+        peak_threshold_db: float = Param(10, ge=0, label="峰值门限", unit="dB")
+        loading: float = Param(
+            0.0,
             ge=0,
             label="对角加载",
             description="避免矩阵奇异，加到 R 的对角线上",
@@ -62,17 +65,18 @@ class MVDR(Algorithm):
 
     def configure(
         self,
-        params: Params,
+        params: ParamsModel,
         array: ArrayDescriptor,
         ctx: RunContext,
     ) -> None:
         """配置算法。"""
+        params = self.Params.model_validate(params)
         self.params = params
 
         # 角度网格
         self.grid = np.arange(
-            params.grid_start,
-            params.grid_stop + params.grid_step / 2,
+            params.scan_min,
+            params.scan_max + params.grid_step / 2,
             params.grid_step,
         )
 
@@ -89,35 +93,17 @@ class MVDR(Algorithm):
         # 协方差
         R = obs.covariance()
 
-        # 对角加载
-        if self.params.diagonal_loading > 0:
-            R = R + self.params.diagonal_loading * np.eye(obs.M)
-
-        # R 逆
-        try:
-            R_inv = np.linalg.inv(R)
-        except np.linalg.LinAlgError:
-            # 奇异矩阵，增大对角加载
-            ctx.log.warning("协方差矩阵奇异，增大对角加载")
-            R = R + 1e-3 * np.eye(obs.M)
-            R_inv = np.linalg.inv(R)
-
-        # MVDR 谱：P(θ) = 1 / (a^H · R^{-1} · a)
-        spectrum = np.zeros(len(self.grid))
-        for i in range(len(self.grid)):
-            a = self.A_grid[:, i : i + 1]  # (M, 1)
-            denominator = (a.conj().T @ R_inv @ a).real[0, 0]
-            spectrum[i] = 1.0 / (denominator + 1e-10)
+        R = R + self.params.loading * np.trace(R).real / obs.M * np.eye(obs.M)
+        singular = np.linalg.matrix_rank(R) < obs.M
+        R_inv = np.linalg.pinv(R) if singular else np.linalg.inv(R)
+        denominator = np.real(np.sum(self.A_grid.conj() * (R_inv @ self.A_grid), axis=0))
+        spectrum = 1 / np.maximum(denominator, np.finfo(float).tiny)
 
         # 归一化
         spectrum /= spectrum.max()
 
         # 峰值搜索
-        if obs.K is not None:
-            K = obs.K
-        else:
-            K = min(3, len(self.grid) // 20)
-
+        K = obs.K if self.params.peak_mode == "top_k" and obs.K is not None else len(self.grid)
         peak_angles, _ = kit.peak_search(
             spectrum,
             self.grid,
@@ -125,8 +111,17 @@ class MVDR(Algorithm):
             min_separation=self.params.grid_step * 0.5,
         )
 
+        if self.params.peak_mode == "threshold":
+            peak_angles = peak_angles[
+                np.interp(peak_angles, self.grid, spectrum)
+                >= 10 ** (-self.params.peak_threshold_db / 10)
+            ]
+        if self.params.refine:
+            peak_angles = kit.refine_peaks(spectrum, self.grid, peak_angles)
+
         return Estimate(
             angles=peak_angles,
+            info={"used_pinv": singular, "n_peaks_found": len(peak_angles)},
             spectrum=Spectrum(
                 grid=self.grid,
                 values=spectrum,

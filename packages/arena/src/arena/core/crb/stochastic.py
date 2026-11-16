@@ -31,72 +31,27 @@ def compute_stochastic_crb(
     Returns:
         CRB，形状 (K,)，单位度²
     """
+    angles = np.asarray(angles, dtype=float)
     K = len(angles)
-    M = array.M
-
-    # SNR 转功率
-    if isinstance(snr_db, (int, float)):
-        snr_db = np.full(K, snr_db)
-    else:
-        snr_db = np.asarray(snr_db)
-
-    signal_powers = noise_power * (10 ** (snr_db / 10))
-
-    # 信号协方差
-    if signal_covariance is None:
-        P = np.diag(signal_powers)
-    else:
-        P = signal_covariance
-
-    # 导向矢量和导数
-    A = array.steering(angles)  # (M, K)
-    D = array.steering_derivative(angles)  # (M, K)，每弧度
-
-    # 转换为每度
-    D = D * (np.pi / 180)  # 度到弧度的转换因子
-
-    # 协方差矩阵 R = A·P·A^H + σ²I
-    R = A @ P @ A.conj().T + noise_power * np.eye(M)
-
-    # R 逆
-    try:
-        R_inv = np.linalg.inv(R)
-    except np.linalg.LinAlgError:
-        # 奇异，返回无穷
-        return np.full(K, np.inf)
-
-    # Fisher 信息矩阵（简化公式，不相干情况）
-    # FIM_kk = 2N·Re{tr[(∂A/∂θ_k)^H · Π_A⊥ · (∂A/∂θ_k) · P_kk]}
-    # 其中 Π_A⊥ = I - A·(A^H·R^{-1}·A)^{-1}·A^H·R^{-1}
-
-    # 计算投影矩阵（使用 Slepian-Bangs 公式的简化形式）
-    # FIM = 2N·Re{D^H · Π · D ⊙ P}
-    # 这里使用对角近似（不相干信号）
-
-    crb = np.zeros(K)
-
-    for k in range(K):
-        # 第 k 个信源的导数
-        d_k = D[:, k : k + 1]  # (M, 1)
-
-        # 简化公式（不相干信号）：
-        # CRB_k ≈ σ²/(2N·σ_k²·d_k^H·(I - A·A^H)·d_k)
-        # 更精确的版本：
-        # CRB_k = 1/(2N·Re{d_k^H·R^{-1}·d_k·P_kk - d_k^H·R^{-1}·A·P·A^H·R^{-1}·d_k})
-
-        # 使用 Slepian-Bangs 公式
-        term1 = (d_k.conj().T @ R_inv @ d_k).real[0, 0]
-        term2 = (d_k.conj().T @ R_inv @ A @ P @ A.conj().T @ R_inv @ d_k).real[0, 0]
-
-        fisher_kk = 2 * N * (term1 * P[k, k] - term2)
-
-        if fisher_kk > 0:
-            crb[k] = 1.0 / fisher_kk
-        else:
-            crb[k] = np.inf
-
-    # 转换为度²（已经是度的单位）
-    return crb
+    if N < 1 or noise_power <= 0:
+        raise ValueError("快拍数和噪声功率必须大于零")
+    A = array.steering(angles)
+    if K >= array.M or np.linalg.matrix_rank(A) < K:
+        return np.full(K, np.nan)
+    powers = noise_power * 10 ** (np.broadcast_to(np.asarray(snr_db), (K,)) / 10)
+    P = np.diag(powers) if signal_covariance is None else np.asarray(signal_covariance)
+    D = array.steering_derivative(angles)
+    R = A @ P @ A.conj().T + noise_power * np.eye(array.M)
+    # 架构 5.7：随机信号完整 Fisher 信息矩阵，保留交叉项。
+    projection = np.eye(array.M) - A @ np.linalg.pinv(A)
+    information = np.real(
+        (D.conj().T @ projection @ D) * (P @ A.conj().T @ np.linalg.solve(R, A) @ P).T
+    )
+    information = (information + information.T) / 2
+    if np.linalg.matrix_rank(information) < K:
+        return np.full(K, np.nan)
+    covariance = noise_power / (2 * N) * np.linalg.inv(information)
+    return np.diag(covariance) * (180 / np.pi) ** 2
 
 
 def compute_crb_batch(

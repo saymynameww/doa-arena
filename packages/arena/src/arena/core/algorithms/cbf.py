@@ -3,7 +3,7 @@
 按接口规范第 13.1 节实现。
 """
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import numpy as np
 
@@ -44,9 +44,12 @@ class CBF(Algorithm):
     class Params(ParamsModel):
         """CBF 参数。"""
 
-        grid_start: float = Param(-90, label="搜索起始角度", unit="°")
-        grid_stop: float = Param(90, label="搜索终止角度", unit="°")
+        scan_min: float = Param(-90, label="搜索起始角度", unit="°")
+        scan_max: float = Param(90, label="搜索终止角度", unit="°")
         grid_step: float = Param(0.1, gt=0, label="网格步长", unit="°")
+        refine: bool = Param(True, label="抛物线峰值细化")
+        peak_mode: Literal["top_k", "threshold"] = Param("top_k", label="取峰方式")
+        peak_threshold_db: float = Param(10, ge=0, label="峰值门限", unit="dB")
 
     def __init__(self) -> None:
         super().__init__()
@@ -56,17 +59,18 @@ class CBF(Algorithm):
 
     def configure(
         self,
-        params: Params,
+        params: ParamsModel,
         array: ArrayDescriptor,
         ctx: RunContext,
     ) -> None:
         """配置算法。"""
+        params = self.Params.model_validate(params)
         self.params = params
 
         # 角度网格
         self.grid = np.arange(
-            params.grid_start,
-            params.grid_stop + params.grid_step / 2,
+            params.scan_min,
+            params.scan_max + params.grid_step / 2,
             params.grid_step,
         )
 
@@ -84,27 +88,28 @@ class CBF(Algorithm):
         R = obs.covariance()
 
         # Bartlett 功率谱：P(θ) = a^H · R · a
-        spectrum = np.zeros(len(self.grid))
-        for i in range(len(self.grid)):
-            a = self.A_grid[:, i : i + 1]  # (M, 1)
-            spectrum[i] = (a.conj().T @ R @ a).real[0, 0]
+        spectrum = np.real(np.sum(self.A_grid.conj() * (R @ self.A_grid), axis=0))
+        spectrum /= np.sum(np.abs(self.A_grid) ** 2, axis=0)
 
         # 归一化
         spectrum /= spectrum.max()
 
         # 峰值搜索
-        if obs.K is not None:
-            K = obs.K
-        else:
-            # 没有 K 时，使用门限取峰（简化版）
-            K = min(3, len(self.grid) // 20)  # 最多取 3 个峰
-
+        K = obs.K if self.params.peak_mode == "top_k" and obs.K is not None else len(self.grid)
         peak_angles, _ = kit.peak_search(
             spectrum,
             self.grid,
             K=K,
             min_separation=self.params.grid_step * 0.5,
         )
+
+        if self.params.peak_mode == "threshold":
+            peak_angles = peak_angles[
+                np.interp(peak_angles, self.grid, spectrum)
+                >= 10 ** (-self.params.peak_threshold_db / 10)
+            ]
+        if self.params.refine:
+            peak_angles = kit.refine_peaks(spectrum, self.grid, peak_angles)
 
         return Estimate(
             angles=peak_angles,

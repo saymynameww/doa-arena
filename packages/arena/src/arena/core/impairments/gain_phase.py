@@ -81,7 +81,7 @@ class GainPhase(Impairment):
         self,
         data: np.ndarray,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
     ) -> np.ndarray:
         """应用幅相误差。
 
@@ -93,6 +93,7 @@ class GainPhase(Impairment):
         Returns:
             修改后的流形，形状 (M, K)
         """
+        params = self.Params.model_validate(params)
         M, _K = data.shape
 
         # 计算实际增益和相位
@@ -125,7 +126,7 @@ class GainPhase(Impairment):
     def describe(
         self,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
         M: int,
     ) -> Mapping[str, np.ndarray]:
         """描述这次误差实现。
@@ -138,6 +139,7 @@ class GainPhase(Impairment):
         Returns:
             实际误差值字典，包含 "gain" (M,) 和 "phase_deg" (M,)
         """
+        params = self.Params.model_validate(params)
         # 计算实际增益和相位
         if params.fixed_gains is not None:
             gains = np.array(params.fixed_gains[:M])

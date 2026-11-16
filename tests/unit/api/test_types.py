@@ -99,3 +99,27 @@ def test_readonly_arrays():
     # 应该无法修改
     with pytest.raises(ValueError):
         array.positions[0, 0] = 999.0
+
+
+def test_run_context_rng_for_preserves_parent_path():
+    """同一种子不同算法路径的批内 RNG 必须保持隔离。"""
+    import logging
+
+    from arena_api import RunContext
+
+    first = RunContext(
+        "cpu",
+        logging.getLogger(),
+        False,
+        None,
+        np.random.default_rng(np.random.SeedSequence(42, spawn_key=(1,))),
+    )
+    second = RunContext(
+        "cpu",
+        logging.getLogger(),
+        False,
+        None,
+        np.random.default_rng(np.random.SeedSequence(42, spawn_key=(2,))),
+    )
+    np.testing.assert_array_equal(first.rng_for(3).normal(size=4), first.rng_for(3).normal(size=4))
+    assert not np.array_equal(first.rng_for(3).normal(size=4), second.rng_for(3).normal(size=4))

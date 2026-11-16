@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,10 @@ class ResultWriter:
             result: 实验结果
         """
         # 写入配置
-        self._write_json(self.output_dir / "config.json", result.config)
+        from ..config import ExperimentConfig
+
+        document = ExperimentConfig.model_validate(result.config).to_document()
+        self._write_json(self.output_dir / "config.json", document)
 
         # 写入元信息
         self._write_json(self.output_dir / "meta.json", result.metadata)
@@ -55,20 +59,39 @@ class ResultWriter:
         Args:
             result: 实验结果
         """
-        # 收集所有算法的估计结果
-        algo_labels = []
-        if result.points and result.points[0].trials:
-            first_trial = result.points[0].trials[0]
-            algo_labels = list(first_trial.estimates.keys())
+        from dataclasses import replace
 
-        if not algo_labels:
-            return
+        from ..runner.results import TrialResult
 
+        counts = [len(p.trials) for p in result.points]
+        width = max(counts, default=0)
+        result = replace(
+            result,
+            points=[
+                replace(
+                    p,
+                    trials=p.trials
+                    + [
+                        TrialResult(i, {}, {}, {}, np.array([]))
+                        for i in range(len(p.trials), width)
+                    ],
+                )
+                for p in result.points
+            ],
+        )
+        algo_labels = list(
+            dict.fromkeys(
+                label
+                for point in result.points
+                for trial in point.trials
+                for label in [*trial.estimates, *trial.errors]
+            )
+        )
         # 准备数据结构
         num_points = len(result.points)
         num_trials = len(result.points[0].trials) if result.points else 0
 
-        data: dict[str, np.ndarray] = {}
+        data: dict[str, np.ndarray] = {"trial_counts": np.asarray(counts)}
         truths = [trial.truth_angles for point in result.points for trial in point.trials]
         max_truth = max((len(x) for x in truths if x is not None), default=0)
         truth_data = np.full((num_points, num_trials, max_truth), np.nan)
@@ -111,6 +134,15 @@ class ResultWriter:
             data[f"{label}__times_ms"] = np.array(times_list).reshape(num_points, num_trials)
             data[f"{label}__failed"] = np.array(failed_list).reshape(num_points, num_trials)
 
+        for pi, point in enumerate(result.points):
+            for ti, trial in enumerate(point.trials):
+                for label, estimate in trial.estimates.items():
+                    if estimate.spectrum is not None:
+                        prefix = f"spectrum__{pi}__{ti}__{label}"
+                        data[prefix + "__grid"] = estimate.spectrum.grid
+                        data[prefix + "__values"] = estimate.spectrum.values
+                        data[prefix + "__kind"] = np.asarray(estimate.spectrum.kind)
+
         # 写入 npz
         self._write_npz(self.output_dir / "results.npz", data)
 
@@ -132,12 +164,14 @@ class ResultWriter:
             "points": [],
         }
 
-        # 收集算法名
-        if result.points and result.points[0].trials:
-            first_trial = result.points[0].trials[0]
-            algo_labels = list(first_trial.estimates.keys())
-        else:
-            algo_labels = []
+        algo_labels = list(
+            dict.fromkeys(
+                label
+                for point in result.points
+                for trial in point.trials
+                for label in [*trial.estimates, *trial.errors]
+            )
+        )
 
         summary["algorithms"] = algo_labels
 
@@ -151,38 +185,38 @@ class ResultWriter:
 
             if "crb" in config.metrics.include:
                 point_config = expand_point(config, point.sweep_value)
-                scene, array = build_scene(point_config)
-                # 当前 CRB 实现限于不相干理想阵列，不伪造其他条件下的参考线。
-                if (
-                    point_config.scenario.sources.angles.mode != "random"
-                    and point_config.scenario.sources.correlation.mode == "none"
-                    and not any(x.enabled for x in point_config.scenario.impairments)
-                ):
-                    crb = compute_stochastic_crb(
-                        array,
-                        scene.config.angles,
-                        np.asarray(point_config.scenario.sources.snr_db)
-                        if isinstance(point_config.scenario.sources.snr_db, list)
-                        else point_config.scenario.sources.snr_db,
-                        scene.config.N,
-                        noise_power=scene.config.noise_power,
+                bounds = []
+                dynamic = (
+                    point_config.scenario.sources.angles.mode == "random"
+                    or point_config.scenario.sources.correlation.mode == "coherent"
+                )
+                for trial in point.trials if dynamic else point.trials[:1]:
+                    scene, array = build_scene(point_config, trial.trial_idx)
+                    bounds.extend(
+                        compute_stochastic_crb(
+                            array,
+                            scene.config.angles,
+                            np.asarray(point_config.scenario.sources.snr_db),
+                            scene.config.N,
+                            signal_covariance=scene.config.correlation.to_matrix(),
+                            noise_power=scene.config.noise_power,
+                        ).tolist()
                     )
-                    point_summary["crb_deg"] = (
-                        float(np.sqrt(np.mean(crb))) if np.all(np.isfinite(crb)) else None
-                    )
-                else:
-                    point_summary["crb_deg"] = None
-                    point_summary["crb_reason"] = "当前 CRB 仅适用于固定角度的不相干理想阵列"
+                point_summary["crb_deg"] = (
+                    float(np.sqrt(np.mean(bounds)))
+                    if bounds and np.all(np.isfinite(bounds))
+                    else None
+                )
+                if any(x.enabled for x in point_config.scenario.impairments):
+                    point_summary["crb_reason"] = "理想标称阵列参考下界，不含阵列误差"
             # 每个算法
             for label in algo_labels:
                 # 收集该算法该点的所有估计
-                estimates = []
-                for trial in point.trials:
-                    if label in trial.estimates:
-                        estimates.append(trial.estimates[label])
+                from arena_api import Estimate
 
-                if not estimates:
-                    continue
+                estimates = [
+                    trial.estimates.get(label, Estimate.from_angles([])) for trial in point.trials
+                ]
 
                 # 计算指标
                 threshold = (
@@ -194,10 +228,9 @@ class ResultWriter:
                 truths = [
                     trial.truth_angles if trial.truth_angles is not None else truth_angles
                     for trial in point.trials
-                    if label in trial.estimates
                 ]
-                metrics = compute_metrics(
-                    estimates, truth_angles, threshold_deg=threshold, truths=truths
+                metrics: dict[str, Any] = dict(
+                    compute_metrics(estimates, truth_angles, threshold_deg=threshold, truths=truths)
                 )
                 times = [
                     trial.times_ms.get(label, np.nan)
@@ -222,11 +255,11 @@ class ResultWriter:
             delete=False,
             suffix=".tmp",
         ) as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(_json_safe(data), f, indent=2, ensure_ascii=False, allow_nan=False)
             temp_path = f.name
-        Path(temp_path).replace(path)
+        _replace_with_retry(Path(temp_path), path)
 
-    def _write_npz(self, path: Path, data: dict[str, np.ndarray]) -> None:
+    def _write_npz(self, path: Path, data: dict[str, Any]) -> None:
         """原子写入 npz。"""
         with tempfile.NamedTemporaryFile(
             dir=path.parent,
@@ -235,7 +268,7 @@ class ResultWriter:
         ) as f:
             np.savez(f, **data)
             temp_path = f.name
-        Path(temp_path).replace(path)
+        _replace_with_retry(Path(temp_path), path)
 
 
 def _truth_angles_from_config(config: dict[str, Any]) -> np.ndarray:
@@ -248,3 +281,33 @@ def _truth_angles_from_config(config: dict[str, Any]) -> np.ndarray:
     count = sources.get("K", 2)
     count = int(count) if isinstance(count, int | float) else int(count["values"][0])
     return np.linspace(-10.0, 10.0, count, dtype=float)
+
+
+def _json_safe(value: Any) -> Any:
+    """JSON 只使用标准有限数值，缺失统计写 null。"""
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return _json_safe(value.tolist())
+    if isinstance(value, np.generic):
+        return _json_safe(value.item())
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
+    return value
+
+
+def _replace_with_retry(source: Path, target: Path) -> None:
+    """允许 Windows 读端关闭短暂占用，始终以重命名保持原子性。"""
+    try:
+        for attempt in range(8):
+            try:
+                source.replace(target)
+                return
+            except PermissionError:
+                if attempt == 7:
+                    raise
+                time.sleep(min(0.01 * 2**attempt, 0.2))
+    finally:
+        source.unlink(missing_ok=True)

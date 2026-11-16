@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from ..metrics.summary import algorithm_labels, point_metrics
 from ..runner.results import ExperimentResult
 
 
@@ -28,48 +30,35 @@ def export_to_mat(result: ExperimentResult, output_path: Path | str) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 收集数据
-    algo_labels = []
-    if result.points and result.points[0].trials:
-        first_trial = result.points[0].trials[0]
-        algo_labels = list(first_trial.estimates.keys())
+    algo_labels = algorithm_labels(result)
 
     # 扫描值
-    sweep_values = np.array([p.sweep_value for p in result.points])
+    sweep_values = np.array(
+        [p.sweep_value if p.sweep_value is not None else np.nan for p in result.points]
+    )
 
     # 每个算法的数据
-    data = {
+    data: dict[str, Any] = {
         "sweep_values": sweep_values,
         "point_indices": np.array([p.point_idx for p in result.points]),
     }
 
-    for label in algo_labels:
+    for index, label in enumerate(algo_labels):
         # 收集该算法的所有估计
         rmse_values = []
         success_rates = []
         avg_times = []
 
         for point in result.points:
-            from ..metrics import compute_metrics
-
-            estimates = [
-                trial.estimates[label] for trial in point.trials if label in trial.estimates
-            ]
-
-            truth_angles = np.array([-10.0, 10.0])  # 简化
-            metrics = compute_metrics(estimates, truth_angles)
-
-            rmse_values.append(metrics.get("rmse_mean", np.nan))
-            success_rates.append(metrics.get("success_rate", np.nan))
-
-            times = [
-                trial.times_ms.get(label, np.nan)
-                for trial in point.trials
-                if label in trial.times_ms
-            ]
-            avg_times.append(np.nanmean(times))
+            metrics = point_metrics(result, point, label)
+            rmse_values.append(metrics["rmse_mean"])
+            success_rates.append(metrics["success_rate"])
+            avg_times.append(metrics["avg_time_ms"])
 
         # 存储
         safe_label = label.replace(" ", "_").replace("-", "_")
+        if not safe_label.isascii() or not safe_label.isidentifier() or len(safe_label) > 40:
+            safe_label = f"algorithm_{index}"
         data[f"{safe_label}_rmse"] = np.array(rmse_values)
         data[f"{safe_label}_success_rate"] = np.array(success_rates)
         data[f"{safe_label}_avg_time_ms"] = np.array(avg_times)

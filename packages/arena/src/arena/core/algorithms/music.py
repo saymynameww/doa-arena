@@ -44,16 +44,17 @@ class MUSIC(Algorithm):
     class Params(ParamsModel):
         """MUSIC 参数。"""
 
-        grid_start: float = Param(-90, ge=-90, le=90, label="搜索起始角度", unit="°")
-        grid_stop: float = Param(90, ge=-90, le=90, label="搜索终止角度", unit="°")
+        scan_min: float = Param(-90, ge=-90, le=90, label="搜索起始角度", unit="°")
+        scan_max: float = Param(90, ge=-90, le=90, label="搜索终止角度", unit="°")
         grid_step: float = Param(0.1, gt=0, le=5, label="网格步长", unit="°")
+        refine: bool = Param(True, label="抛物线峰值细化")
 
         smoothing: Literal["none", "forward", "fb"] = Param(
             "none",
             label="空间平滑",
             description="forward=前向, fb=前后向",
         )
-        subarray_size: int | None = Param(
+        subarray: int | None = Param(
             None,
             ge=2,
             label="子阵阵元数",
@@ -69,7 +70,7 @@ class MUSIC(Algorithm):
 
     def configure(
         self,
-        params: Params,
+        params: ParamsModel,
         array: ArrayDescriptor,
         ctx: RunContext,
     ) -> None:
@@ -81,12 +82,13 @@ class MUSIC(Algorithm):
             ctx: 运行上下文
         """
         # 保存参数
+        params = self.Params.model_validate(params)
         self.params = params
 
         # 生成角度网格
         self.grid = np.arange(
-            params.grid_start,
-            params.grid_stop + params.grid_step / 2,
+            params.scan_min,
+            params.scan_max + params.grid_step / 2,
             params.grid_step,
         )
 
@@ -94,7 +96,7 @@ class MUSIC(Algorithm):
         self.A_grid = array.steering(self.grid)
 
         ctx.log.info(
-            f"MUSIC 配置完成：网格 [{params.grid_start}°, {params.grid_stop}°] "
+            f"MUSIC 配置完成：网格 [{params.scan_min}°, {params.scan_max}°] "
             f"步长 {params.grid_step}°，共 {len(self.grid)} 个点"
         )
 
@@ -111,6 +113,9 @@ class MUSIC(Algorithm):
         if self.params is None:
             raise RuntimeError("MUSIC 未配置，请先调用 configure()")
 
+        assert self.grid is not None and self.A_grid is not None
+        if obs.K is None or not 1 <= obs.K < obs.M:
+            raise ValueError("该算法需要已知且小于阵元数的正整数信源数")
         params = self.params
 
         # 获取协方差
@@ -134,6 +139,7 @@ class MUSIC(Algorithm):
 
         # 计算 MUSIC 谱
         spectrum = kit.music_spectrum(A_grid_to_use, Un)
+        spectrum /= spectrum.max()
 
         # 峰值搜索
         peak_angles, _ = kit.peak_search(
@@ -142,6 +148,9 @@ class MUSIC(Algorithm):
             K=obs.K,
             min_separation=params.grid_step * 0.5,  # 最小间隔为半个网格步长
         )
+
+        if self.params.refine:
+            peak_angles = kit.refine_peaks(spectrum, self.grid, peak_angles)
 
         # 构造结果
         result = Estimate(
@@ -155,7 +164,7 @@ class MUSIC(Algorithm):
             else None,
             info={
                 "smoothing": params.smoothing,
-                "subarray_size": self._get_subarray_size(params, obs.M, obs.K)
+                "subarray": self._get_subarray_size(params, obs.M, obs.K)
                 if params.smoothing != "none"
                 else None,
             },
@@ -174,16 +183,4 @@ class MUSIC(Algorithm):
         Returns:
             子阵阵元数 L
         """
-        if params.subarray_size is not None:
-            L = params.subarray_size
-        else:
-            # 自动选择：接口规范 13.2 节规定为 ceil(2M/3)
-            L = int(np.ceil(2 * M / 3))
-
-        # 验证范围：K < L <= M
-        if L > M:
-            L = M
-        if L <= K:
-            L = K + 1
-
-        return L
+        return kit.checked_subarray(M, K, params.smoothing, params.subarray)

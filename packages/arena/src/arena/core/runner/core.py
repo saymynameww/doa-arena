@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import replace
 
 import numpy as np
 
-from arena_api import Algorithm, ArrayDescriptor, RunContext
+from arena_api import Algorithm, ArrayDescriptor, Estimate, RunContext
 
 from ..config import ExperimentConfig
 from ..rng import RNGTree, TrialRNG
@@ -50,7 +52,22 @@ def run_trial(
         try:
             # 计时
             start = time.perf_counter()
-            est = algo.estimate(obs, ctx)
+            algo_ctx = replace(ctx, rng=trial_rng.for_impairment("algorithm:" + label, "random"))
+            est = algo.estimate(obs, algo_ctx)
+            if not isinstance(est, Estimate):
+                raise ValueError("bad_output：算法必须返回 Estimate")
+            if not np.all(np.isfinite(est.angles)):
+                raise ValueError("nan_output：估计角度含 NaN 或 Inf")
+            if np.any(np.abs(est.angles) > 90):
+                raise ValueError("out_of_range：估计角度超出 [-90,90]")
+            try:
+                json.dumps(dict(est.info), allow_nan=False)
+            except (TypeError, ValueError):
+                est = replace(est, info={"warning": "算法 info 不是有效 JSON，已丢弃"})
+            if est.spectrum is not None and (
+                not np.all(np.isfinite(est.spectrum.values)) or np.any(est.spectrum.values < 0)
+            ):
+                est = replace(est, spectrum=None, info={**est.info, "warning": "无效空间谱已丢弃"})
             elapsed = (time.perf_counter() - start) * 1000  # 毫秒
 
             estimates[label] = est
@@ -72,12 +89,18 @@ def run_trial(
 def run_experiment(
     config: ExperimentConfig,
     progress_callback: Callable[[int, int, int, int], None] | None = None,
+    cancel_callback: Callable[[], bool] | None = None,
+    checkpoint_callback: Callable[[ExperimentResult], None] | None = None,
+    algorithm_classes: dict[str, type[Algorithm]] | None = None,
 ) -> ExperimentResult:
     """运行实验。
 
     Args:
         config: 实验配置
         progress_callback: 可选进度回调，参数为已完成试验数、总试验数、当前扫描点和扫描点总数
+        cancel_callback: 返回是否请求取消，每次试验前检查
+        checkpoint_callback: 接收已完成试验的检查点，供持久化恢复使用
+        algorithm_classes: 脚本直接传入的算法类，按实例标签查找
 
     Returns:
         实验结果
@@ -99,67 +122,114 @@ def run_experiment(
         sweep_values = [None]  # 单点
 
     # 运行所有扫描点
-    points = []
+    points: list[SweepPointResult] = []
 
+    instances: dict[str, Algorithm] = {}
+    setup_errors: dict[str, str] = {}
+    cancelled = False
     total_points = len(sweep_values)
     total_trials = total_points * config.trials
 
-    for point_idx, sweep_val in enumerate(sweep_values):
-        logger.info(f"运行扫描点 {point_idx + 1}/{len(sweep_values)}")
+    try:
+        for point_idx, sweep_val in enumerate(sweep_values):
+            logger.info(f"运行扫描点 {point_idx + 1}/{len(sweep_values)}")
 
-        point_config = expand_point(config, sweep_val)
-        scene, array = build_scene(point_config)
-        algorithms = _load_algorithms(point_config, array)
-        if config.options.warmup:
-            _warmup_algorithms(scene, algorithms, RNGTree(config.scenario.seed))
-        ctx = RunContext(
-            device="cpu",
-            log=logger,
-            want_spectrum=config.type == "single",
-            workspace=None,
-            rng=RNGTree(config.scenario.seed).for_scenario(),
-        )
-        scenario_gen = scene
-        # 运行所有试验
-        trials = []
-
-        for trial_idx in range(config.trials):
-            # 获取试验随机数管理器
-            trial_rng = rng_tree.for_trial(
-                trial_idx
-                if config.options.common_random_numbers
-                else point_idx * config.trials + trial_idx
+            setup_errors.clear()
+            point_config = expand_point(config, sweep_val)
+            scene, array = build_scene(point_config)
+            algorithms = _load_algorithms(
+                point_config, array, instances, setup_errors, algorithm_classes
             )
-            if point_config.scenario.sources.angles.mode == "random":
-                scenario_gen, _ = build_scene(point_config, trial_idx)
-
-            # 运行试验
-            result = run_trial(
-                trial_idx,
-                scenario_gen,
-                algorithms,
-                trial_rng,
-                ctx,
+            instances.update(algorithms)
+            if config.options.warmup:
+                _warmup_algorithms(scene, algorithms, RNGTree(config.scenario.seed))
+            ctx = RunContext(
+                device="cpu",
+                log=logger,
+                want_spectrum=config.type == "single",
+                workspace=None,
+                rng=RNGTree(config.scenario.seed).for_scenario(),
             )
-            trials.append(result)
-            if progress_callback is not None:
-                progress_callback(
-                    point_idx * config.trials + trial_idx + 1,
-                    total_trials,
-                    point_idx,
-                    total_points,
+            scenario_gen = scene
+            # 运行所有试验
+            trials = []
+
+            consecutive = {label: 0 for label in algorithms}
+            for trial_idx in range(config.trials):
+                if cancel_callback and cancel_callback():
+                    cancelled = True
+                    break
+                # 获取试验随机数管理器
+                trial_rng = rng_tree.for_trial(
+                    trial_idx
+                    if config.options.common_random_numbers
+                    else point_idx * config.trials + trial_idx
                 )
+                if point_config.scenario.sources.angles.mode == "random" or (
+                    point_config.scenario.sources.correlation.mode == "coherent"
+                    and point_config.scenario.sources.correlation.phases_deg == "random"
+                ):
+                    scenario_gen, _ = build_scene(
+                        point_config,
+                        trial_idx
+                        if config.options.common_random_numbers
+                        else point_idx * config.trials + trial_idx,
+                    )
 
-        points.append(
-            SweepPointResult(
-                point_idx=point_idx,
-                sweep_value=sweep_val,
-                trials=trials,
+                # 运行试验
+                result = run_trial(
+                    trial_idx,
+                    scenario_gen,
+                    algorithms,
+                    trial_rng,
+                    ctx,
+                )
+                result.errors.update(setup_errors)
+                for label in list(algorithms):
+                    consecutive[label] = consecutive[label] + 1 if label in result.errors else 0
+                    if consecutive[label] >= config.options.max_consecutive_errors:
+                        setup_errors[label] = "连续错误达到上限，本扫描点剩余试验已跳过"
+                        algorithms.pop(label)
+                trials.append(result)
+                if checkpoint_callback and (trial_idx + 1) % config.options.chunk_size == 0:
+                    partial = ExperimentResult(
+                        config.model_dump(),
+                        [*points, SweepPointResult(point_idx, sweep_val, list(trials))],
+                        {
+                            "status": "running",
+                            "generator_version": GENERATOR_VERSION,
+                            "start_time": start_time,
+                        },
+                    )
+                    checkpoint_callback(partial)
+                if progress_callback is not None:
+                    progress_callback(
+                        point_idx * config.trials + trial_idx + 1,
+                        total_trials,
+                        point_idx,
+                        total_points,
+                    )
+
+            points.append(
+                SweepPointResult(
+                    point_idx=point_idx,
+                    sweep_value=sweep_val,
+                    trials=trials,
+                )
             )
-        )
+
+            if cancelled:
+                break
+    finally:
+        for algo in instances.values():
+            try:
+                algo.close()
+            except Exception:
+                logger.exception("关闭算法资源失败")
 
     # 元信息
     metadata = {
+        "status": "cancelled" if cancelled else "completed",
         "start_time": start_time,
         "elapsed_seconds": time.time() - start_time,
         "num_points": len(sweep_values),
@@ -174,7 +244,7 @@ def run_experiment(
     )
 
 
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
 
 
 def expand_point(config: ExperimentConfig, value: float | None) -> ExperimentConfig:
@@ -228,7 +298,9 @@ def build_scene(
         rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(8, trial_idx)))
         if any(not 1 <= n < array.M for n in sc.sources.K.values):
             raise ValueError("所有随机信源数取值都必须大于零且小于阵元数")
-        k = int(rng.choice(sc.sources.K.values))
+        weights = sc.sources.K.weights
+        probabilities = None if weights is None else np.asarray(weights) / np.sum(weights)
+        k = int(rng.choice(sc.sources.K.values, p=probabilities))
     if not 1 <= k < array.M:
         raise ValueError("信源数必须小于阵元数")
     angle_config = sc.sources.angles
@@ -250,7 +322,12 @@ def build_scene(
         width = bounds[1] - bounds[0] - gap * (k - 1)
         if width <= 0:
             raise ValueError("随机角度范围无法容纳所需信源数和最小间隔")
-        angles = np.sort(rng.uniform(bounds[0], bounds[0] + width, size=k)) + np.arange(k) * gap
+        for _ in range(10000):
+            angles = np.sort(rng.uniform(bounds[0], bounds[1], size=k))
+            if k == 1 or np.min(np.diff(angles)) >= gap:
+                break
+        else:
+            raise ValueError("随机角度拒绝采样超过 10000 次，请扩大范围或减小最小间隔")
     if len(angles) != k or np.any(np.abs(angles) >= 90):
         raise ValueError("角度数量必须等于信源数且位于 (-90, 90) 度")
     snr = np.asarray(sc.sources.snr_db)
@@ -259,7 +336,9 @@ def build_scene(
     powers = np.broadcast_to(sc.noise_power * 10 ** (snr / 10), (k,)).copy()
     corr_config = sc.sources.correlation
     if corr_config.mode == "partial":
-        corr = CorrelationMatrix.partial_correlated(powers, corr_config.rho_mag or 0)
+        corr = CorrelationMatrix.partial_correlated(
+            powers, corr_config.rho_mag or 0, corr_config.rho_phase_deg
+        )
     elif corr_config.mode == "coherent":
         phases = corr_config.phases_deg
         if phases == "random":
@@ -305,26 +384,23 @@ def _create_ula_positions(M: int, d: float) -> np.ndarray:
 def _load_algorithms(
     config: ExperimentConfig,
     array: ArrayDescriptor,
+    instances: dict[str, Algorithm] | None = None,
+    setup_errors: dict[str, str] | None = None,
+    algorithm_classes: dict[str, type[Algorithm]] | None = None,
 ) -> dict[str, Algorithm]:
     """加载算法。
 
     Args:
         config: 实验配置
         array: 阵列描述
+        instances: 已加载实例，用于跨扫描点复用并统一释放
+        setup_errors: 接收各算法初始化错误；未提供时直接抛出
+        algorithm_classes: 脚本模式直接传入的类
 
     Returns:
         算法字典 {label: algorithm}
     """
-    from ..algorithms import CBF, ESPRIT, MUSIC, MVDR, RootMUSIC
-
-    # 内置算法映射
-    builtin_algorithms = {
-        "cbf": CBF,
-        "mvdr": MVDR,
-        "music": MUSIC,
-        "root_music": RootMUSIC,
-        "esprit": ESPRIT,
-    }
+    from ..plugins import resolve_algorithm
 
     algorithms = {}
     ctx = RunContext(
@@ -342,19 +418,25 @@ def _load_algorithms(
         label = algo_config.get_label()
         algo_id = algo_config.id
 
-        if algo_id not in builtin_algorithms:
-            raise ValueError(f"未知算法: {algo_id}，请选择已注册算法")
-
-        # 创建算法实例
-        AlgoClass = builtin_algorithms[algo_id]
-        algo = AlgoClass()
-
-        # 配置算法
-        params_dict = algo_config.params
-        params = AlgoClass.Params(**params_dict)
-        algo.configure(params, array, ctx)
-
-        algorithms[label] = algo
+        try:
+            AlgoClass = (algorithm_classes or {}).get(label)
+            if AlgoClass is None:
+                AlgoClass = resolve_algorithm(algo_id, algo_config.origin)
+            params = AlgoClass.Params(**algo_config.params)
+            algo_config.params = params.model_dump(mode="json")
+            algo = instances.get(label) if instances else None
+            if algo is None:
+                algo = AlgoClass()
+                if instances is not None:
+                    instances[label] = algo
+                algo.load(params, ctx)
+            algo.configure(params, array, ctx)
+            algorithms[label] = algo
+        except Exception as exc:
+            if setup_errors is None:
+                raise
+            setup_errors[label] = f"load/configure 失败：{exc}"
+            logger.exception("算法初始化失败：%s", label)
 
     return algorithms
 

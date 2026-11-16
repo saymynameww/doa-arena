@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 import numpy as np
@@ -36,14 +36,20 @@ class Algorithm(ABC):
     id: ClassVar[str]
     name: ClassVar[str]
     version: ClassVar[str]
-    capabilities: ClassVar[Capabilities]
-    Params: ClassVar[type[ParamsModel]]
+    capabilities: ClassVar[Capabilities] = Capabilities()
+    Params: ClassVar[type[ParamsModel]] = ParamsModel
 
     # 可选类属性
     api_version: ClassVar[int] = 1
     category: ClassVar[str] = "general"
     description: ClassVar[str] = ""
     reference: ClassVar[str] = ""
+
+    @classmethod
+    def spec(cls, label: str | None = None, **params: Any) -> AlgorithmSpec:
+        """按接口规范 6.6 构造脚本算法描述。"""
+        validated = cls.Params.model_validate(params)
+        return AlgorithmSpec(cls, params=validated.model_dump(mode="json"), label=label)
 
     def __init__(self) -> None:
         """初始化算法实例。
@@ -327,41 +333,21 @@ class Impairment(ABC):
     Params: ClassVar[type[ParamsModel]]
 
     @abstractmethod
-    def sample(self, rng: np.random.Generator, M: int, params: ParamsModel) -> Any:
-        """采样误差实现。
-
-        Args:
-            rng: 随机数生成器
-            M: 阵元数
-            params: 误差参数
-
-        Returns:
-            误差实现（具体类型由子类定义）
-        """
-        pass
+    def sample(self, rng: np.random.Generator, M: int) -> Mapping[str, np.ndarray]:
+        """采样与误差强度无关的基础随机量。"""
+        raise NotImplementedError
 
     @abstractmethod
-    def apply(self, realization: Any, **kwargs: Any) -> Any:
-        """施加误差。
+    def apply(
+        self, data: np.ndarray, draw: Mapping[str, np.ndarray], params: ParamsModel
+    ) -> np.ndarray:
+        """按误差参数将基础随机量施加到当前阶段数据。"""
+        raise NotImplementedError
 
-        Args:
-            realization: sample() 返回的误差实现
-            **kwargs: 根据 stage 不同而不同
-
-        Returns:
-            施加误差后的结果
-        """
-        pass
-
-    def describe(self, realization: Any) -> dict[str, Any]:
-        """描述误差实现（可选）。
-
-        Args:
-            realization: sample() 返回的误差实现
-
-        Returns:
-            可序列化的描述字典
-        """
+    def describe(
+        self, draw: Mapping[str, np.ndarray], params: ParamsModel, M: int
+    ) -> Mapping[str, np.ndarray]:
+        """返回本次误差实现的可保存描述。"""
         return {}
 
 

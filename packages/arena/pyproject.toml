@@ -17,6 +17,7 @@ dependencies = [
     "numpy>=1.24,<3.0",
     "scipy>=1.10",
     "pydantic>=2.0,<3.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +39,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "mypy>=1.0",
+    "types-PyYAML>=6.0",
     "ruff>=0.1.0",
 ]
 all = [
@@ -71,4 +73,3 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 exclude = ["build", "dist", "tests"]
-

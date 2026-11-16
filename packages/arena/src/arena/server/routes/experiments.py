@@ -6,21 +6,21 @@ import asyncio
 import json
 import logging
 import shutil
-from typing import Any
+from collections.abc import AsyncIterator
+from typing import Any, Literal, cast
 
-import numpy as np
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
 from ...core.config import ExperimentConfig
-from ..tasks import get_task_manager
+from ..tasks import Task, get_task_manager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def _task_or_404(task_id: str):
+def _task_or_404(task_id: str) -> Task:
     task = get_task_manager().tasks.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -45,6 +45,14 @@ async def run_experiment(
         # 解析配置
         exp_config = ExperimentConfig(**config)
         exp_config.validate_experiment()
+        from .algorithms import list_algorithms
+
+        discovered = {item["id"]: item for item in (await list_algorithms())["algorithms"]}
+        for algorithm in exp_config.algorithms:
+            if algorithm.id not in discovered:
+                raise ValueError(f"算法 {algorithm.id} 未注册，请刷新算法库")
+            if discovered[algorithm.id]["type"] == "external":
+                algorithm.origin = discovered[algorithm.id]["origin"]
         from ...core.runner.core import build_scene, expand_point
 
         for value in (
@@ -90,7 +98,7 @@ async def get_task_status(task_id: str) -> dict[str, Any]:
 
 
 @router.get("/experiments/tasks/{task_id}/progress")
-async def stream_progress(task_id: str):
+async def stream_progress(task_id: str) -> StreamingResponse:
     """实时进度推送（SSE）。
 
     Args:
@@ -105,7 +113,7 @@ async def stream_progress(task_id: str):
     if task_id not in task_manager.tasks:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         """SSE 事件生成器。"""
         queue = await task_manager.subscribe_progress(task_id)
 
@@ -234,123 +242,29 @@ async def get_task_charts(task_id: str) -> dict[str, Any]:
     if task.status != "completed" or task.result_path is None:
         raise HTTPException(status_code=400, detail="任务未完成")
 
-    summary_path = task.result_path / "summary.json"
-    if not summary_path.exists():
-        raise HTTPException(status_code=404, detail="汇总结果不存在")
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    points = summary.get("points", [])
-    labels = summary.get("algorithms", [])
-    if not labels:
-        labels = sorted({label for point in points for label in point.get("algorithms", {})})
-    x = [
-        point.get("sweep_value") if point.get("sweep_value") is not None else point["point_idx"]
-        for point in points
-    ]
-    charts = []
-    experiment_type = getattr(task.config, "type", "sweep") if task.config else "sweep"
-    if experiment_type in {"single", "monte_carlo"}:
-        npz_path = task.result_path / "results.npz"
-        if npz_path.exists() and labels:
-            with np.load(npz_path, allow_pickle=False) as raw:
-                key = f"{labels[0]}__estimates"
-                if key in raw:
-                    values = raw[key].reshape(-1, raw[key].shape[-1])
-                    if experiment_type == "single":
-                        charts.append(
-                            {
-                                "title": "空间谱估计",
-                                "data": [
-                                    {
-                                        "x": list(range(len(row))),
-                                        "y": row.tolist(),
-                                        "type": "scatter",
-                                        "mode": "markers",
-                                        "name": f"{labels[0]} 第 {idx + 1} 次",
-                                    }
-                                    for idx, row in enumerate(values)
-                                    if np.isfinite(row).any()
-                                ],
-                                "layout": {
-                                    "title": {"text": "空间谱估计"},
-                                    "xaxis": {"title": "源序号"},
-                                    "yaxis": {"title": "估计角度 (°)"},
-                                },
-                            }
-                        )
-                    else:
-                        finite = values[np.isfinite(values)]
-                        charts.append(
-                            {
-                                "title": "蒙特卡罗估计分布",
-                                "data": [
-                                    {"x": finite.tolist(), "type": "histogram", "name": labels[0]}
-                                ],
-                                "layout": {
-                                    "title": {"text": "蒙特卡罗估计分布"},
-                                    "xaxis": {"title": "估计角度 (°)"},
-                                    "yaxis": {"title": "次数"},
-                                },
-                            }
-                        )
-    for metric, title, y_title in (
-        ("rmse_mean", "RMSE", "RMSE (°)"),
-        ("success_rate", "成功率", "成功率"),
-        ("avg_time_ms", "运行时间", "时间 (ms)"),
-        ("resolution_probability", "分辨概率", "分辨概率"),
-    ):
-        metric_id = {
-            "rmse_mean": "rmse",
-            "success_rate": "success_rate",
-            "avg_time_ms": "time",
-            "resolution_probability": "resolution",
-        }[metric]
-        if metric_id not in task.config.metrics.include:
-            continue
-        data = []
-        for label in labels:
-            data.append(
-                {
-                    "x": x,
-                    "y": [
-                        point.get("algorithms", {}).get(label, {}).get(metric) for point in points
-                    ],
-                    "type": "scatter",
-                    "mode": "lines+markers",
-                    "name": label,
-                }
-            )
-        if metric == "rmse_mean" and "crb" in task.config.metrics.include:
-            data.append(
-                {
-                    "x": x,
-                    "y": [p.get("crb_deg") for p in points],
-                    "type": "scatter",
-                    "mode": "lines",
-                    "name": "CRB",
-                    "line": {"color": "black", "dash": "dash"},
-                }
-            )
-        charts.append(
-            {
-                "title": title,
-                "data": data,
-                "layout": {
-                    "title": {"text": title},
-                    "xaxis": {"title": "扫描点"},
-                    "yaxis": {"title": y_title},
-                },
-            }
-        )
-    return {"charts": charts}
+    from ...core.figures.presentation import build_figures
+    from ...core.storage.reader import read_result
+
+    result = task.result or read_result(task.result_path)
+    return {
+        "charts": [
+            {"title": title, **json.loads(figure.to_json())}
+            for title, figure in build_figures(result).items()
+        ]
+    }
 
 
 @router.get("/experiments/tasks/{task_id}/export/{fmt}")
 async def export_task(task_id: str, fmt: str) -> FileResponse:
     """导出真实实验结果文件。"""
     task = _task_or_404(task_id)
-    if task.status != "completed" or task.result_path is None or task.result is None:
+    if task.status != "completed" or task.result_path is None:
         raise HTTPException(status_code=400, detail="任务未完成或结果不可导出")
 
+    if task.result is None:
+        from ...core.storage.reader import read_result
+
+        task.result = read_result(task.result_path)
     exports_dir = task.result_path / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
     fmt = fmt.lower()
@@ -398,13 +312,18 @@ async def export_task(task_id: str, fmt: str) -> FileResponse:
             raise HTTPException(status_code=400, detail="当前实验没有可导出的图表")
         first_chart = next(iter(charts.values()))
         try:
-            export_figure(first_chart, output, format=fmt)
+            export_figure(
+                first_chart, output, format=cast(Literal["png", "pdf", "svg", "html"], fmt)
+            )
         except ImportError as exc:
             raise HTTPException(status_code=501, detail=str(exc)) from exc
     elif fmt == "py":
         output.write_text(
             "import arena\n"
-            f"config = {json.dumps(task.result.config, ensure_ascii=False, indent=2)}\n"
+            "import json\n"
+            "config = json.loads("
+            + json.dumps(json.dumps(task.result.config, ensure_ascii=False))
+            + ")\n"
             "result = arena.run(config)\n",
             encoding="utf-8",
         )

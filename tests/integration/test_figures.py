@@ -59,7 +59,7 @@ def test_create_rmse_curve(sweep_result):
 
     # 验证图表创建成功
     assert fig is not None
-    assert len(fig.data) == 2  # 两个算法
+    assert len(fig.data) == 3  # 两个算法与标称阵列 CRB
 
 
 def test_create_success_rate_curve(sweep_result):

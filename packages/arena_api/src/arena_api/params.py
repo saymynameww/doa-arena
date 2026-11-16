@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ParamsModel(BaseModel):
@@ -16,6 +16,22 @@ class ParamsModel(BaseModel):
         "extra": "forbid",  # 禁止额外字段
         "validate_assignment": True,  # 验证赋值
     }
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_names(cls, value: Any) -> Any:
+        """读取旧版参数名，输出仍使用接口规范的正式名称。"""
+        if isinstance(value, dict):
+            value = dict(value)
+            for old, new in {
+                "grid_start": "scan_min",
+                "grid_stop": "scan_max",
+                "subarray_size": "subarray",
+                "diagonal_loading": "loading",
+            }.items():
+                if old in value and new in cls.model_fields:
+                    value.setdefault(new, value.pop(old))
+        return value
 
 
 def Param(

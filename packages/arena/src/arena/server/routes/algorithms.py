@@ -22,35 +22,52 @@ def _builtin_algorithms() -> list[dict]:
     ]
 
 
+def _discover() -> dict:
+    """只在子进程导入外部代码。"""
+    from pathlib import Path
+
+    from ...core.plugins import probe
+    from .settings import CURRENT_WORKSPACE_PATH, SETTINGS_PATH, _read_json
+
+    settings = _read_json(SETTINGS_PATH, {})
+    current = _read_json(CURRENT_WORKSPACE_PATH, {})
+    workspace = _read_json(Path(current.get("path", ".")) / "arena_workspace.json", {})
+    sources = settings.get("algorithm_sources", []) + workspace.get("algorithm_sources", [])
+    if not sources:
+        return {
+            "algorithms": _builtin_algorithms(),
+            "failures": [],
+            "sources": [{"name": "内置算法", "status": "ok", "count": len(_builtin_algorithms())}],
+        }
+    data = probe(sources)
+    data["sources"] = [
+        {"name": s.get("name", s.get("value", "")), "status": "ok", **s} for s in sources
+    ]
+    return data
+
+
 @router.get("/algorithms")
 async def list_algorithms() -> dict:
-    """列出可用算法及发现状态。"""
-    return {
-        "algorithms": _builtin_algorithms(),
-        "failures": [],
-        "sources": [{"name": "内置算法", "status": "ok"}],
-    }
+    """列出真实发现结果及失败入口。"""
+    return _discover()
 
 
 @router.post("/algorithms/refresh")
 async def refresh_algorithms() -> dict:
-    """刷新算法发现结果，返回可用算法和插件失败信息。"""
-    return await list_algorithms()
+    """重新扫描入口，探测进程每次重建，不复用旧模块。"""
+    return _discover()
 
 
 @router.get("/algorithms/sources")
 async def algorithm_sources() -> dict:
-    """返回算法来源与发现状态。"""
-    return {
-        "sources": [{"name": "内置算法", "status": "ok", "count": len(_builtin_algorithms())}],
-        "failures": [],
-    }
+    """返回全局和工作目录来源。"""
+    return _discover()
 
 
-@router.get("/algorithms/{algorithm_id}")
+@router.get("/algorithms/{algorithm_id:path}")
 async def get_algorithm(algorithm_id: str) -> dict:
-    """获取算法详情。"""
-    for algo in _builtin_algorithms():
+    """查询含命名空间的插件 id。"""
+    for algo in _discover()["algorithms"]:
         if algo["id"] == algorithm_id:
             return algo
-    raise HTTPException(status_code=404, detail="算法不存在")
+    raise HTTPException(status_code=404, detail="算法不存在，请刷新算法来源")

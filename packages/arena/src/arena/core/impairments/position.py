@@ -65,7 +65,7 @@ class PositionError(Impairment):
         self,
         data: np.ndarray,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
     ) -> np.ndarray:
         """应用位置误差。
 
@@ -77,6 +77,7 @@ class PositionError(Impairment):
         Returns:
             实际位置，形状 (M, 3)
         """
+        params = self.Params.model_validate(params)
         positions = data.copy()
         z = draw["z"]
 
@@ -105,7 +106,7 @@ class PositionError(Impairment):
     def describe(
         self,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
         M: int,
     ) -> Mapping[str, np.ndarray]:
         """描述这次误差实现。
@@ -118,6 +119,7 @@ class PositionError(Impairment):
         Returns:
             实际误差值字典，包含 "offset" (M, 3)
         """
+        params = self.Params.model_validate(params)
         z = draw["z"]
 
         # 计算实际偏移

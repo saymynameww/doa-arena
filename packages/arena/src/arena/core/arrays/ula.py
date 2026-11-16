@@ -22,7 +22,7 @@ class ULA(ArrayModel):
         M: int = Param(16, ge=2, le=128, label="阵元数")
         d: float = Param(0.5, gt=0, le=2, label="阵元间距", unit="λ")
 
-    def positions(self, params: Params) -> np.ndarray:
+    def positions(self, params: ParamsModel) -> np.ndarray:
         """计算阵元位置。
 
         Args:
@@ -31,6 +31,7 @@ class ULA(ArrayModel):
         Returns:
             阵元位置，形状 (M, 3)，沿 x 轴
         """
+        params = self.Params.model_validate(params)
         M = params.M
         d = params.d
 

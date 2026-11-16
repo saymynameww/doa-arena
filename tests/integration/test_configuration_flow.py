@@ -18,7 +18,7 @@ def test_schema_contains_all_plugin_fields():
     schema = asyncio.run(experiment_schema())
     assert "d" in schema["x-arrays"][0]["schema"]["properties"]
     assert len(schema["x-impairments"]) == 4
-    assert "grid_start" in schema["x-algorithms"][0]["schema"]["properties"]
+    assert "scan_min" in schema["x-algorithms"][0]["schema"]["properties"]
     assert schema["x-default"]["metrics"]["params"]["success_rate"]["threshold_deg"] == 1
 
 
@@ -37,7 +37,7 @@ def test_sweep_changes_scene_and_preserves_source():
     assert config.scenario.snapshots == 100
     result = run_experiment(config)
     assert len(result.points) == 2
-    assert result.metadata["generator_version"] == 2
+    assert result.metadata["generator_version"] == 3
 
 
 def test_random_angles_and_impairment_parameters():

@@ -84,5 +84,6 @@ async def get_current_workspace() -> dict[str, Any]:
 
 @router.post("/workspaces/rebuild-index")
 async def rebuild_workspace_index() -> dict[str, Any]:
-    """返回索引重建结果。实验文件按目录读取，无需额外数据库。"""
-    return {"rebuilt": True, "count": 0}
+    """从实验文件恢复索引，包含脚本模式创建的实验。"""
+    count = get_task_manager().rebuild_index()
+    return {"rebuilt": True, "count": count}

@@ -91,7 +91,7 @@ class ElementFailure(Impairment):
         self,
         data: np.ndarray,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
     ) -> np.ndarray:
         """应用阵元故障。
 
@@ -103,6 +103,7 @@ class ElementFailure(Impairment):
         Returns:
             修改后的数据，形状 (M, N)
         """
+        params = self.Params.model_validate(params)
         _M, _N = data.shape
         result = data.copy()
 
@@ -129,7 +130,7 @@ class ElementFailure(Impairment):
     def known_mask(
         self,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
         M: int,
     ) -> np.ndarray | None:
         """返回算法已知的故障掩码。
@@ -143,6 +144,7 @@ class ElementFailure(Impairment):
             (M,) 布尔数组，True 表示正常，False 表示故障；
             None 表示算法不知道
         """
+        params = self.Params.model_validate(params)
         if not params.known:
             return None
 
@@ -162,7 +164,7 @@ class ElementFailure(Impairment):
     def describe(
         self,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
         M: int,
     ) -> Mapping[str, np.ndarray]:
         """描述故障阵元。
@@ -175,6 +177,7 @@ class ElementFailure(Impairment):
         Returns:
             故障阵元索引 "failure_indices" (count,)
         """
+        params = self.Params.model_validate(params)
         if params.indices is not None:
             failure_indices = np.array(params.indices)
         else:

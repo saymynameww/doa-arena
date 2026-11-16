@@ -102,7 +102,8 @@ def compute_metrics(
     for idx, est in enumerate(estimates):
         actual_truth = truths[idx] if truths is not None else truth
         result = match_and_compute(est, actual_truth)
-        rmses.append(float(result["rmse"]))
+        if result["success"]:
+            rmses.append(float(result["rmse"]))
         successes.append(
             bool(
                 result["success"]
@@ -120,7 +121,7 @@ def compute_metrics(
     rmses_valid = [r for r in rmses if not np.isnan(r)]
 
     if len(rmses_valid) > 0:
-        rmse_mean = float(np.mean(rmses_valid))
+        rmse_mean = float(np.sqrt(np.mean(np.square(rmses_valid))))
         rmse_std = float(np.std(rmses_valid))
     else:
         rmse_mean = np.nan

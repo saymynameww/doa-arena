@@ -63,7 +63,7 @@ class MutualCoupling(Impairment):
         self,
         data: np.ndarray,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
     ) -> np.ndarray:
         """应用互耦误差。
 
@@ -75,6 +75,7 @@ class MutualCoupling(Impairment):
         Returns:
             修改后的流形 C·A，形状 (M, K)
         """
+        params = self.Params.model_validate(params)
         M, _K = data.shape
 
         # 构造对称 Toeplitz 互耦矩阵
@@ -114,7 +115,7 @@ class MutualCoupling(Impairment):
     def describe(
         self,
         draw: Mapping[str, np.ndarray],
-        params: Params,
+        params: ParamsModel,
         M: int,
     ) -> Mapping[str, np.ndarray]:
         """描述互耦矩阵。
@@ -127,6 +128,7 @@ class MutualCoupling(Impairment):
         Returns:
             互耦矩阵 "coupling_matrix" (M, M)
         """
+        params = self.Params.model_validate(params)
         C = self._build_coupling_matrix(M, params)
 
         return {"coupling_matrix": C}

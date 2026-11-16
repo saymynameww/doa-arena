@@ -13,10 +13,15 @@ from .core.config import (
     ScenarioConfig,
     SweepConfig,
 )
+from .core.facade import Workspace, algorithm_spec, load_result, run
 from .core.runner import run_experiment
 
 __all__ = [
     "__version__",
+    "Workspace",
+    "algorithm_spec",
+    "load_result",
+    "run",
     "ScenarioConfig",
     "ExperimentConfig",
     "ExperimentType",

@@ -49,7 +49,7 @@ class MatchedSet:
         Returns:
             字典，键为真值索引，值为误差
         """
-        result = {}
+        result: dict[int, float] = {}
         for est_idx, truth_idx in self.matched_pairs:
             result[truth_idx] = self.matched_errors[len(result)]
         return result

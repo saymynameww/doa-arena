@@ -57,13 +57,8 @@ class CorrelationMatrix:
             if self.rho is None:
                 raise ValueError("相干模式需要提供相干系数 alpha")
 
-            alpha = self.rho  # 相干系数向量，形状 (K,)
-            # 归一化：alpha[0] = 1
-            if not np.isclose(np.abs(alpha[0]), 1.0):
-                alpha = alpha / alpha[0]
-
-            # P = α · α^H · σ_1²
-            P = np.outer(alpha, alpha.conj()) * self.powers[0]
+            alpha = np.sqrt(self.powers) * np.exp(1j * np.angle(self.rho))
+            P = np.outer(alpha, alpha.conj())
 
             return P
 
@@ -108,21 +103,14 @@ class CorrelationMatrix:
         if not (0 <= rho_magnitude < 1):
             raise ValueError(f"相关系数幅度必须在 [0, 1) 范围内，实际为 {rho_magnitude}")
 
-        # 检查半正定约束
-        # 对于所有元素相同的相关系数矩阵：
-        # 最小特征值约为 1 - (K-1)·|ρ|
-        # 要求 >= 0，即 |ρ| <= 1/(K-1)
-        if K > 1:
-            max_rho = 1.0 / (K - 1)
-            if rho_magnitude > max_rho:
-                raise ValueError(
-                    f"对于 K={K} 个信源，相关系数幅度不能超过 {max_rho:.4f}，实际为 {rho_magnitude}"
-                )
-
-        # 相关系数矩阵
         rho_complex = rho_magnitude * np.exp(1j * np.deg2rad(rho_phase_deg))
-        rho_matrix = np.full((K, K), rho_complex, dtype=complex)
-        np.fill_diagonal(rho_matrix, 1.0)
+        upper = np.triu(np.full((K, K), rho_complex, dtype=complex), 1)
+        rho_matrix = np.eye(K) + upper + upper.conj().T
+        minimum = np.linalg.eigvalsh(rho_matrix).min()
+        if minimum < -1e-9:
+            unit = (rho_matrix - np.eye(K)) / rho_magnitude
+            limit = min(1.0, -1.0 / np.linalg.eigvalsh(unit).min())
+            raise ValueError(f"相关系数矩阵非半正定：该相位下幅度不得超过 {limit:.6g}")
 
         return cls(
             mode="partial",

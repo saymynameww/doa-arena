@@ -13,6 +13,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from typing import Any
 
@@ -45,7 +46,7 @@ class Task:
     error: str | None = None
     progress: dict[str, Any] = field(default_factory=dict)
     result_path: Path | None = None
-    process: mp.Process | None = None
+    process: BaseProcess | None = None
     result: ExperimentResult | None = None
 
 
@@ -68,6 +69,7 @@ class TaskManager:
         self._lock = asyncio.Lock()
         self._progress_subscribers: dict[str, list[asyncio.Queue]] = {}
         self._load_index()
+        self.rebuild_index()
 
     def _load_index(self) -> None:
         """从结果目录恢复历史任务元数据。"""
@@ -106,6 +108,58 @@ class TaskManager:
         self._index_path = self.output_dir / "tasks.json"
         self.tasks.clear()
         self._load_index()
+        self.rebuild_index()
+
+    def rebuild_index(self) -> int:
+        """从实验文件恢复历史，兼容旧目录和规范的 experiments 子目录。"""
+        roots = [self.output_dir, self.output_dir / "experiments"]
+        count = 0
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for directory in sorted(root.iterdir()):
+                config_path = directory / "config.json"
+                if not directory.is_dir() or not config_path.is_file():
+                    continue
+                existing = self.tasks.get(directory.name)
+                if existing and existing.status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+                    continue
+                try:
+                    config = ExperimentConfig.model_validate_json(
+                        config_path.read_text(encoding="utf-8")
+                    )
+                    meta_path = directory / "meta.json"
+                    metadata = (
+                        json.loads(meta_path.read_text(encoding="utf-8"))
+                        if meta_path.exists()
+                        else {}
+                    )
+                    status_path = directory / "status.json"
+                    state = (
+                        json.loads(status_path.read_text(encoding="utf-8"))
+                        if status_path.exists()
+                        else {}
+                    )
+                    status = TaskStatus(state.get("status", metadata.get("status", "failed")))
+                    if status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+                        status = TaskStatus.FAILED
+                        state["error"] = "服务重启前实验未完成，可查看已保存结果或重新运行"
+                    started = metadata.get("start_time", config_path.stat().st_mtime)
+                    self.tasks[directory.name] = Task(
+                        task_id=directory.name,
+                        config=config,
+                        status=status,
+                        created_at=started,
+                        started_at=started,
+                        completed_at=started + metadata.get("elapsed_seconds", 0),
+                        error=state.get("error"),
+                        result_path=directory,
+                    )
+                    count += 1
+                except (OSError, ValueError, TypeError) as exc:
+                    logger.warning("跳过损坏的实验目录 %s：%s", directory, exc)
+        self._save_index()
+        return count
 
     def _save_index(self) -> None:
         """原子写入任务索引。"""
@@ -189,68 +243,66 @@ class TaskManager:
 
         await self._notify_progress(task_id)
 
+        from ..core.runner.job import run_job
+        from ..core.storage.reader import read_result
+
+        assert task.result_path is not None
+        task.process = mp.get_context("spawn").Process(
+            target=run_job,
+            args=(task.config.model_dump(mode="json"), str(task.result_path.resolve())),
+        )
+        task.process.start()
+        cancel_requested = None
         try:
-            # 在线程池中运行（避免阻塞事件循环）
-            loop = asyncio.get_event_loop()
-
-            # 运行实验
-            result = await loop.run_in_executor(
-                None,
-                self._run_experiment_sync,
-                task,
-                loop,
+            while task.process.is_alive():
+                status_path = task.result_path / "status.json"
+                if status_path.exists():
+                    status = json.loads(status_path.read_text(encoding="utf-8"))
+                    task.progress.update(status)
+                    task.progress["current_trial"] = (
+                        status.get("completed_trials", 0) % task.config.trials
+                    )
+                    await self._notify_progress(task_id)
+                if task.status == TaskStatus.CANCELLED:
+                    cancel_requested = cancel_requested or time.monotonic()
+                    if time.monotonic() - cancel_requested > 10:
+                        task.process.terminate()
+                        break
+                await asyncio.sleep(0.1)
+            task.process.join(timeout=2)
+            status_path = task.result_path / "status.json"
+            status = (
+                json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
             )
-            task.result = result
-
-            # 完成
-            task.status = TaskStatus.COMPLETED
+            if task.status != TaskStatus.CANCELLED:
+                task.status = (
+                    TaskStatus.COMPLETED
+                    if status.get("status") == "completed"
+                    else TaskStatus.FAILED
+                )
+            task.error = status.get("error")
+            if (task.result_path / "results.npz").exists():
+                task.result = read_result(task.result_path)
             task.completed_at = time.time()
-            task.progress["current_trial"] = task.config.trials
-            task.progress["completed_trials"] = total_trials
-            task.progress["percent"] = 100
+            if task.status == TaskStatus.COMPLETED:
+                task.progress.update(
+                    completed_trials=total_trials,
+                    total_trials=total_trials,
+                    percent=100,
+                    current_trial=task.config.trials,
+                )
             self._save_index()
             await self._notify_progress(task_id)
-
-            logger.info(f"任务完成: {task_id}")
-
-        except Exception as e:
-            logger.error(f"任务失败: {task_id}, 错误: {e}")
+        except Exception as exc:
             task.status = TaskStatus.FAILED
-            task.error = str(e)
+            task.error = str(exc)
             task.completed_at = time.time()
             self._save_index()
             await self._notify_progress(task_id)
-
-    def _run_experiment_sync(self, task: Task, loop: asyncio.AbstractEventLoop) -> ExperimentResult:
-        """同步运行实验（在线程池中）。"""
-        from ..core.runner import run_experiment
-        from ..core.storage import ResultWriter
-
-        # 运行实验
-        def progress_callback(
-            completed_trials: int,
-            total_trials: int,
-            current_point: int,
-            total_points: int,
-        ) -> None:
-            asyncio.run_coroutine_threadsafe(
-                self._update_progress(
-                    task.task_id,
-                    completed_trials,
-                    total_trials,
-                    current_point,
-                    total_points,
-                ),
-                loop,
-            )
-
-        result = run_experiment(task.config, progress_callback=progress_callback)
-
-        # 保存结果
-        writer = ResultWriter(task.result_path)
-        writer.write_experiment(result)
-
-        return result
+        finally:
+            if task.process.is_alive():
+                task.process.terminate()
+                task.process.join(timeout=2)
 
     async def _update_progress(
         self,
@@ -300,7 +352,7 @@ class TaskManager:
 
         return queue
 
-    async def unsubscribe_progress(self, task_id: str, queue: asyncio.Queue):
+    async def unsubscribe_progress(self, task_id: str, queue: asyncio.Queue) -> None:
         """取消订阅。
 
         Args:
@@ -313,7 +365,7 @@ class TaskManager:
             except ValueError:
                 pass
 
-    async def _notify_progress(self, task_id: str):
+    async def _notify_progress(self, task_id: str) -> None:
         """通知进度订阅者。"""
         if task_id not in self._progress_subscribers:
             return
@@ -367,7 +419,7 @@ class TaskManager:
 
         if task.completed_at:
             status["completed_at"] = task.completed_at
-            status["elapsed_seconds"] = task.completed_at - task.started_at
+            status["elapsed_seconds"] = task.completed_at - (task.started_at or task.created_at)
 
         if task.error:
             status["error"] = task.error
@@ -384,12 +436,13 @@ class TaskManager:
             任务列表
         """
         return [
-            self.get_task_status(task_id)
+            status
             for task_id in sorted(
                 self.tasks.keys(),
                 key=lambda tid: self.tasks[tid].created_at,
                 reverse=True,
             )
+            if (status := self.get_task_status(task_id)) is not None
         ]
 
     def cancel_task(self, task_id: str) -> bool:
@@ -408,6 +461,8 @@ class TaskManager:
         ]:
             return False
 
+        if task.result_path is not None:
+            (task.result_path / "CANCEL").touch()
         task.status = TaskStatus.CANCELLED
         task.completed_at = time.time()
         self._save_index()

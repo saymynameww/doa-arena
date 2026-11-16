@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .scenario import ScenarioConfig
 
@@ -22,6 +22,7 @@ class AlgorithmConfig(BaseModel):
     """算法配置（简化版）。"""
 
     id: str = Field(..., description="算法插件 id")
+    origin: dict[str, Any] | None = None
     label: str | None = Field(None, description="显示名称")
     enabled: bool = Field(True, description="是否启用")
     params: dict[str, Any] = Field(default_factory=dict)
@@ -35,7 +36,7 @@ class SweepConfig(BaseModel):
     """扫描配置（简化版）。"""
 
     path: str = Field(..., description="扫描变量路径")
-    values: list[float] = Field(..., min_length=2, description="扫描取值")
+    values: list[float] = Field(..., min_length=2, max_length=200, description="扫描取值")
     label: str | None = Field(None, description="横轴名称")
     unit: str | None = Field(None, description="单位")
 
@@ -43,6 +44,11 @@ class SweepConfig(BaseModel):
 class ExperimentOptions(BaseModel):
     """实验选项（简化版）。"""
 
+    chunk_size: int = Field(64, ge=1, le=10000)
+    max_consecutive_errors: int = Field(20, ge=1)
+    source_count: str = "true"
+    save_spectra: str = "auto"
+    save_observations: str = "auto"
     workers: int = Field(1, ge=1, le=64, description="并行进程数")
     common_random_numbers: bool = Field(True, description="公共随机数")
     warmup: bool = Field(True, description="是否预热")
@@ -71,6 +77,20 @@ class MetricsConfig(BaseModel):
     )
     params: MetricParameters = Field(default_factory=MetricParameters)
 
+    @model_validator(mode="before")
+    @classmethod
+    def read_crb_selection(cls, data: Any) -> Any:
+        """兼容旧版将 CRB 放进 include 的配置，读取规范独立开关。"""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        include = list(data.get("include", ["rmse", "success_rate", "resolution", "time"]))
+        include = ["resolution" if item == "resolution_prob" else item for item in include]
+        enabled = data.pop("crb", "crb" in include if "include" in data else True)
+        include = [item for item in include if item != "crb"]
+        data["include"] = [*include, "crb"] if enabled else include
+        return data
+
 
 class ExperimentConfig(BaseModel):
     """实验配置（简化版）。
@@ -83,8 +103,11 @@ class ExperimentConfig(BaseModel):
     - metrics (指标配置)
     """
 
-    name: str = Field("Untitled Experiment", description="实验名称")
-    scenario: ScenarioConfig = Field(default_factory=ScenarioConfig)
+    schema_version: Literal[1] = 1
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    name: str = Field("Untitled Experiment", min_length=1, max_length=80, description="实验名称")
+    scenario: ScenarioConfig = Field(default_factory=lambda: ScenarioConfig.model_validate({}))
     algorithms: list[AlgorithmConfig] = Field(default_factory=list)
 
     # 实验类型
@@ -95,12 +118,62 @@ class ExperimentConfig(BaseModel):
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
 
     # 选项
-    options: ExperimentOptions = Field(default_factory=ExperimentOptions)
+    options: ExperimentOptions = Field(default_factory=lambda: ExperimentOptions.model_validate({}))
 
     model_config = {
         "extra": "forbid",
         "use_enum_values": True,
     }
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_document(cls, data: Any) -> Any:
+        """读取规范的 experiment 层级，并保留旧前端草稿兼容性。"""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "experiment" in data:
+            experiment = data.pop("experiment")
+            unknown = set(experiment) - {"type", "trials", "sweep", "options"}
+            if unknown:
+                raise ValueError(f"experiment 含未知字段：{sorted(unknown)}")
+            data.update(experiment)
+            if "seed" not in data and "seed" not in data.get("scenario", {}):
+                import secrets
+
+                data["seed"] = secrets.randbits(63)
+        if "seed" in data:
+            data["scenario"] = {**data.get("scenario", {}), "seed": data.pop("seed")}
+        return data
+
+    def to_document(self) -> dict[str, Any]:
+        """生成数据格式规范第 3 章的配置文档。"""
+        data = self.model_dump(mode="json")
+        data["experiment"] = {key: data.pop(key) for key in ("type", "trials", "sweep", "options")}
+        scenario = data["scenario"]
+        data["seed"] = scenario.pop("seed")
+        scenario["carrier_hz"] = scenario["array"].pop("carrier_hz")
+        if scenario["noise_power"] == 1:
+            scenario.pop("noise_power")
+        sources = scenario["sources"]
+        if isinstance(sources["K"], dict):
+            sources["K"]["choice"] = sources["K"].pop("values")
+        angles = sources["angles"]
+        if angles["mode"] == "random" and angles.get("range_deg"):
+            angles["min"], angles["max"] = angles.pop("range_deg")
+        correlation = sources["correlation"]
+        mag = correlation.pop("rho_mag")
+        phase = correlation.pop("rho_phase_deg")
+        if mag is not None:
+            correlation["rho"] = {"mag": mag, "phase_deg": phase}
+        metrics = data["metrics"]
+        metrics["crb"] = "crb" in metrics["include"]
+        metrics["include"] = [
+            "resolution_prob" if item == "resolution" else item
+            for item in metrics["include"]
+            if item != "crb"
+        ]
+        return data
 
     def validate_experiment(self) -> None:
         """验证实验配置一致性。

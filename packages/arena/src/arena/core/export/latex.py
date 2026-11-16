@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ..metrics.summary import algorithm_labels, point_metrics
 from ..runner.results import ExperimentResult
 
 
@@ -27,10 +28,7 @@ def export_to_latex(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 收集算法标签
-    algo_labels = []
-    if result.points and result.points[0].trials:
-        first_trial = result.points[0].trials[0]
-        algo_labels = list(first_trial.estimates.keys())
+    algo_labels = algorithm_labels(result)
 
     # 开始写入
     lines = []
@@ -64,17 +62,10 @@ def export_to_latex(
 
     # 数据行
     for point in result.points:
-        row = [f"{point.sweep_value:.1f}"]
+        row = [f"{point.sweep_value:g}" if point.sweep_value is not None else "--"]
 
         for label in algo_labels:
-            from ..metrics import compute_metrics
-
-            estimates = [
-                trial.estimates[label] for trial in point.trials if label in trial.estimates
-            ]
-
-            truth_angles = np.array([-10.0, 10.0])  # 简化
-            metrics = compute_metrics(estimates, truth_angles)
+            metrics = point_metrics(result, point, label)
 
             # RMSE
             rmse = metrics.get("rmse_mean", np.nan)

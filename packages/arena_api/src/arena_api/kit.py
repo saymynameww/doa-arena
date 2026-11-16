@@ -205,13 +205,6 @@ def peak_search(
         if spectrum[i] > spectrum[i - 1] and spectrum[i] > spectrum[i + 1]:
             is_peak[i] = True
 
-    # 边界特殊处理
-    if len(spectrum) > 0:
-        if spectrum[0] > spectrum[1]:
-            is_peak[0] = True
-        if spectrum[-1] > spectrum[-2]:
-            is_peak[-1] = True
-
     # 按峰值大小排序
     peak_indices = np.where(is_peak)[0]
     peak_values = spectrum[peak_indices]
@@ -223,7 +216,7 @@ def peak_search(
 
     # 应用最小间隔约束
     if min_separation is not None:
-        selected = []
+        selected: list[int] = []
         for i, (angle, value) in enumerate(zip(peak_angles, peak_values)):
             # 检查与已选峰的间隔
             too_close = False
@@ -263,19 +256,8 @@ def music_spectrum(
     Returns:
         谱值，形状 (G,)
     """
-    # P_MUSIC(θ) = 1 / (a^H · Un · Un^H · a)
-    # 计算 Un · Un^H
-    UnUnH = Un @ Un.conj().T
-
-    # 对每个角度计算
-    G = A.shape[1]
-    spectrum = np.zeros(G)
-    for i in range(G):
-        a = A[:, i : i + 1]  # (M, 1)
-        denominator = (a.conj().T @ UnUnH @ a).real[0, 0]
-        spectrum[i] = 1.0 / (denominator + 1e-10)  # 加小量避免除零
-
-    return spectrum
+    denominator = np.sum(np.abs(Un.conj().T @ A) ** 2, axis=0)
+    return 1 / np.maximum(denominator, np.finfo(float).tiny)
 
 
 def root_music(
@@ -313,7 +295,7 @@ def root_music(
             c[M - 1 + k] = np.trace(UnUnH, offset=k)
 
     # 求根
-    roots = np.roots(c)
+    roots = np.roots(c[::-1])
 
     # 选择单位圆上的根（最接近单位圆的 K 个）
     abs_roots = np.abs(roots)
@@ -328,8 +310,8 @@ def root_music(
 
     # 根到角度：z = exp(j·2π·d·sin(θ))
     # sin(θ) = angle(z) / (2π·d)
-    angles_rad = np.angle(selected_roots) / (2.0 * np.pi * d)
-    angles_rad = np.clip(angles_rad, -1.0, 1.0)  # 防止数值误差
+    angles_rad = -np.angle(selected_roots) / (2.0 * np.pi * d)
+    angles_rad = angles_rad[np.abs(angles_rad) <= 1]
     angles_deg = np.rad2deg(np.arcsin(angles_rad))
 
     return np.sort(angles_deg)
@@ -387,7 +369,7 @@ def esprit(
 
     # ULA 导向矢量使用 -2π·d·sin(θ) 相位，因此特征值相位取负号还原角度。
     angles_rad = -np.angle(eigvals) / (2.0 * np.pi * d)
-    angles_rad = np.clip(angles_rad, -1.0, 1.0)
+    angles_rad = angles_rad[np.abs(angles_rad) <= 1]
     angles_deg = np.rad2deg(np.arcsin(angles_rad))
 
     return np.sort(angles_deg)
@@ -431,3 +413,31 @@ def hungarian_matching(
     matched_errors = cost[row_ind, col_ind]
 
     return matched_pairs, matched_errors
+
+
+def auto_subarray(M: int, K: int, fb: bool = False) -> int:
+    """接口规范 13.2：在可分辨条件下使用最大子阵孔径。"""
+    return M - ((K + 1) // 2 if fb else K) + 1
+
+
+def checked_subarray(M: int, K: int, mode: str, requested: int | None) -> int:
+    """校验平滑子阵，不静默夹断用户配置。"""
+    L = requested if requested is not None else auto_subarray(M, K, mode == "fb")
+    needed = (K + 1) // 2 if mode == "fb" else K
+    if not K < L <= M or M - L + 1 < needed:
+        raise ValueError(f"子阵阵元数 {L}、子阵数 {M - L + 1} 无法分辨 {K} 个信源，请调整子阵大小")
+    return L
+
+
+def refine_peaks(spectrum: np.ndarray, grid: np.ndarray, angles: np.ndarray) -> np.ndarray:
+    """对局部谱峰作三点抛物线细化，端点不参与。"""
+    refined = []
+    for angle in angles:
+        i = int(np.argmin(np.abs(grid - angle)))
+        if 0 < i < len(grid) - 1:
+            left, mid, right = spectrum[i - 1 : i + 2]
+            denominator = left - 2 * mid + right
+            offset = 0.5 * (left - right) / denominator if denominator else 0
+            angle = grid[i] + float(np.clip(offset, -0.5, 0.5)) * (grid[i + 1] - grid[i])
+        refined.append(angle)
+    return np.sort(np.asarray(refined))

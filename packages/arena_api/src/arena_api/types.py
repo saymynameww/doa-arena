@@ -29,12 +29,12 @@ class ArrayDescriptor:
     type: str
     params: Mapping[str, Any]
     positions: np.ndarray
-    element_mask: np.ndarray = field(default_factory=lambda: None)
+    element_mask: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
 
     def __post_init__(self) -> None:
         """后处理：设置默认mask、转换数组为只读。"""
         # 设置默认 mask（全部有效）
-        if self.element_mask is None:
+        if self.element_mask.size == 0:
             object.__setattr__(self, "element_mask", np.ones(self.M, dtype=bool))
 
         # 确保数组只读
@@ -197,6 +197,7 @@ class Observation:
             R = (self.X @ self.X.conj().T) / self.N
             R.flags.writeable = False
             object.__setattr__(self, "_covariance", R)
+        assert self._covariance is not None
         return self._covariance
 
 
@@ -278,7 +279,7 @@ class Estimate:
         Returns:
             Estimate 实例
         """
-        return cls(angles=angles, spectrum=spectrum, info=info)
+        return cls(angles=np.asarray(angles, dtype=float), spectrum=spectrum, info=info)
 
 
 @dataclass
@@ -312,7 +313,10 @@ class RunContext:
         """
         # 从当前 rng 派生子生成器
         # 使用固定方式派生，保证可复现
+        parent = getattr(self.rng.bit_generator, "seed_seq", None)
+        if parent is None:
+            parent = getattr(self.rng.bit_generator, "_seed_seq")
         seed_sequence = np.random.SeedSequence(
-            entropy=self.rng.bit_generator.seed_sequence.entropy, spawn_key=(i,)
+            entropy=parent.entropy, spawn_key=(*parent.spawn_key, i)
         )
         return np.random.Generator(np.random.PCG64(seed_sequence))
