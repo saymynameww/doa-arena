@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps -- validation is intentionally triggered by form values. */
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card,
   Form,
@@ -19,7 +19,7 @@ import {
   Typography,
 } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
-import { getAlgorithms, runExperiment } from '@/services/api';
+import { createTemplate, getAlgorithms, getExperimentSchema, getTemplates, runExperiment } from '@/services/api';
 import AlgorithmCard from '@/components/AlgorithmCard';
 import ScenePreview from '@/components/ScenePreview';
 import ConfigSummary from '@/components/ConfigSummary';
@@ -33,7 +33,7 @@ import {
   validateAlgorithms,
   debounce,
 } from '@/utils/validation';
-import type { Algorithm, ExperimentConfig, AlgorithmInstance } from '@/types';
+import type { Algorithm, ExperimentConfig, AlgorithmInstance, ExperimentSchema } from '@/types';
 import type { ValidationError } from '@/utils/validation';
 
 const { Panel } = Collapse;
@@ -43,7 +43,9 @@ const { Text } = Typography;
 const ExperimentConfigPage: React.FC = () => {
   const [form] = Form.useForm();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
+  const [schema, setSchema] = useState<ExperimentSchema | null>(null);
   const [selectedAlgorithms, setSelectedAlgorithms] = useState<AlgorithmInstance[]>([]);
   const [experimentType, setExperimentType] = useState<'single' | 'monte_carlo' | 'sweep'>(
     'monte_carlo'
@@ -53,7 +55,7 @@ const ExperimentConfigPage: React.FC = () => {
   const [impairments, setImpairments] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    loadAlgorithms();
+    void loadConfiguration();
   }, []);
 
   // 防抖校验
@@ -77,7 +79,7 @@ const ExperimentConfigPage: React.FC = () => {
 
     // 校验阵元数和信源数
     const arraySize = form.getFieldValue('arraySize') || 16;
-    const sourceCount = 2; // TODO: 从表单获取
+    const sourceCount = form.getFieldValue('sourceCount') || 2;
     errors.push(...validateArrayAndSources(arraySize, sourceCount));
 
     // 校验快拍数
@@ -103,12 +105,33 @@ const ExperimentConfigPage: React.FC = () => {
     setValidationErrors(errors);
   };
 
-  const loadAlgorithms = async () => {
+  const loadConfiguration = async () => {
     try {
-      const algos = await getAlgorithms();
-      setAlgorithms(algos);
+      const [loadedSchema, loadedAlgorithms] = await Promise.all([
+        getExperimentSchema(),
+        getAlgorithms(),
+      ]);
+      setSchema(loadedSchema);
+      setAlgorithms(loadedAlgorithms);
+      const templateId = searchParams.get('template');
+      if (templateId) {
+        const template = (await getTemplates()).find((item) => item.id === templateId);
+        if (template?.config) {
+          const scenario = template.config.scenario;
+          form.setFieldsValue({
+            name: template.name,
+            trials: template.config.trials,
+            seed: scenario?.seed,
+            arraySize: scenario?.array.params.M,
+            snapshots: scenario?.snapshots,
+            sourceCount: scenario?.sources.K,
+            sourceAngles: scenario?.sources.angles.values?.join(', '),
+          });
+          setExperimentType(template.config.type);
+        }
+      }
     } catch (error) {
-      message.error('加载算法列表失败');
+      message.error('加载实验配置 Schema 失败');
     }
   };
 
@@ -161,13 +184,32 @@ const ExperimentConfigPage: React.FC = () => {
         return;
       }
 
+      const sourceCount = values.sourceCount || 2;
+      const angles = String(values.sourceAngles || '-20, 20')
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value));
       const config: ExperimentConfig = {
         name: values.name || '未命名实验',
         type: experimentType,
         trials: values.trials || 50,
         scenario: {
           seed: values.seed || 42,
+          array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
+          sources: {
+            K: sourceCount,
+            angles: { mode: 'fixed', values: angles },
+            snr_db: values.snrDb || 10,
+            correlation: { mode: 'none' },
+          },
           snapshots: values.snapshots || 100,
+          noise_power: values.noisePower || 1,
+          impairments: Object.entries(impairments).map(([type, params]) => ({
+            type,
+            enabled: true,
+            realization: 'fixed',
+            params,
+          })),
         },
         algorithms: selectedAlgorithms,
         options: {},
@@ -195,6 +237,44 @@ const ExperimentConfigPage: React.FC = () => {
     }
   };
 
+  const handleSaveTemplate = async () => {
+    const values = form.getFieldsValue(true);
+    const name = window.prompt('模板名称', values.name || '未命名模板');
+    if (!name) return;
+    try {
+      await createTemplate({
+        name,
+        description: '从当前实验配置保存',
+        type: experimentType,
+        algorithms: selectedAlgorithms.map((item) => item.id),
+        createdAt: new Date().toISOString().slice(0, 10),
+        config: {
+          name,
+          type: experimentType,
+          trials: values.trials || 50,
+          scenario: {
+            seed: values.seed || 42,
+            array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
+            sources: {
+              K: values.sourceCount || 2,
+              angles: { mode: 'fixed', values: String(values.sourceAngles || '-20, 20').split(',').map(Number) },
+              snr_db: values.snrDb || 10,
+              correlation: { mode: 'none' },
+            },
+            snapshots: values.snapshots || 100,
+            noise_power: values.noisePower || 1,
+            impairments: [],
+          },
+          algorithms: selectedAlgorithms,
+          options: {},
+        },
+      });
+      message.success('模板已保存');
+    } catch (error) {
+      message.error('模板保存失败');
+    }
+  };
+
   return (
     <Row gutter={16}>
       <Col span={16}>
@@ -219,7 +299,7 @@ const ExperimentConfigPage: React.FC = () => {
               >
                 导出 JSON
               </Button>
-              <Button>保存为模板</Button>
+              <Button onClick={() => void handleSaveTemplate()}>保存为模板</Button>
               <Button
                 type="primary"
                 onClick={handleSubmit}
@@ -324,30 +404,14 @@ const ExperimentConfigPage: React.FC = () => {
                 <Col span={8}>
                   <Form.Item label="扫描路径" name="sweepPath">
                     <Select placeholder="选择扫描变量">
-                      <Option value="scenario.sources.snr_db">
-                        <Space direction="vertical" size={0}>
-                          <span>SNR (dB)</span>
-                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
-                            信噪比
-                          </span>
-                        </Space>
-                      </Option>
-                      <Option value="scenario.snapshots">
-                        <Space direction="vertical" size={0}>
-                          <span>快拍数</span>
-                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
-                            采样点数
-                          </span>
-                        </Space>
-                      </Option>
-                      <Option value="scenario.sources.K">
-                        <Space direction="vertical" size={0}>
-                          <span>信源数 K</span>
-                          <span style={{ fontSize: 11, color: '#8c8c8c' }}>
-                            入射信号数量
-                          </span>
-                        </Space>
-                      </Option>
+                      {(schema?.['x-sweep-paths'] || []).map((item) => (
+                        <Option key={item.path} value={item.path}>
+                          <Space direction="vertical" size={0}>
+                            <span>{item.label}</span>
+                            <span style={{ fontSize: 11, color: '#8c8c8c' }}>{item.unit}</span>
+                          </Space>
+                        </Option>
+                      ))}
                     </Select>
                   </Form.Item>
                 </Col>
@@ -399,6 +463,21 @@ const ExperimentConfigPage: React.FC = () => {
                 <Col span={8}>
                   <Form.Item label="快拍数" name="snapshots" initialValue={100}>
                     <InputNumber min={10} max={10000} style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="信源数 K" name="sourceCount" initialValue={2}>
+                    <InputNumber min={1} max={16} style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="信源角度（度，逗号分隔）" name="sourceAngles" initialValue="-20, 20">
+                    <Input placeholder="例如：-20, 20" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="信噪比" name="snrDb" initialValue={10}>
+                    <InputNumber style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
                 <Col span={8}>
@@ -471,7 +550,7 @@ const ExperimentConfigPage: React.FC = () => {
         {/* 场景预览 */}
         <ScenePreview
           arraySize={form.getFieldValue('arraySize') || 16}
-          sourceAngles={[-20, 20]}
+          sourceAngles={String(form.getFieldValue('sourceAngles') || '-20, 20').split(',').map(Number)}
           faultyElements={[]}
         />
 
@@ -481,7 +560,7 @@ const ExperimentConfigPage: React.FC = () => {
             experimentType,
             trials: form.getFieldValue('trials'),
             arraySize: form.getFieldValue('arraySize') || 16,
-            sourceCount: 2,
+            sourceCount: form.getFieldValue('sourceCount') || 2,
             algorithms: selectedAlgorithms.map((a) => a.label),
             seed: form.getFieldValue('seed'),
           }}

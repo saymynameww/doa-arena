@@ -1,5 +1,13 @@
 import axios from 'axios';
-import type { Algorithm, ChartData, ExperimentConfig, Task, ExperimentResult, Template } from '@/types';
+import type {
+  Algorithm,
+  ChartData,
+  ExperimentConfig,
+  ExperimentSchema,
+  Task,
+  ExperimentResult,
+  Template,
+} from '@/types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -20,6 +28,11 @@ export const getAlgorithms = async (): Promise<Algorithm[]> => {
 
 export const getAlgorithm = async (id: string): Promise<Algorithm> => {
   const response = await api.get(`/algorithms/${id}`);
+  return response.data;
+};
+
+export const getExperimentSchema = async (): Promise<ExperimentSchema> => {
+  const response = await api.get('/schema/experiment');
   return response.data;
 };
 
@@ -59,6 +72,11 @@ export const downloadTaskExport = async (taskId: string, format: string): Promis
 export const getTemplates = async (): Promise<Template[]> => {
   const response = await api.get('/templates');
   return response.data.templates;
+};
+
+export const createTemplate = async (template: Partial<Template>): Promise<Template> => {
+  const response = await api.post('/templates', template);
+  return response.data;
 };
 
 export const deleteTemplate = async (templateId: string): Promise<void> => {

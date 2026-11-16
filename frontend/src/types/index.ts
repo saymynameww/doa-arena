@@ -21,13 +21,24 @@ export interface ExperimentConfig {
   name: string;
   type: 'single' | 'monte_carlo' | 'sweep';
   trials: number;
-  scenario?: {
-    seed?: number;
-    snapshots?: number;
-  };
+  scenario?: ScenarioConfig;
   algorithms: AlgorithmInstance[];
   sweep?: SweepConfig;
   options?: Record<string, any>;
+}
+
+export interface ScenarioConfig {
+  seed: number;
+  array: { type: string; params: Record<string, any> };
+  sources: {
+    K: number;
+    angles: { mode: string; values?: number[] };
+    snr_db: number;
+    correlation: { mode: string; rho_mag?: number | null; phases_deg?: string | number[] };
+  };
+  snapshots: number;
+  noise_power: number;
+  impairments: Array<Record<string, any>>;
 }
 
 export interface AlgorithmInstance {
@@ -82,4 +93,12 @@ export interface Template {
   type: string;
   algorithms: string[];
   createdAt: string;
+  config?: ExperimentConfig;
+}
+
+export interface ExperimentSchema {
+  $defs?: Record<string, Record<string, any>>;
+  properties?: Record<string, Record<string, any>>;
+  ['x-algorithms']?: Algorithm[];
+  ['x-sweep-paths']?: Array<{ path: string; label: string; unit: string }>;
 }

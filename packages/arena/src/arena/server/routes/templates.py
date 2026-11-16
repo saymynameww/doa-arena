@@ -24,6 +24,7 @@ def _ensure_templates() -> None:
             "type": "monte_carlo",
             "algorithms": ["music", "esprit", "root_music"],
             "createdAt": "2026-11-10",
+            "config": {"type": "monte_carlo", "trials": 50},
         },
         {
             "id": "snr-sweep",
@@ -32,6 +33,11 @@ def _ensure_templates() -> None:
             "type": "sweep",
             "algorithms": ["music", "esprit"],
             "createdAt": "2026-11-12",
+            "config": {
+                "type": "sweep",
+                "trials": 50,
+                "sweep": {"path": "scenario.sources.snr_db", "values": [-10, -5, 0, 5, 10, 15, 20]},
+            },
         },
     ]
     for template in defaults:
