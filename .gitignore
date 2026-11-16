@@ -54,3 +54,6 @@ arena_ws/
 
 # Claude
 .claude/
+node_modules/
+frontend/node_modules/
+*.log
