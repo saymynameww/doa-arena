@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import multiprocessing as mp
 import time
@@ -63,8 +64,61 @@ class TaskManager:
         self.tasks: dict[str, Task] = {}
         self.output_dir = output_dir or Path("experiments")
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._index_path = self.output_dir / "tasks.json"
         self._lock = asyncio.Lock()
         self._progress_subscribers: dict[str, list[asyncio.Queue]] = {}
+        self._load_index()
+
+    def _load_index(self) -> None:
+        """从结果目录恢复历史任务元数据。"""
+        if not self._index_path.exists():
+            return
+        try:
+            records = json.loads(self._index_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("读取任务索引失败，将从空列表开始: %s", exc)
+            return
+        for record in records if isinstance(records, list) else []:
+            try:
+                config = ExperimentConfig.model_validate(record["config"])
+                status = TaskStatus(record.get("status", TaskStatus.FAILED.value))
+                if status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+                    status = TaskStatus.FAILED
+                task = Task(
+                    task_id=record["task_id"],
+                    config=config,
+                    status=status,
+                    created_at=float(record["created_at"]),
+                    started_at=record.get("started_at"),
+                    completed_at=record.get("completed_at"),
+                    error=record.get("error"),
+                    progress=record.get("progress", {}),
+                    result_path=Path(record["result_path"]),
+                )
+                self.tasks[task.task_id] = task
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning("跳过损坏的任务索引记录: %s", exc)
+
+    def _save_index(self) -> None:
+        """原子写入任务索引。"""
+        records = []
+        for task in self.tasks.values():
+            records.append(
+                {
+                    "task_id": task.task_id,
+                    "config": task.config.model_dump(mode="json"),
+                    "status": task.status.value,
+                    "created_at": task.created_at,
+                    "started_at": task.started_at,
+                    "completed_at": task.completed_at,
+                    "error": task.error,
+                    "progress": task.progress,
+                    "result_path": str(task.result_path) if task.result_path else None,
+                }
+            )
+        temp_path = self._index_path.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+        temp_path.replace(self._index_path)
 
     def create_task(self, config: ExperimentConfig) -> str:
         """创建任务。
@@ -89,6 +143,7 @@ class TaskManager:
         )
 
         self.tasks[task_id] = task
+        self._save_index()
         logger.info(f"任务已创建: {task_id}")
 
         return task_id
@@ -107,6 +162,7 @@ class TaskManager:
         # 更新状态
         task.status = TaskStatus.RUNNING
         task.started_at = time.time()
+        self._save_index()
         logger.info(f"任务开始: {task_id}")
 
         # 初始化进度
@@ -144,6 +200,7 @@ class TaskManager:
             task.progress["current_trial"] = task.config.trials
             task.progress["completed_trials"] = total_trials
             task.progress["percent"] = 100
+            self._save_index()
             await self._notify_progress(task_id)
 
             logger.info(f"任务完成: {task_id}")
@@ -153,6 +210,7 @@ class TaskManager:
             task.status = TaskStatus.FAILED
             task.error = str(e)
             task.completed_at = time.time()
+            self._save_index()
             await self._notify_progress(task_id)
 
     def _run_experiment_sync(self, task: Task, loop: asyncio.AbstractEventLoop) -> ExperimentResult:
@@ -210,6 +268,7 @@ class TaskManager:
             }
         )
         await self._notify_progress(task_id)
+        self._save_index()
 
     async def subscribe_progress(self, task_id: str) -> asyncio.Queue:
         """订阅任务进度。
@@ -290,6 +349,8 @@ class TaskManager:
             "task_id": task.task_id,
             "status": task.status.value,
             "created_at": task.created_at,
+            "name": task.config.name,
+            "type": task.config.type,
         }
 
         if task.started_at:
@@ -340,6 +401,7 @@ class TaskManager:
 
         task.status = TaskStatus.CANCELLED
         task.completed_at = time.time()
+        self._save_index()
         logger.info(f"任务已取消: {task_id}")
 
         return True
