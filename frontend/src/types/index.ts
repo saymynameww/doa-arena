@@ -96,6 +96,7 @@ export interface Template {
   type: string;
   algorithms: string[];
   createdAt: string;
+  level?: string;
   config?: ExperimentConfig;
 }
 

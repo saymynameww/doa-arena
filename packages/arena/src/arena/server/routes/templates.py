@@ -24,6 +24,7 @@ def _ensure_templates() -> None:
             "type": "monte_carlo",
             "algorithms": ["music", "esprit", "root_music"],
             "createdAt": "2026-11-10",
+            "level": "内置",
             "config": {"type": "monte_carlo", "trials": 50},
         },
         {
@@ -33,6 +34,7 @@ def _ensure_templates() -> None:
             "type": "sweep",
             "algorithms": ["music", "esprit"],
             "createdAt": "2026-11-12",
+            "level": "内置",
             "config": {
                 "type": "sweep",
                 "trials": 50,
@@ -66,6 +68,7 @@ async def create_template(template: dict[str, Any]) -> dict[str, Any]:
     _ensure_templates()
     template = dict(template)
     template.setdefault("id", uuid.uuid4().hex[:8])
+    template.setdefault("level", "工作目录")
     (TEMPLATES_DIR / f"{template['id']}.json").write_text(
         json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -78,6 +81,9 @@ async def delete_template(template_id: str) -> dict[str, str]:
     path = TEMPLATES_DIR / f"{template_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="模板不存在")
+    current = json.loads(path.read_text(encoding="utf-8"))
+    if current.get("level") == "内置":
+        raise HTTPException(status_code=403, detail="内置模板不能直接删除，请先复制到工作目录")
     trash_dir = TEMPLATES_DIR / ".trash"
     trash_dir.mkdir(exist_ok=True)
     path.replace(trash_dir / path.name)
@@ -90,6 +96,9 @@ async def update_template(template_id: str, template: dict[str, Any]) -> dict[st
     path = TEMPLATES_DIR / f"{template_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="模板不存在")
+    current = json.loads(path.read_text(encoding="utf-8"))
+    if current.get("level") == "内置":
+        raise HTTPException(status_code=403, detail="内置模板不能直接修改，请先复制到工作目录")
     updated = dict(template)
     updated["id"] = template_id
     path.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
