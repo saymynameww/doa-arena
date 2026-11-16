@@ -104,3 +104,16 @@ def test_metadata_checks_do_not_import_torch(tmp_path):
     )
     result = subprocess.run([sys.executable, "-c", source], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_core_import_without_plotting_dependencies():
+    import subprocess
+    import sys
+
+    source = (
+        "import sys; sys.modules['plotly'] = None; "
+        "from arena import datasets, models; "
+        "assert 'torch' not in sys.modules"
+    )
+    result = subprocess.run([sys.executable, "-c", source], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

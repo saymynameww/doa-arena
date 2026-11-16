@@ -101,7 +101,7 @@ async def _prepare_config(config: dict[str, Any]) -> tuple[ExperimentConfig, lis
         "validate",
         {
             "config": exp_config.model_dump(mode="json"),
-            "workspace": str(get_task_manager().output_dir.resolve().parent),
+            "workspace": str(get_task_manager().output_dir.resolve()),
         },
     )
     return exp_config, checked["issues"]

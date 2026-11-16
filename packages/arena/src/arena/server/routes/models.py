@@ -47,7 +47,7 @@ class ModelInspection(BaseModel):
 
 def workspace_path() -> Path:
     """与实验目录保持一致的当前工作目录。"""
-    return get_task_manager().output_dir.resolve().parent
+    return get_task_manager().output_dir.resolve()
 
 
 @router.get("/models", response_model=ModelList)
