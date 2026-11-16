@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ModelList, ModelRecord, ModelInspection } from '@/types/generated';
+import type { ModelList, ModelRecord, ModelInspection, SuiteList, LeaderboardResponse, BenchmarkRunRequest, BenchmarkRunRecord } from '@/types/generated';
 import type {
   Algorithm,
   ChartData,
@@ -155,15 +155,19 @@ export const selectWorkspace = async (workspace: Record<string, any>) => {
   return response.data;
 };
 
-export const getLeaderboard = async (): Promise<{ rows: Array<Record<string, any>> }> => {
-  const response = await api.get('/leaderboard');
+export const getLeaderboard = async (suite_id: string, version: string, column = 0, revision?: string): Promise<LeaderboardResponse> => {
+  const response = await api.get('/leaderboard', {params: {suite_id, version, column, revision}});
   return response.data;
 };
 
-export const getLeaderboardScenarios = async (): Promise<{ scenarios: Array<Record<string, any>> }> => {
+export const getLeaderboardScenarios = async (): Promise<SuiteList> => {
   const response = await api.get('/leaderboard/scenarios');
   return response.data;
 };
+
+export const runBenchmark = async (request: BenchmarkRunRequest): Promise<BenchmarkRunRecord> => (await api.post('/benchmarks/runs', request)).data;
+export const importBenchmarkSuite = async (suite: Record<string, unknown>): Promise<Record<string, unknown>> => (await api.post('/benchmarks/suites', suite)).data;
+export const getBenchmarkRuns = async (): Promise<{runs: Array<Record<string, any>>}> => (await api.get('/benchmarks/runs')).data;
 
 export const rebuildWorkspaceIndex = async (): Promise<Record<string, any>> => {
   const response = await api.post('/workspaces/rebuild-index');

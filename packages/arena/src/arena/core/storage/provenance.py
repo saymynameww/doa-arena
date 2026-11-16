@@ -58,6 +58,11 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
                     filename = cls.id + ".diff"
                     record["git"]["patch"] = "algorithm_patches/" + filename
                     patches[filename] = source["patch"]
+        else:
+            source = provenance(cls)
+            record["source"]["code_sha256"] = source["code_hash"]
+            if source.get("commit"):
+                record["git"] = {"commit": source["commit"], "dirty": source["dirty"]}
         plugins["algorithm/" + item.id] = record
     entries = [("array", config.scenario.array.type, config.scenario.array.origin)]
     entries += [

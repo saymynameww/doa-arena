@@ -299,13 +299,53 @@ def test_workspace_selection_and_algorithm_refresh(client, tmp_path):
 
 
 def test_leaderboard_endpoint(client):
-    """排行榜接口在没有完成实验时也应返回稳定结构。"""
+    """排行榜必须指定版本，普通实验不会混入基准排名。"""
     response = client.get("/api/leaderboard")
-    assert response.status_code == 200
-    assert "rows" in response.json()
+    assert response.status_code == 422
     response = client.get("/api/leaderboard/scenarios")
     assert response.status_code == 200
-    assert "scenarios" in response.json()
+    assert "suites" in response.json()
+
+
+@pytest.mark.slow
+def test_benchmark_web_run_and_result_links(client):
+    document = {
+        "suite_id": "web-test",
+        "version": "1.0",
+        "name": "网页评测",
+        "scenarios": [
+            {
+                "name": "one",
+                "config": {
+                    "seed": 10,
+                    "experiment": {"type": "single", "trials": 1},
+                    "metrics": {"include": ["rmse"]},
+                },
+            }
+        ],
+        "leaderboard": [{"scenario": "one", "metric": "rmse", "at": 0, "label": "RMSE"}],
+    }
+    response = client.post("/api/benchmarks/suites", json=document)
+    assert response.status_code == 200, response.text
+    response = client.post(
+        "/api/benchmarks/runs",
+        json={
+            "suite_id": "web-test",
+            "version": "1.0",
+            "algorithms": [{"id": "music", "params": {"grid_step": 1}}],
+        },
+    )
+    assert response.status_code == 200, response.text
+    record = response.json()
+    board = client.get("/api/leaderboard", params={"suite_id": "web-test", "version": "1.0"}).json()
+    assert len(board["rows"]) == 1
+    cell = board["rows"][0]["values"][0]
+    assert cell["experiment_id"] == record["experiments"]["one"]
+    task = client.get(f"/api/experiments/tasks/{cell['experiment_id']}")
+    assert task.status_code == 200
+    assert task.json()["status"] == "completed"
+    runs = client.get("/api/benchmarks/runs").json()["runs"]
+    assert runs[0]["states"]["one"]["status"] == "completed"
 
 
 def test_get_algorithm(client):
@@ -375,3 +415,9 @@ def test_web_workspace_uses_same_layout_as_script(client, tmp_path):
     assert response.status_code == 200
     assert (root / "arena_workspace.json").exists()
     assert get_task_manager().output_dir == root
+    from arena.core.config import ExperimentConfig
+
+    identifier = get_task_manager().create_task(
+        ExperimentConfig.model_validate({"algorithms": [{"id": "music"}]})
+    )
+    assert get_task_manager().tasks[identifier].result_path == root / "experiments" / identifier

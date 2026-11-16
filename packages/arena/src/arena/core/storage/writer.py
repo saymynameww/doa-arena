@@ -77,6 +77,9 @@ class ResultWriter:
         )
         metadata.setdefault("mode", "script")
         metadata.setdefault("benchmark", None)
+        benchmark_path = self.output_dir / "benchmark.json"
+        if benchmark_path.exists():
+            metadata["benchmark"] = json.loads(benchmark_path.read_text(encoding="utf-8"))
         metadata.setdefault("warnings", [])
         metadata.setdefault("history", [])
         self._write_json(self.output_dir / "meta.json", metadata)

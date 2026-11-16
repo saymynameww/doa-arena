@@ -24,6 +24,23 @@ export type ArrayConfig = {
   "params"?: Record<string, unknown>;
 };
 
+export type BenchmarkRunRecord = {
+  "run_id": string;
+  "suite_id": string;
+  "suite_version": string;
+  "suite_hash": string;
+  "created_at": string;
+  "algorithms": Array<AlgorithmConfig>;
+  "experiments": Record<string, string>;
+};
+
+export type BenchmarkRunRequest = {
+  "suite_id": string;
+  "version": string;
+  "algorithms": Array<AlgorithmConfig>;
+  "scenarios"?: Array<string> | null;
+};
+
 export type ChartData = {
   "title": string;
   "data": Array<Record<string, unknown>>;
@@ -89,6 +106,15 @@ export type ImpairmentConfig = {
   "enabled"?: boolean;
   "realization"?: "fixed" | "per_trial";
   "params"?: Record<string, unknown>;
+};
+
+export type LeaderboardResponse = {
+  "suite_id": string;
+  "version": string;
+  "columns": Array<Record<string, unknown>>;
+  "rows": Array<Record<string, unknown>>;
+  "revisions": Array<Record<string, string>>;
+  "failures": Array<string>;
 };
 
 export type MetricParameters = {
@@ -199,6 +225,10 @@ export type SourcesConfig = {
 
 export type SuccessParameters = {
   "threshold_deg"?: number;
+};
+
+export type SuiteList = {
+  "suites": Array<Record<string, unknown>>;
 };
 
 export type SweepConfig = {

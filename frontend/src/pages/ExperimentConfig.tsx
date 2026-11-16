@@ -103,7 +103,9 @@ export default function ExperimentConfigPage() {
         setSchema(data);
         setTemplates(list);
         const template = list.find((t) => t.id === params.get("template"));
-        const next = mergeDefaults(data["x-default"], template?.config);
+        let saved: any;
+        try { saved = JSON.parse(sessionStorage.getItem('arena.experimentDraft') || 'null'); } catch { saved = null; }
+        const next = mergeDefaults(data["x-default"], template?.config || saved?.draft);
         if (template && !template.config?.algorithms?.length)
           next.algorithms = (template.algorithms || []).map((id: string) => {
             const plugin = data["x-algorithms"].find((a: any) => a.id === id);
@@ -116,10 +118,14 @@ export default function ExperimentConfigPage() {
           });
         next.metrics ||= data["x-default"].metrics;
         if (next.sweep) setRange(next.sweep.values.join(", "));
+        if (!template && saved?.range) setRange(saved.range);
         setDraft(next);
       })
       .catch(() => setError("读取配置失败，请检查后端服务并刷新"));
   }, [params]);
+  useEffect(() => {
+    if (draft) sessionStorage.setItem('arena.experimentDraft', JSON.stringify({draft, range}));
+  }, [draft, range]);
   useEffect(() => {
     let current = true;
     setIssues([]);

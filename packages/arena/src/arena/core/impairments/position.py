@@ -27,7 +27,7 @@ class PositionError(Impairment):
 
         sigma: float = Param(
             0.01,
-            gt=0,
+            ge=0,
             le=1.0,
             label="位置误差标准差",
             unit="λ",

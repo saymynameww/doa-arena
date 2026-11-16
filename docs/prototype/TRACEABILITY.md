@@ -85,3 +85,18 @@
 | 类型与模板真实配置 | Templates / API client | OpenAPI 生成 | 类型检查、模板 CRUD / 越界保护 | 待本轮复验 |
 
 早期“排行榜已完成”“模型包完整”的表述不成立：这两项分别归属 M7、M6。本次只验收 M1–M5，不能以占位或历史重跑代替其正式功能。
+
+## 2026-11-16 M6–M7 实现及验收追踪
+
+| 原型需求 | 组件 / 入口 | API / 核心 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| 模型包检查、导入与训练元信息 | Algorithms / ModelsPanel | models/inspect、models/import / core.models | test_models；真实 CNN 包 HTTP 检查导入 | 功能通过，视觉待验 |
+| 学习算法选择模型 | ConfigFields / ModelSelector | Params 的 x-widget=model / ModelAlgorithm | test_learning_workflow；实际任务 e77c2313 | 功能通过，视觉待验 |
+| 超训练范围提示与复现信息 | ExperimentConfig / 实验结果 | validate、模型 SHA256 与 provenance | SNR=30 dB 警告及双算法零异常 | 功能通过，视觉待验 |
+| 云端数据生成与训练 | dataset CLI / 独立课题脚本 | datasets / TorchDataset | Linux Python 3.10 CI、在线离线一致、spawn DataLoader | 自动化通过；未操作真实 AutoDL |
+| 标准场景集、版本选择 | Leaderboard | benchmarks/suites / BenchmarkSuite | 不可变版本、内容哈希、版本隔离 | 通用功能通过；正式 1.0 待故障数确认 |
+| 运行与任务关联 | Leaderboard / ExperimentRun | benchmarks/runs / 普通任务队列 | 实际 8 场景每点 500 次完成 | 功能通过，视觉待验 |
+| 指定点排名与结果跳转 | Leaderboard | leaderboard / summary 指定 metric_values | 两算法 16 个结果链接、无缺失项、配置篡改排除测试 | 功能通过，视觉待验 |
+| 最新/历史记录、缺失补跑 | Leaderboard | revision / scenarios 选择 | test_benchmark_run_version_isolation_and_missing_scenes | 自动化通过，视觉待验 |
+
+完整验收状态以 `docs/milestones/M6.md`、`M7.md` 为准；上述功能通过不代表逐项视觉验收完成。

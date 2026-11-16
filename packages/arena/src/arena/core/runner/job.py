@@ -16,7 +16,7 @@ from ..storage import ResultWriter
 from .core import run_experiment
 
 
-def run_job(config: dict[str, Any], directory: str) -> None:
+def run_job(config: dict[str, Any], directory: str, mode: str = "web") -> None:
     """执行一个实验，保留取消前的完整块和异常详情。"""
     output = Path(directory)
     output.mkdir(parents=True, exist_ok=True)
@@ -79,7 +79,7 @@ def run_job(config: dict[str, Any], directory: str) -> None:
             cancel_callback=lambda: (output / "CANCEL").exists(),
             checkpoint_callback=writer.write_experiment,
         )
-        result.metadata["mode"] = "web"
+        result.metadata["mode"] = mode
         writer.write_experiment(result)
         stopped.set()
         heartbeat_thread.join()

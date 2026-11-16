@@ -33,6 +33,31 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
     """执行子进程收到的白名单操作。"""
     from .config import ExperimentConfig
 
+    if operation.startswith("benchmark_"):
+        from .benchmark import create_run, leaderboard, list_suites, save_suite
+
+        workspace = payload["workspace"]
+        if operation == "benchmark_suites":
+            return {"suites": list_suites(workspace)}
+        if operation == "benchmark_save":
+            return save_suite(payload["suite"], workspace)
+        if operation == "benchmark_create":
+            return create_run(
+                workspace,
+                payload["suite_id"],
+                payload["version"],
+                payload["algorithms"],
+                payload.get("scenarios"),
+            )
+        if operation == "benchmark_leaderboard":
+            return leaderboard(
+                workspace,
+                payload["suite_id"],
+                payload["version"],
+                payload.get("column", 0),
+                payload.get("revision"),
+            )
+
     if operation == "inspect_model":
         from .models import inspect_package
 

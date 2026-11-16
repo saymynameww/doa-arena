@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "suite_id": "doa-basic",
+  "version": "1.0",
+  "name": "DOA 基础场景集",
+  "scenarios": [
+    {
+      "name": "snr",
+      "description": "不相干 SNR / dB",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.sources.snr_db",
+            "values": [
+              -10,
+              -5,
+              0,
+              5,
+              10,
+              15,
+              20
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "snapshots",
+      "description": "快拍数",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.snapshots",
+            "values": [
+              8,
+              16,
+              32,
+              64,
+              128,
+              200,
+              500
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "resolution",
+      "description": "间隔分辨概率 / °",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "separation",
+              "center": 0,
+              "delta": 1
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.sources.angles.delta",
+            "values": [
+              1,
+              2,
+              3,
+              4,
+              6,
+              8,
+              10
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "coherent",
+      "description": "相干 SNR / dB",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "coherent",
+              "phases_deg": "random"
+            }
+          },
+          "snapshots": 200
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.sources.snr_db",
+            "values": [
+              -10,
+              -5,
+              0,
+              5,
+              10,
+              15,
+              20
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "gain",
+      "description": "幅度误差",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200,
+          "impairments": [
+            {
+              "type": "gain_phase",
+              "realization": "per_trial",
+              "params": {
+                "sigma_g": 0,
+                "sigma_phi_deg": 0
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.impairments[0].params.sigma_g",
+            "values": [
+              0,
+              0.025,
+              0.05,
+              0.1,
+              0.2
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "phase",
+      "description": "相位误差 / °",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200,
+          "impairments": [
+            {
+              "type": "gain_phase",
+              "realization": "per_trial",
+              "params": {
+                "sigma_g": 0,
+                "sigma_phi_deg": 0
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.impairments[0].params.sigma_phi_deg",
+            "values": [
+              0,
+              1,
+              3,
+              5,
+              10
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "position",
+      "description": "位置误差 / λ",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200,
+          "impairments": [
+            {
+              "type": "position",
+              "realization": "per_trial",
+              "params": {
+                "sigma": 0
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.impairments[0].params.sigma",
+            "values": [
+              0,
+              0.01,
+              0.025,
+              0.05,
+              0.1
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "coupling",
+      "description": "第一邻元互耦幅度",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200,
+          "impairments": [
+            {
+              "type": "mutual_coupling",
+              "realization": "per_trial",
+              "params": {
+                "coefficients": [
+                  {
+                    "magnitude": 1,
+                    "phase_deg": 0
+                  }
+                ],
+                "scale": 0
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.impairments[0].params.scale",
+            "values": [
+              0,
+              0.05,
+              0.1,
+              0.2,
+              0.3
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "leaderboard": [
+    {
+      "scenario": "snr",
+      "metric": "rmse",
+      "at": 2,
+      "label": "不相干 SNR / dB @ 0"
+    },
+    {
+      "scenario": "snapshots",
+      "metric": "rmse",
+      "at": 1,
+      "label": "快拍数 @ 16"
+    },
+    {
+      "scenario": "resolution",
+      "metric": "resolution_prob",
+      "at": 3,
+      "label": "间隔分辨概率 / ° @ 4"
+    },
+    {
+      "scenario": "coherent",
+      "metric": "rmse",
+      "at": 4,
+      "label": "相干 SNR / dB @ 10"
+    },
+    {
+      "scenario": "gain",
+      "metric": "rmse",
+      "at": 3,
+      "label": "幅度误差 @ 0.1"
+    },
+    {
+      "scenario": "phase",
+      "metric": "rmse",
+      "at": 3,
+      "label": "相位误差 / ° @ 5"
+    },
+    {
+      "scenario": "position",
+      "metric": "rmse",
+      "at": 3,
+      "label": "位置误差 / λ @ 0.05"
+    },
+    {
+      "scenario": "coupling",
+      "metric": "rmse",
+      "at": 3,
+      "label": "第一邻元互耦幅度 @ 0.2"
+    }
+  ]
+}

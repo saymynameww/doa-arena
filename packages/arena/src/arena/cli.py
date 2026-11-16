@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 
 def main() -> None:
@@ -25,6 +26,13 @@ def main() -> None:
     schema_parser = commands.add_parser("schema", help="导出配置 JSON Schema")
     schema_parser.add_argument("action", choices=["export"])
     schema_parser.add_argument("--out", type=Path, required=True)
+    benchmark_parser = commands.add_parser("benchmark", help="运行版本化场景集和查看排行")
+    benchmark_parser.add_argument("action", choices=["list", "run", "leaderboard"])
+    benchmark_parser.add_argument("--workspace", type=Path, default=Path("arena_workspace"))
+    benchmark_parser.add_argument("--suite")
+    benchmark_parser.add_argument("--version")
+    benchmark_parser.add_argument("--algorithms", type=Path, help="算法实例列表 JSON 文件")
+    benchmark_parser.add_argument("--column", type=int, default=0)
     args = parser.parse_args()
     try:
         if args.command == "run":
@@ -38,6 +46,23 @@ def main() -> None:
 
                 result = run(args.config, workspace=args.workspace)
                 print(result.metadata["directory"])
+        elif args.command == "benchmark":
+            from .core.benchmark import leaderboard, list_suites, run_suite
+
+            data: Any
+            if args.action == "list":
+                data = list_suites(args.workspace)
+            else:
+                if not args.suite or not args.version:
+                    raise ValueError("请提供 --suite 和 --version")
+                if args.action == "run":
+                    if not args.algorithms:
+                        raise ValueError("请用 --algorithms 提供算法实例列表文件")
+                    selected = json.loads(args.algorithms.read_text(encoding="utf-8"))
+                    data = run_suite(args.workspace, args.suite, args.version, selected)
+                else:
+                    data = leaderboard(args.workspace, args.suite, args.version, args.column)
+            print(json.dumps(data, ensure_ascii=False, indent=2))
         elif args.command == "dataset":
             from .core.datasets import generate
 
