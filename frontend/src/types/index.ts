@@ -62,6 +62,9 @@ export interface Task {
   completed_at?: number;
   elapsed_seconds?: number;
   error?: string;
+  name?: string;
+  type?: 'single' | 'monte_carlo' | 'sweep';
+  config?: ExperimentConfig;
   progress?: TaskProgress;
 }
 

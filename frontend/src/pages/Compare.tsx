@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Select, Button, Space, Row, Col, Empty, Tabs } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
@@ -22,6 +23,7 @@ const ComparePage: React.FC = () => {
   const [selectedExperiments, setSelectedExperiments] = useState<string[]>([]);
   const [availableExperiments, setAvailableExperiments] = useState<CompareExperiment[]>([]);
   const [chartsByExperiment, setChartsByExperiment] = useState<Record<string, ChartData[]>>({});
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     void getTasks()
@@ -38,6 +40,11 @@ const ComparePage: React.FC = () => {
       })
       .catch(() => setAvailableExperiments([]));
   }, []);
+
+  useEffect(() => {
+    const ids = (searchParams.get('ids') || '').split(',').filter(Boolean);
+    if (ids.length > 0) setSelectedExperiments(ids.slice(0, 4));
+  }, [searchParams]);
 
   useEffect(() => {
     void Promise.all(selectedExperiments.map(async (id) => [id, await getTaskCharts(id)] as const))
@@ -76,10 +83,10 @@ const ComparePage: React.FC = () => {
   };
 
   const renderCompareView = () => {
-    if (selectedExperiments.length === 0) {
+    if (selectedExperiments.length < 2) {
       return (
         <Empty
-          description="请至少选择一个实验进行对比"
+          description="请从历史实验页选择至少两个参数扫描实验进行对比"
           style={{ marginTop: 100 }}
         />
       );

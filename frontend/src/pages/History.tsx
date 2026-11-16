@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps -- filtering follows the displayed task state. */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Card, Button, Tag, Space, message, Select, Input } from 'antd';
+import { Table, Card, Button, Tag, Space, message, Select, Input, Alert } from 'antd';
 import { EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { cancelTask, copyTask, getTasks, rerunTask } from '@/services/api';
 import type { Task } from '@/types';
@@ -72,9 +72,15 @@ const HistoryPage: React.FC = () => {
   const columns: ColumnsType<Task> = [
     {
       title: '任务 ID',
-      dataIndex: 'task_id',
+      dataIndex: 'name',
       key: 'task_id',
-      width: 120,
+      width: 220,
+      render: (name: string | undefined, record) => (
+        <Space direction="vertical" size={0}>
+          <span>{name || `实验 ${record.task_id}`}</span>
+          <span style={{ fontSize: 11, color: '#8c8c8c' }}>{record.task_id}</span>
+        </Space>
+      ),
     },
     {
       title: '状态',
@@ -138,6 +144,22 @@ const HistoryPage: React.FC = () => {
     },
   ];
 
+  const selectedTasks = tasks.filter((task) => selectedRowKeys.includes(task.task_id));
+  const compareReason =
+    selectedRowKeys.length < 2
+      ? '再选择一个实验才可以对比'
+      : selectedRowKeys.length > 4
+        ? '一次最多对比 4 个实验'
+        : selectedTasks.some((task) => task.type !== 'sweep')
+          ? '只有参数扫描实验可以对比'
+          : new Set(selectedTasks.map((task) => task.config?.sweep?.path)).size > 1
+            ? '选中的实验扫描变量不同'
+            : '';
+
+  function handleCompare() {
+    navigate(`/compare?ids=${selectedRowKeys.join(',')}`);
+  }
+
   return (
     <Card
       title="历史实验"
@@ -172,14 +194,30 @@ const HistoryPage: React.FC = () => {
         </Space>
       }
     >
+      {selectedRowKeys.length > 0 && (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type={compareReason ? 'warning' : 'info'}
+          message={`已选择 ${selectedRowKeys.length} 个实验`}
+          description={compareReason || '可以进入多实验对比'}
+          action={
+            <Space>
+              <Button type="primary" disabled={Boolean(compareReason)} onClick={handleCompare}>
+                对比
+              </Button>
+              <Button onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+            </Space>
+          }
+        />
+      )}
       <Table
         columns={columns}
         dataSource={filteredTasks}
         rowKey="task_id"
-      rowSelection={{
-        selectedRowKeys,
-        onChange: (keys) => setSelectedRowKeys(keys as string[]),
-      }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as string[]),
+        }}
         loading={loading}
         pagination={{
           pageSize: 20,

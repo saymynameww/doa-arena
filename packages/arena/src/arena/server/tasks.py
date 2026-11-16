@@ -351,6 +351,7 @@ class TaskManager:
             "created_at": task.created_at,
             "name": task.config.name,
             "type": task.config.type,
+            "config": task.config.model_dump(mode="json"),
         }
 
         if task.started_at:
