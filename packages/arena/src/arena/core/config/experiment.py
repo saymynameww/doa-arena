@@ -46,9 +46,9 @@ class ExperimentOptions(BaseModel):
 
     chunk_size: int = Field(64, ge=1, le=10000)
     max_consecutive_errors: int = Field(20, ge=1)
-    source_count: str = "true"
-    save_spectra: str = "auto"
-    save_observations: str = "auto"
+    source_count: Literal["true", "mdl", "aic"] = "true"
+    save_spectra: Literal["auto", "all", "none"] = "auto"
+    save_observations: Literal["auto", "none"] = "auto"
     workers: int = Field(1, ge=1, le=64, description="并行进程数")
     common_random_numbers: bool = Field(True, description="公共随机数")
     warmup: bool = Field(True, description="是否预热")
@@ -61,12 +61,20 @@ class SuccessParameters(BaseModel):
     threshold_deg: float = Field(1.0, gt=0, description="成功门限（度）")
 
 
+class RmseParameters(BaseModel):
+    """估计数错误时的 RMSE 纳入规则。"""
+
+    include_failed: bool = False
+    penalty_deg: float = Field(90, gt=0)
+
+
 class MetricParameters(BaseModel):
     """指标参数。"""
 
     success_rate: SuccessParameters = Field(
         default_factory=lambda: SuccessParameters(threshold_deg=1.0)
     )
+    rmse: RmseParameters = Field(default_factory=lambda: RmseParameters.model_validate({}))
 
 
 class MetricsConfig(BaseModel):

@@ -21,6 +21,9 @@ def read_result(directory: Path) -> ExperimentResult:
     config = ExperimentConfig.model_validate(config).model_dump(mode="json")
     metadata = json.loads((directory / "meta.json").read_text(encoding="utf-8"))
     summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    detail_path = directory / "errors.json"
+    details = json.loads(detail_path.read_text(encoding="utf-8")) if detail_path.exists() else {}
+    details = {(row["point"], row["trial"]): row for row in details.get("trials", [])}
     points = []
     with np.load(directory / "results.npz", allow_pickle=False) as raw:
         labels = [key[:-11] for key in raw.files if key.endswith("__estimates")]
@@ -28,10 +31,12 @@ def read_result(directory: Path) -> ExperimentResult:
         for pi in range(shape[0]):
             trials = []
             for ti in range(int(raw["trial_counts"][pi]) if "trial_counts" in raw else shape[1]):
-                estimates, errors, times = {}, {}, {}
+                trial_index = int(raw["trial_indices"][pi, ti]) if "trial_indices" in raw else ti
+                detail = details.get((pi, trial_index), {})
+                estimates, errors, times = {}, dict(detail.get("errors", {})), {}
                 for label in labels:
                     if raw[label + "__failed"][pi, ti]:
-                        errors[label] = "运行错误，详情见 errors.json"
+                        errors.setdefault(label, "运行错误，详情见 errors.json")
                         continue
                     angles = raw[label + "__estimates"][pi, ti]
                     prefix = f"spectrum__{pi}__{ti}__{label}"
@@ -45,14 +50,28 @@ def read_result(directory: Path) -> ExperimentResult:
                                 str(raw[prefix + "__kind"].item()),
                             ),
                         )
-                    estimates[label] = Estimate(angles[np.isfinite(angles)], spectrum)
+                    estimates[label] = Estimate(
+                        angles[np.isfinite(angles)], spectrum, detail.get("info", {}).get(label, {})
+                    )
                     times[label] = float(raw[label + "__times_ms"][pi, ti])
                 truth = (
                     raw["truth_angles"][pi, ti]
                     if "truth_angles" in raw
                     else np.asarray(config["scenario"]["sources"]["angles"]["values"])
                 )
-                trials.append(TrialResult(ti, estimates, errors, times, truth[np.isfinite(truth)]))
+                trials.append(
+                    TrialResult(
+                        trial_index,
+                        estimates,
+                        errors,
+                        times,
+                        truth[np.isfinite(truth)],
+                        raw[f"observation__{pi}__{ti}"]
+                        if f"observation__{pi}__{ti}" in raw
+                        else None,
+                        detail.get("source_count"),
+                    )
+                )
             point = summary["points"][pi]
             points.append(SweepPointResult(pi, point.get("sweep_value"), trials))
-    return ExperimentResult(config, points, metadata)
+    return ExperimentResult(config, points, metadata, summary)

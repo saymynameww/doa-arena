@@ -10,7 +10,7 @@ import numpy as np
 
 from .capabilities import Capabilities
 from .params import ParamsModel
-from .types import ArrayDescriptor, Estimate, Observation, RunContext
+from .types import ArrayDescriptor, Estimate, Issue, Observation, RunContext
 
 
 class Algorithm(ABC):
@@ -64,7 +64,7 @@ class Algorithm(ABC):
         params: ParamsModel,
         array: ArrayDescriptor,
         K: int | None,
-    ) -> None:
+    ) -> list[Issue]:
         """静态兼容性检查（不实例化）。
 
         在配置校验时调用，检查参数和阵列是否兼容。
@@ -74,27 +74,32 @@ class Algorithm(ABC):
             array: 阵列描述
             K: 信源数
 
-        Raises:
-            ValueError: 配置不兼容时
+        Returns:
+            可定位的错误和警告列表。
         """
         # 默认实现：检查能力声明
         caps = cls.capabilities
+        issues: list[Issue] = []
 
         # 检查阵列类型
         if caps.array_types is not None:
             if array.type not in caps.array_types:
-                raise ValueError(
-                    f"{cls.name} 只支持阵列类型 {caps.array_types}，当前为 {array.type}"
+                issues.append(
+                    Issue(
+                        "error",
+                        f"{cls.name} 只支持阵列类型 {caps.array_types}，当前为 {array.type}",
+                    )
                 )
 
         # 检查 ULA
         if caps.requires_ula:
             if array.ula_spacing is None:
-                raise ValueError(f"{cls.name} 需要均匀线阵（ULA）")
+                issues.append(Issue("error", f"{cls.name} 需要均匀线阵（ULA）"))
 
         # 检查信源数
         if caps.needs_K and K is None:
-            raise ValueError(f"{cls.name} 需要已知信源数")
+            issues.append(Issue("error", f"{cls.name} 需要已知信源数"))
+        return issues
 
     def load(self, params: ParamsModel, ctx: RunContext) -> None:
         """加载重资源（每个进程一次）。

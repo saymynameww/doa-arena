@@ -12,6 +12,11 @@ from .compute import compute_metrics
 
 def algorithm_labels(result: ExperimentResult) -> list[str]:
     """保留所有成功或失败的算法，避免首个试验失败后漏列。"""
+    if result.saved_summary is not None:
+        return [
+            item["label"] if isinstance(item, dict) else item
+            for item in result.saved_summary["algorithms"]
+        ]
     return list(
         dict.fromkeys(
             label
@@ -24,10 +29,16 @@ def algorithm_labels(result: ExperimentResult) -> list[str]:
 
 def point_metrics(result: ExperimentResult, point: SweepPointResult, label: str) -> dict[str, Any]:
     """使用逐次真值和配置门限汇总一个算法的一个扫描点。"""
+    if not result.config.get("options", {}).get("save_estimates", True):
+        if result.saved_summary is not None:
+            return dict(result.saved_summary["points"][point.point_idx]["algorithms"][label])
     angles = result.config.get("scenario", {}).get("sources", {}).get("angles", {})
+    from ..storage.contract import trial_status
+
+    trials = [trial for trial in point.trials if trial_status(trial, label) != 7]
     fallback = np.asarray(angles.get("values") or [], dtype=float)
     truths = [
-        trial.truth_angles if trial.truth_angles is not None else fallback for trial in point.trials
+        trial.truth_angles if trial.truth_angles is not None else fallback for trial in trials
     ]
     threshold = (
         result.config.get("metrics", {})
@@ -35,10 +46,11 @@ def point_metrics(result: ExperimentResult, point: SweepPointResult, label: str)
         .get("success_rate", {})
         .get("threshold_deg", 1.0)
     )
-    estimates = [trial.estimates.get(label, Estimate.from_angles([])) for trial in point.trials]
+    estimates = [trial.estimates.get(label, Estimate.from_angles([])) for trial in trials]
+    rmse_options = result.config.get("metrics", {}).get("params", {}).get("rmse", {})
     metrics: dict[str, Any] = dict(
-        compute_metrics(estimates, fallback, threshold_deg=threshold, truths=truths)
+        compute_metrics(estimates, fallback, threshold_deg=threshold, truths=truths, **rmse_options)
     )
-    durations = [trial.times_ms[label] for trial in point.trials if label in trial.times_ms]
+    durations = [trial.times_ms[label] for trial in trials if label in trial.times_ms]
     metrics["avg_time_ms"] = float(np.mean(durations)) if durations else np.nan
     return metrics

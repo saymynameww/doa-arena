@@ -77,6 +77,8 @@ def compute_metrics(
     truth: np.ndarray,
     threshold_deg: float | None = None,
     truths: list[np.ndarray] | None = None,
+    include_failed: bool = False,
+    penalty_deg: float = 90,
 ) -> MetricsResult:
     """批量计算指标统计量。
 
@@ -85,6 +87,8 @@ def compute_metrics(
         truth: 真实角度
         threshold_deg: 成功门限，None 保留旧版检出数判定
         truths: 每次试验的真实角度，用于随机角度或间隔扫描
+        include_failed: 是否计入估计数错误的试验
+        penalty_deg: 每个未匹配角度的惩罚误差
 
     Returns:
         统计指标字典：
@@ -104,6 +108,17 @@ def compute_metrics(
         result = match_and_compute(est, actual_truth)
         if result["success"]:
             rmses.append(float(result["rmse"]))
+        elif include_failed:
+            count = max(len(actual_truth), est.K_hat)
+            errors = result["matched_errors"]
+            if count:
+                rmses.append(
+                    float(
+                        np.sqrt(
+                            (np.sum(errors**2) + (count - len(errors)) * penalty_deg**2) / count
+                        )
+                    )
+                )
         successes.append(
             bool(
                 result["success"]
@@ -127,8 +142,8 @@ def compute_metrics(
         rmse_mean = np.nan
         rmse_std = np.nan
 
-    success_rate = float(np.mean(successes))
-    avg_K_hat = float(np.mean(K_hats))
+    success_rate = float(np.mean(successes)) if successes else np.nan
+    avg_K_hat = float(np.mean(K_hats)) if K_hats else np.nan
 
     return {
         "rmse_mean": rmse_mean,

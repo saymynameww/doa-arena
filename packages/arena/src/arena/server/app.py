@@ -55,4 +55,14 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api", tags=["settings"])
     app.include_router(leaderboard.router, prefix="/api", tags=["leaderboard"])
 
+    from ..core.config import ExperimentConfig
+
+    document = app.openapi()
+    configuration = ExperimentConfig.model_json_schema(ref_template="#/components/schemas/{model}")
+    document["components"]["schemas"].update(configuration.pop("$defs", {}))
+    document["components"]["schemas"]["ExperimentConfig"] = configuration
+    document["paths"]["/api/experiments/run"]["post"]["requestBody"]["content"]["application/json"][
+        "schema"
+    ] = {"$ref": "#/components/schemas/ExperimentConfig"}
+
     return app

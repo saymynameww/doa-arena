@@ -6,6 +6,7 @@ import { EyeOutlined, ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-
 import { cancelTask, copyTask, getTasks, rerunTask } from '@/services/api';
 import type { Task } from '@/types';
 import type { ColumnsType } from 'antd/es/table';
+import ExperimentNotes from '@/components/ExperimentNotes';
 
 const { Option } = Select;
 
@@ -37,7 +38,7 @@ const HistoryPage: React.FC = () => {
     // 搜索筛选
     if (searchText) {
       filtered = filtered.filter((task) =>
-        `${task.task_id} ${task.name || ''}`.toLowerCase().includes(searchText.toLowerCase())
+        `${task.task_id} ${task.name || ''} ${task.notes || ''} ${(task.tags || []).join(' ')}`.toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
@@ -58,14 +59,15 @@ const HistoryPage: React.FC = () => {
 
   const renderStatus = (status: string) => {
     const statusMap = {
-      pending: { color: 'default', text: '等待中' },
+      queued: { color: 'default', text: '等待中' },
       running: { color: 'processing', text: '运行中' },
       completed: { color: 'success', text: '已完成' },
       failed: { color: 'error', text: '失败' },
       cancelled: { color: 'default', text: '已取消' },
+      interrupted: { color: 'warning', text: '已中断' },
     };
 
-    const config = statusMap[status as keyof typeof statusMap] || statusMap.pending;
+    const config = statusMap[status as keyof typeof statusMap] || statusMap.queued;
     return <Tag color={config.color}>{config.text}</Tag>;
   };
 
@@ -78,6 +80,7 @@ const HistoryPage: React.FC = () => {
       render: (name: string | undefined, record) => (
         <Space direction="vertical" size={0}>
           <span>{name || `实验 ${record.task_id}`}</span>
+          <span>{record.starred ? '★ ' : ''}{(record.tags || []).map(tag => <Tag key={tag}>{tag}</Tag>)}</span>
           <span style={{ fontSize: 11, color: '#8c8c8c' }}>{record.task_id}</span>
         </Space>
       ),
@@ -122,6 +125,7 @@ const HistoryPage: React.FC = () => {
       width: 260,
       render: (_, record) => (
         <Space>
+          <ExperimentNotes taskId={record.task_id} onComplete={() => void loadTasks()} />
           <Button
             type="link"
             size="small"

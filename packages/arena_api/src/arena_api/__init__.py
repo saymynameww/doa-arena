@@ -52,6 +52,7 @@ from .plugin import (
 from .types import (
     ArrayDescriptor,
     Estimate,
+    Issue,
     Observation,
     RunContext,
     Spectrum,
@@ -63,6 +64,7 @@ __all__ = [
     "ArrayDescriptor",
     "Observation",
     "Estimate",
+    "Issue",
     "Spectrum",
     "RunContext",
     # Plugins

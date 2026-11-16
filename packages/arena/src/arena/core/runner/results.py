@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+import numpy as np
 
 from arena_api import Estimate
 
@@ -18,6 +20,9 @@ class TrialResult:
     times_ms: dict[str, float]  # 算法 label -> 耗时（毫秒）
 
     truth_angles: Any = None
+    observation: np.ndarray | None = None
+    source_count: int | None = None
+    error_details: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -36,3 +41,4 @@ class ExperimentResult:
     config: dict[str, Any]  # 实验配置
     points: list[SweepPointResult]  # 扫描点结果
     metadata: dict[str, Any]  # 元信息（开始时间、耗时等）
+    saved_summary: dict[str, Any] | None = None

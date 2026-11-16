@@ -9,8 +9,10 @@ import asyncio
 import json
 import logging
 import multiprocessing as mp
+import sqlite3
 import time
 import uuid
+from contextlib import closing
 from dataclasses import dataclass, field
 from enum import Enum
 from multiprocessing.process import BaseProcess
@@ -26,11 +28,12 @@ logger = logging.getLogger(__name__)
 class TaskStatus(str, Enum):
     """任务状态。"""
 
-    PENDING = "pending"
+    PENDING = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
 
 
 @dataclass
@@ -65,8 +68,10 @@ class TaskManager:
         self.tasks: dict[str, Task] = {}
         self.output_dir = output_dir or Path("experiments")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._index_path = self.output_dir / "tasks.json"
+        self._index_path = self.output_dir / ".arena_index.sqlite"
         self._lock = asyncio.Lock()
+        self._run_lock = asyncio.Lock()
+        self._file_versions: dict[str, tuple[int, ...]] = {}
         self._progress_subscribers: dict[str, list[asyncio.Queue]] = {}
         self._load_index()
         self.rebuild_index()
@@ -76,16 +81,22 @@ class TaskManager:
         if not self._index_path.exists():
             return
         try:
-            records = json.loads(self._index_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            with closing(sqlite3.connect(self._index_path)) as connection, connection:
+                records = [
+                    json.loads(row[0])
+                    for row in connection.execute("SELECT record FROM experiments")
+                ]
+
+        except (OSError, json.JSONDecodeError, sqlite3.DatabaseError) as exc:
             logger.warning("读取任务索引失败，将从空列表开始: %s", exc)
             return
         for record in records if isinstance(records, list) else []:
             try:
                 config = ExperimentConfig.model_validate(record["config"])
-                status = TaskStatus(record.get("status", TaskStatus.FAILED.value))
-                if status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
-                    status = TaskStatus.FAILED
+                raw_status = record.get("status", TaskStatus.FAILED.value)
+                status = TaskStatus("queued" if raw_status == "pending" else raw_status)
+                if status == TaskStatus.PENDING:
+                    status = TaskStatus.CANCELLED
                 task = Task(
                     task_id=record["task_id"],
                     config=config,
@@ -105,12 +116,13 @@ class TaskManager:
         """切换后续任务的结果目录并加载该目录的历史索引。"""
         self.output_dir = output_dir.expanduser()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._index_path = self.output_dir / "tasks.json"
+        self._index_path = self.output_dir / ".arena_index.sqlite"
         self.tasks.clear()
+        self._file_versions.clear()
         self._load_index()
         self.rebuild_index()
 
-    def rebuild_index(self) -> int:
+    def rebuild_index(self, changed_only: bool = False) -> int:
         """从实验文件恢复历史，兼容旧目录和规范的 experiments 子目录。"""
         roots = [self.output_dir, self.output_dir / "experiments"]
         count = 0
@@ -122,7 +134,26 @@ class TaskManager:
                 if not directory.is_dir() or not config_path.is_file():
                     continue
                 existing = self.tasks.get(directory.name)
-                if existing and existing.status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+                if existing and (
+                    existing.status == TaskStatus.PENDING
+                    or (existing.process is not None and existing.process.is_alive())
+                ):
+                    continue
+                fingerprint = tuple(
+                    (directory / name).stat().st_mtime_ns if (directory / name).exists() else 0
+                    for name in (
+                        "config.json",
+                        "meta.json",
+                        "notes.json",
+                        "summary.json",
+                        "status.json",
+                    )
+                )
+                if (
+                    changed_only
+                    and self._file_versions.get(str(directory)) == fingerprint
+                    and (existing is None or existing.status != TaskStatus.RUNNING)
+                ):
                     continue
                 try:
                     config = ExperimentConfig.model_validate_json(
@@ -140,10 +171,22 @@ class TaskManager:
                         if status_path.exists()
                         else {}
                     )
-                    status = TaskStatus(state.get("status", metadata.get("status", "failed")))
-                    if status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
-                        status = TaskStatus.FAILED
-                        state["error"] = "服务重启前实验未完成，可查看已保存结果或重新运行"
+                    raw_status = state.get("status", metadata.get("status", "failed"))
+                    status = TaskStatus("queued" if raw_status == "pending" else raw_status)
+                    if status == TaskStatus.PENDING:
+                        from ..core.storage import ResultWriter
+
+                        status = TaskStatus.CANCELLED
+                        state["status"] = status.value
+                        ResultWriter(directory)._write_json(status_path, state)
+                    elif status == TaskStatus.RUNNING:
+                        import psutil
+
+                        if time.time() - state.get("heartbeat", 0) > 30 and not psutil.pid_exists(
+                            int(state.get("pid", 0))
+                        ):
+                            status = TaskStatus.INTERRUPTED
+                            state["error"] = "实验进程已退出，可整理已保存的部分结果或重新运行"
                     started = metadata.get("start_time", config_path.stat().st_mtime)
                     self.tasks[directory.name] = Task(
                         task_id=directory.name,
@@ -155,10 +198,12 @@ class TaskManager:
                         error=state.get("error"),
                         result_path=directory,
                     )
+                    self._file_versions[str(directory)] = fingerprint
                     count += 1
                 except (OSError, ValueError, TypeError) as exc:
                     logger.warning("跳过损坏的实验目录 %s：%s", directory, exc)
-        self._save_index()
+        if count or not changed_only:
+            self._save_index()
         return count
 
     def _save_index(self) -> None:
@@ -178,9 +223,15 @@ class TaskManager:
                     "result_path": str(task.result_path) if task.result_path else None,
                 }
             )
-        temp_path = self._index_path.with_suffix(".tmp")
-        temp_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
-        temp_path.replace(self._index_path)
+        with closing(sqlite3.connect(self._index_path)) as connection, connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS experiments (id TEXT PRIMARY KEY, record TEXT NOT NULL)"
+            )
+            connection.execute("DELETE FROM experiments")
+            connection.executemany(
+                "INSERT INTO experiments (id, record) VALUES (?, ?)",
+                [(record["task_id"], json.dumps(record, ensure_ascii=False)) for record in records],
+            )
 
     def create_task(self, config: ExperimentConfig) -> str:
         """创建任务。
@@ -194,7 +245,7 @@ class TaskManager:
         task_id = str(uuid.uuid4())[:8]  # 短 ID
 
         # 结果路径
-        result_path = self.output_dir / task_id
+        result_path = self.output_dir / "experiments" / task_id
 
         task = Task(
             task_id=task_id,
@@ -205,12 +256,31 @@ class TaskManager:
         )
 
         self.tasks[task_id] = task
+        from ..core.storage import ResultWriter
+
+        writer = ResultWriter(result_path)
+        writer._write_json(result_path / "config.json", config.to_document())
+        writer._write_json(
+            result_path / "meta.json",
+            {
+                "status": task.status.value,
+                "start_time": task.created_at,
+            },
+        )
+        writer._write_json(result_path / "status.json", {"status": task.status.value})
         self._save_index()
         logger.info(f"任务已创建: {task_id}")
 
         return task_id
 
     async def run_task(self, task_id: str) -> None:
+        """FIFO 锁保证同时仅运行一个实验，等待期间允许取消。"""
+        async with self._run_lock:
+            task = self.tasks.get(task_id)
+            if task is not None and task.status == TaskStatus.PENDING:
+                await self._execute_task(task_id)
+
+    async def _execute_task(self, task_id: str) -> None:
         """运行任务（异步）。
 
         Args:
@@ -405,7 +475,7 @@ class TaskManager:
         if task is None:
             return None
 
-        status = {
+        status: dict[str, Any] = {
             "task_id": task.task_id,
             "status": task.status.value,
             "created_at": task.created_at,
@@ -427,6 +497,15 @@ class TaskManager:
         if task.progress:
             status["progress"] = task.progress
 
+        from .contracts import ExperimentNotes
+
+        notes_path = task.result_path / "notes.json" if task.result_path else None
+        notes = ExperimentNotes(tags=task.config.tags)
+        if notes_path and notes_path.exists():
+            notes = ExperimentNotes.model_validate_json(notes_path.read_text(encoding="utf-8"))
+        status.update(notes=notes.notes, tags=notes.tags, starred=notes.starred)
+        status["name"] = notes.display_name or task.config.name
+
         return status
 
     def list_tasks(self) -> list[dict[str, Any]]:
@@ -435,6 +514,7 @@ class TaskManager:
         Returns:
             任务列表
         """
+        self.rebuild_index(changed_only=True)
         return [
             status
             for task_id in sorted(

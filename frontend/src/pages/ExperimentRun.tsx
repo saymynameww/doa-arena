@@ -20,7 +20,7 @@ import {
   CloseCircleOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
-import { getTask, subscribeTaskProgress, getTaskResult } from '@/services/api';
+import { getTask, subscribeTaskProgress, getTaskResult, finalizePartialResult } from '@/services/api';
 import ResultCharts from '@/components/ResultCharts';
 import ExportMenu from '@/components/ExportMenu';
 import type { Task } from '@/types';
@@ -45,7 +45,7 @@ const ExperimentRunPage: React.FC = () => {
         setTask((previous) => ({ ...previous, ...data }));
 
         // 任务完成时加载结果
-        if (data.status === 'completed') {
+        if (data.status === 'completed' || data.status === 'cancelled') {
           loadResult();
         }
       },
@@ -68,7 +68,7 @@ const ExperimentRunPage: React.FC = () => {
       setTask(data);
 
       // 如果已完成，加载结果
-      if (data.status === 'completed') {
+      if (data.status === 'completed' || data.status === 'cancelled') {
         loadResult();
       }
     } catch (err: any) {
@@ -91,14 +91,15 @@ const ExperimentRunPage: React.FC = () => {
 
   const renderStatusTag = (status: string) => {
     const statusMap = {
-      pending: { color: 'default', icon: <SyncOutlined spin />, text: '等待中' },
+      queued: { color: 'default', icon: <SyncOutlined spin />, text: '等待中' },
       running: { color: 'processing', icon: <SyncOutlined spin />, text: '运行中' },
       completed: { color: 'success', icon: <CheckCircleOutlined />, text: '已完成' },
       failed: { color: 'error', icon: <CloseCircleOutlined />, text: '失败' },
       cancelled: { color: 'default', icon: <CloseCircleOutlined />, text: '已取消' },
+      interrupted: { color: 'warning', icon: <CloseCircleOutlined />, text: '已中断' },
     };
 
-    const config = statusMap[status as keyof typeof statusMap] || statusMap.pending;
+    const config = statusMap[status as keyof typeof statusMap] || statusMap.queued;
 
     return (
       <Tag color={config.color} icon={config.icon}>
@@ -205,6 +206,12 @@ const ExperimentRunPage: React.FC = () => {
         )}
 
         {/* 完成信息 */}
+        {task.status === 'interrupted' && <Alert type="warning" showIcon message="实验进程已中断"
+          description={error || '可以整理最后已保存的完整试验块，或从历史页重新运行。'}
+          action={<Button onClick={() => void finalizePartialResult(task.task_id).then(loadTask)
+            .catch((err) => setError(err.response?.data?.detail || '整理部分结果失败'))}>整理部分结果</Button>} />}
+        {task.status === 'cancelled' && <Alert type="warning" showIcon message="实验已取消，结果仅包含已保存的试验" />}
+        {task.status === 'cancelled' && resultPath && <ResultCharts taskId={task.task_id} resultPath={resultPath} />}
         {task.status === 'completed' && (
           <>
             <Alert

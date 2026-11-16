@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 
-from ..metrics import compute_metrics
 from ..runner.results import ExperimentResult
 
 
@@ -45,13 +44,115 @@ class ResultWriter:
         self._write_json(self.output_dir / "config.json", document)
 
         # 写入元信息
-        self._write_json(self.output_dir / "meta.json", result.metadata)
+        import hashlib
+        from datetime import datetime
+
+        metadata = dict(result.metadata)
+        for filename, patch in metadata.pop("_patches", {}).items():
+            patch_directory = self.output_dir / "algorithm_patches"
+            patch_directory.mkdir(exist_ok=True)
+            (patch_directory / Path(filename).name).write_text(patch, encoding="utf-8")
+        started = metadata.get("start_time", time.time())
+        elapsed = metadata.get("elapsed_seconds", 0)
+        metadata.update(
+            schema_version=1,
+            id=self.output_dir.name,
+            name=result.config.get("name", ""),
+            created_at=metadata.get(
+                "created_at", datetime.fromtimestamp(started).astimezone().isoformat()
+            ),
+            started_at=datetime.fromtimestamp(started).astimezone().isoformat(),
+            finished_at=(
+                datetime.fromtimestamp(started + elapsed).astimezone().isoformat()
+                if metadata.get("status") in {"completed", "cancelled", "failed"}
+                else None
+            ),
+            elapsed_s=elapsed,
+            config_hash="sha256:"
+            + hashlib.sha256(
+                json.dumps(
+                    document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                ).encode("utf-8")
+            ).hexdigest(),
+        )
+        metadata.setdefault("mode", "script")
+        metadata.setdefault("benchmark", None)
+        metadata.setdefault("warnings", [])
+        metadata.setdefault("history", [])
+        self._write_json(self.output_dir / "meta.json", metadata)
+        notes_path = self.output_dir / "notes.json"
+        if not notes_path.exists():
+            self._write_json(
+                notes_path,
+                {
+                    "schema_version": 1,
+                    "display_name": None,
+                    "notes": "",
+                    "tags": result.config.get("tags", []),
+                    "starred": False,
+                    "updated_at": datetime.now().astimezone().isoformat(),
+                },
+            )
 
         # 写入试验结果
+        self._write_summary(result)
         self._write_trials(result)
 
-        # 计算并写入汇总统计
-        self._write_summary(result)
+        details = [
+            {
+                "point": p.point_idx,
+                "trial": t.trial_idx,
+                "errors": t.errors,
+                "info": {label: dict(est.info) for label, est in t.estimates.items()},
+                "source_count": t.source_count,
+            }
+            for p in result.points
+            for t in p.trials
+        ]
+        from .contract import trial_status
+
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+        for point in result.points:
+            for trial in point.trials:
+                for label, message in trial.errors.items():
+                    stage = "load" if message.startswith("load/configure") else "estimate"
+                    group = grouped.setdefault(
+                        (label, stage), {"label": label, "stage": stage, "errors": []}
+                    )
+                    detail = trial.error_details.get(label, {})
+                    existing = next(
+                        (item for item in group["errors"] if item["message"] == message), None
+                    )
+                    if existing:
+                        existing["count"] += 1
+                    else:
+                        group["errors"].append(
+                            {
+                                "status": [
+                                    "ok",
+                                    "exception",
+                                    "bad_output",
+                                    "nan_output",
+                                    "out_of_range",
+                                    "estimation_error",
+                                    "skipped",
+                                    "not_run",
+                                ][trial_status(trial, label)],
+                                "type": detail.get("type", "RuntimeError"),
+                                "message": message,
+                                "first_at": {"point": point.point_idx, "trial": trial.trial_idx},
+                                "count": 1,
+                                "traceback": detail.get("traceback", ""),
+                            }
+                        )
+        self._write_json(
+            self.output_dir / "errors.json",
+            {
+                "schema_version": 1,
+                "trials": details,
+                "algorithms": list(grouped.values()),
+            },
+        )
 
     def _write_trials(self, result: ExperimentResult) -> None:
         """写入逐次试验结果。
@@ -92,6 +193,9 @@ class ResultWriter:
         num_trials = len(result.points[0].trials) if result.points else 0
 
         data: dict[str, np.ndarray] = {"trial_counts": np.asarray(counts)}
+        data["trial_indices"] = np.asarray(
+            [[t.trial_idx for t in p.trials] for p in result.points], dtype=np.int64
+        )
         truths = [trial.truth_angles for point in result.points for trial in point.trials]
         max_truth = max((len(x) for x in truths if x is not None), default=0)
         truth_data = np.full((num_points, num_trials, max_truth), np.nan)
@@ -130,12 +234,15 @@ class ResultWriter:
                     estimates_padded[point_idx, trial_idx, : len(angles)] = angles
 
             # 存储
-            data[f"{label}__estimates"] = estimates_padded
+            if result.config.get("options", {}).get("save_estimates", True):
+                data[f"{label}__estimates"] = estimates_padded
             data[f"{label}__times_ms"] = np.array(times_list).reshape(num_points, num_trials)
             data[f"{label}__failed"] = np.array(failed_list).reshape(num_points, num_trials)
 
         for pi, point in enumerate(result.points):
             for ti, trial in enumerate(point.trials):
+                if trial.observation is not None:
+                    data[f"observation__{pi}__{ti}"] = trial.observation
                 for label, estimate in trial.estimates.items():
                     if estimate.spectrum is not None:
                         prefix = f"spectrum__{pi}__{ti}__{label}"
@@ -144,6 +251,10 @@ class ResultWriter:
                         data[prefix + "__kind"] = np.asarray(estimate.spectrum.kind)
 
         # 写入 npz
+        from .contract import standard_arrays
+
+        summary = json.loads((self.output_dir / "summary.json").read_text(encoding="utf-8"))
+        data.update(standard_arrays(result, algo_labels, summary))
         self._write_npz(self.output_dir / "results.npz", data)
 
     def _write_summary(self, result: ExperimentResult) -> None:
@@ -152,7 +263,6 @@ class ResultWriter:
         Args:
             result: 实验结果
         """
-        truth_angles = _truth_angles_from_config(result.config)
         from ..config import ExperimentConfig
         from ..crb import compute_stochastic_crb
         from ..runner.core import build_scene, expand_point
@@ -173,7 +283,20 @@ class ResultWriter:
             )
         )
 
-        summary["algorithms"] = algo_labels
+        summary["schema_version"] = 1
+        summary["complete"] = result.metadata.get("status") == "completed"
+        summary["type"] = config.type
+        summary["trials"] = config.trials
+        summary["algorithms"] = [
+            {
+                "label": label,
+                "id": next((a.id for a in config.algorithms if a.get_label() == label), label),
+                "status": "ok"
+                if any(label in t.estimates for p in result.points for t in p.trials)
+                else "failed",
+            }
+            for label in algo_labels
+        ]
 
         # 每个扫描点
         for point in result.points:
@@ -191,7 +314,12 @@ class ResultWriter:
                     or point_config.scenario.sources.correlation.mode == "coherent"
                 )
                 for trial in point.trials if dynamic else point.trials[:1]:
-                    scene, array = build_scene(point_config, trial.trial_idx)
+                    random_index = (
+                        trial.trial_idx
+                        if config.options.common_random_numbers
+                        else point.point_idx * config.trials + trial.trial_idx
+                    )
+                    scene, array = build_scene(point_config, random_index)
                     bounds.extend(
                         compute_stochastic_crb(
                             array,
@@ -211,38 +339,52 @@ class ResultWriter:
                     point_summary["crb_reason"] = "理想标称阵列参考下界，不含阵列误差"
             # 每个算法
             for label in algo_labels:
-                # 收集该算法该点的所有估计
-                from arena_api import Estimate
+                from ..metrics.summary import point_metrics
 
-                estimates = [
-                    trial.estimates.get(label, Estimate.from_angles([])) for trial in point.trials
-                ]
-
-                # 计算指标
-                threshold = (
-                    result.config.get("metrics", {})
-                    .get("params", {})
-                    .get("success_rate", {})
-                    .get("threshold_deg", 1.0)
-                )
-                truths = [
-                    trial.truth_angles if trial.truth_angles is not None else truth_angles
-                    for trial in point.trials
-                ]
-                metrics: dict[str, Any] = dict(
-                    compute_metrics(estimates, truth_angles, threshold_deg=threshold, truths=truths)
-                )
-                times = [
-                    trial.times_ms.get(label, np.nan)
-                    for trial in point.trials
-                    if label in trial.times_ms
-                ]
-                metrics["avg_time_ms"] = float(np.nanmean(times)) if times else np.nan
+                metrics = point_metrics(result, point, label)
 
                 point_summary["algorithms"][label] = metrics
 
             summary["points"].append(point_summary)
 
+        summary["metrics"] = {}
+        for identifier, key in (
+            ("rmse", "rmse_mean"),
+            ("success_rate", "success_rate"),
+            ("resolution_prob", "resolution_probability"),
+            ("time", "avg_time_ms"),
+        ):
+            selection = "resolution" if identifier == "resolution_prob" else identifier
+            if selection in config.metrics.include:
+                summary["metrics"][identifier] = {
+                    "value": [
+                        [p["algorithms"][label][key] for label in algo_labels]
+                        for p in summary["points"]
+                    ],
+                    "n_used": [
+                        [
+                            p["algorithms"][label][
+                                "num_valid" if identifier == "rmse" else "num_trials"
+                            ]
+                            for label in algo_labels
+                        ]
+                        for p in summary["points"]
+                    ],
+                }
+        summary["crb"] = (
+            {"value": [p.get("crb_deg") for p in summary["points"]]}
+            if "crb" in config.metrics.include
+            else None
+        )
+        summary["sweep"] = (
+            {**config.sweep.model_dump(mode="json"), "points_done": len(result.points)}
+            if config.sweep
+            else None
+        )
+        summary["errors"] = [
+            [sum(label in t.errors for t in point.trials) for label in algo_labels]
+            for point in result.points
+        ]
         # 写入
         self._write_json(self.output_dir / "summary.json", summary)
 

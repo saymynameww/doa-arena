@@ -31,7 +31,7 @@ const AppLayout: React.FC = () => {
   }, [location.pathname]);
 
   const currentTask = useMemo(
-    () => tasks.find((task) => task.status === 'running' || task.status === 'pending') || tasks[0],
+    () => tasks.find((task) => task.status === 'running' || task.status === 'queued') || tasks[0],
     [tasks]
   );
   const selectedKey = location.pathname.startsWith('/runs') || location.pathname === '/compare'

@@ -117,7 +117,7 @@ const AlgorithmCard: React.FC<AlgorithmCardProps> = ({
         </span>
 
         <Input
-          value={instance.label}
+          value={instance.label ?? instance.id}
           onChange={(e) => onLabelChange?.(index, e.target.value)}
           bordered={false}
           style={{

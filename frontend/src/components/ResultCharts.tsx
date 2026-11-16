@@ -5,6 +5,7 @@ import { DownloadOutlined, FullscreenOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
 import { downloadTaskExport, getTaskCharts } from '@/services/api';
 import type { ChartData } from '@/types';
+import RecomputeMetrics from './RecomputeMetrics';
 
 interface ResultChartsProps {
   taskId: string;
@@ -111,7 +112,7 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
   }));
 
   return (
-    <Card title="实验结果图表">
+    <Card title="实验结果图表" extra={<RecomputeMetrics taskId={taskId} onComplete={() => void loadCharts()} />}>
       <Tabs items={tabs} />
     </Card>
   );

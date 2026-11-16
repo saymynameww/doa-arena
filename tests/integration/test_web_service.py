@@ -40,6 +40,75 @@ def test_health_check(client):
     assert response.json()["status"] == "ok"
 
 
+def test_notes_do_not_mutate_experiment_config(client):
+    """用户备注与计算配置分开存储，支持历史筛选和重建。"""
+    from arena.server.tasks import get_task_manager
+
+    response = client.post(
+        "/api/experiments/run",
+        json={
+            "name": "原实验名",
+            "trials": 1,
+            "algorithms": [{"id": "music"}],
+            "tags": ["initial"],
+        },
+    )
+    identifier = response.json()["task_id"]
+    config_path = get_task_manager().tasks[identifier].result_path / "config.json"
+    before = config_path.read_bytes()
+    notes = client.put(
+        f"/api/experiments/tasks/{identifier}/notes",
+        json={
+            "display_name": "修改显示名",
+            "notes": "科研备注",
+            "tags": ["coherent"],
+            "starred": True,
+        },
+    )
+    assert notes.status_code == 200
+    task = client.get(f"/api/experiments/tasks/{identifier}").json()
+    assert task["name"] == "修改显示名"
+    assert task["tags"] == ["coherent"]
+    assert task["starred"] is True
+    assert config_path.read_bytes() == before
+
+
+def test_metric_recompute_api_preserves_raw(client):
+    """通过接口重算后，历史图表更新且原始估计字节不变。"""
+    import numpy as np
+
+    from arena.server.tasks import get_task_manager
+
+    response = client.post(
+        "/api/experiments/run",
+        json={
+            "trials": 2,
+            "algorithms": [{"id": "music"}],
+        },
+    )
+    assert response.status_code == 200, response.text
+    task_id = response.json()["task_id"]
+    task = get_task_manager().tasks[task_id]
+    raw_path = task.result_path / "results.npz"
+    with np.load(raw_path, allow_pickle=False) as raw:
+        before = raw["estimates"].copy()
+    updated = client.post(
+        f"/api/experiments/tasks/{task_id}/recompute",
+        json={
+            "params": {"success_rate": {"threshold_deg": 0.000001}},
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["metadata"]["history"][-1]["action"] == "recompute_metrics"
+    with np.load(raw_path, allow_pickle=False) as raw:
+        np.testing.assert_array_equal(raw["estimates"], before)
+        assert raw["metric__success_rate__value"][0, 0] == 0
+    charts = client.get(f"/api/experiments/tasks/{task_id}/charts")
+    assert charts.status_code == 200
+    success = next(c for c in charts.json()["charts"] if c["title"] == "成功率")
+    assert success["data"][0]["y"] == [0.0]
+
+
 def test_run_experiment(client):
     """测试运行实验。"""
     # 配置
@@ -73,7 +142,7 @@ def test_run_experiment(client):
 
     status = response.json()
     assert status["task_id"] == task_id
-    assert status["status"] in ["pending", "running", "completed"]
+    assert status["status"] in ["queued", "running", "completed"]
 
 
 def test_list_tasks(client):

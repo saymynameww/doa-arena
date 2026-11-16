@@ -63,3 +63,78 @@ def test_web_history_recovers_script_results_without_index(tmp_path):
     recovered = manager.tasks[result.metadata["experiment_id"]]
     assert recovered.status.value == "completed"
     assert recovered.config.name == "可发现实验"
+
+
+def test_sqlite_index_rebuild_and_live_script_discovery(tmp_path):
+    """索引可以删除重建；服务启动后新增脚本结果也可发现。"""
+    import sqlite3
+    from contextlib import closing
+
+    from arena.server.tasks import TaskManager
+
+    manager = TaskManager(tmp_path)
+    result = arena.run({"trials": 1, "algorithms": [{"id": "music"}]}, workspace=tmp_path)
+    identifier = result.metadata["experiment_id"]
+    assert identifier in {item["task_id"] for item in manager.list_tasks()}
+    index = tmp_path / ".arena_index.sqlite"
+    with closing(sqlite3.connect(index)) as connection, connection:
+        assert connection.execute("SELECT count(*) FROM experiments").fetchone()[0] == 1
+    index.unlink()
+    rebuilt = TaskManager(tmp_path)
+    assert rebuilt.get_task_status(identifier)["status"] == "completed"
+
+
+def test_restart_cancels_queue_and_detects_interrupted(tmp_path):
+    """仅在心跳过期且进程消失时判定中断。"""
+    import time
+
+    from arena.core.config import ExperimentConfig
+    from arena.core.storage import ResultWriter
+    from arena.server.tasks import TaskManager
+
+    manager = TaskManager(tmp_path)
+    queued = manager.create_task(ExperimentConfig.model_validate({}))
+    running = manager.create_task(ExperimentConfig.model_validate({}))
+    writer = ResultWriter(manager.tasks[running].result_path)
+    writer._write_json(
+        writer.output_dir / "status.json",
+        {
+            "status": "running",
+            "pid": 99999999,
+            "heartbeat": time.time() - 60,
+        },
+    )
+    restored = TaskManager(tmp_path)
+    assert restored.get_task_status(queued)["status"] == "cancelled"
+    assert restored.get_task_status(running)["status"] == "interrupted"
+
+
+def test_task_queue_runs_one_at_a_time(tmp_path, monkeypatch):
+    """三个并发提交按 FIFO 执行，排队取消的任务不启动。"""
+    import asyncio
+
+    from arena.core.config import ExperimentConfig
+    from arena.server.tasks import TaskManager
+
+    manager = TaskManager(tmp_path)
+    identifiers = [manager.create_task(ExperimentConfig.model_validate({})) for _ in range(3)]
+    events = []
+
+    async def execute(identifier):
+        events.append(("start", identifier))
+        await asyncio.sleep(0.01)
+        events.append(("end", identifier))
+
+    monkeypatch.setattr(manager, "_execute_task", execute)
+    manager.cancel_task(identifiers[1])
+
+    async def run():
+        await asyncio.gather(*(manager.run_task(identifier) for identifier in identifiers))
+
+    asyncio.run(run())
+    assert events == [
+        ("start", identifiers[0]),
+        ("end", identifiers[0]),
+        ("start", identifiers[2]),
+        ("end", identifiers[2]),
+    ]

@@ -337,3 +337,23 @@ body {
   width: 44px;
   height: 40px;
 }
+
+.schema-control > .ant-select,
+.schema-control > .ant-input {
+  max-width: 220px;
+}
+.schema-constant {
+  display: inline-block;
+  padding: 5px 0;
+  color: #6b7280;
+}
+.scene-preview-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.scene-preview-caption {
+  color: #6b7280;
+  margin: 12px 0 0;
+  font-size: 12px;
+}

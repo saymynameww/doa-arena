@@ -175,6 +175,8 @@ export default function ConfigFields({
         })}
       </>
     );
+  if (schema.const !== undefined)
+    return <span className="schema-constant">{schema["x-enum-labels"]?.[schema.const] || String(schema.const)}</span>;
   if (schema.enum)
     return (
       <Select

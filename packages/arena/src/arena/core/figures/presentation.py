@@ -7,9 +7,9 @@ from typing import cast
 import numpy as np
 import plotly.graph_objects as go
 
-from arena_api import Estimate, kit
+from arena_api import kit
 
-from ..metrics import compute_metrics
+from ..metrics.summary import algorithm_labels, point_metrics
 from ..runner.results import ExperimentResult, TrialResult
 
 
@@ -18,11 +18,7 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
     figures: dict[str, go.Figure] = {}
     if not result.points or not result.points[0].trials:
         return figures
-    labels = list(
-        dict.fromkeys(
-            label for p in result.points for t in p.trials for label in [*t.estimates, *t.errors]
-        )
-    )
+    labels = algorithm_labels(result)
     first = result.points[0].trials[0]
     fallback = np.asarray(result.config["scenario"]["sources"]["angles"].get("values") or [])
 
@@ -82,12 +78,6 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
     selected = result.config.get("metrics", {}).get(
         "include", ["rmse", "success_rate", "resolution", "time"]
     )
-    threshold = (
-        result.config.get("metrics", {})
-        .get("params", {})
-        .get("success_rate", {})
-        .get("threshold_deg", 1)
-    )
     for key, title, unit, metric_id in [
         ("rmse_mean", "RMSE", "RMSE (°)", "rmse"),
         ("success_rate", "成功率", "成功率", "success_rate"),
@@ -100,20 +90,8 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
         for label in labels:
             values = []
             for point in result.points:
-                estimates = [
-                    trial.estimates.get(label, Estimate.from_angles([])) for trial in point.trials
-                ]
-                metrics = compute_metrics(
-                    estimates,
-                    fallback,
-                    threshold_deg=threshold,
-                    truths=[truth(t) for t in point.trials],
-                )
-                if key == "avg_time_ms":
-                    durations = [t.times_ms[label] for t in point.trials if label in t.times_ms]
-                    values.append(float(np.mean(durations)) if durations else None)
-                else:
-                    values.append(cast(float | None, dict(metrics)[key]))
+                metrics = point_metrics(result, point, label)
+                values.append(cast(float | None, metrics[key]))
             fig.add_trace(
                 go.Scatter(
                     x=[
@@ -140,7 +118,12 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
                     or point_config.scenario.sources.correlation.mode == "coherent"
                 )
                 for trial in point.trials if dynamic else point.trials[:1]:
-                    scene, array = build_scene(point_config, trial.trial_idx)
+                    random_index = (
+                        trial.trial_idx
+                        if config.options.common_random_numbers
+                        else point.point_idx * config.trials + trial.trial_idx
+                    )
+                    scene, array = build_scene(point_config, random_index)
                     trial_bounds.extend(
                         compute_stochastic_crb(
                             array,

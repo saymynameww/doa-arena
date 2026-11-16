@@ -17,47 +17,16 @@ export interface ParamSchema {
   description?: string;
 }
 
-export interface ExperimentConfig {
-  name: string;
-  type: 'single' | 'monte_carlo' | 'sweep';
-  trials: number;
-  scenario?: ScenarioConfig;
-  algorithms: AlgorithmInstance[];
-  sweep?: SweepConfig;
-  options?: Record<string, any>;
-}
-
-export interface ScenarioConfig {
-  seed: number;
-  array: { type: string; params: Record<string, any> };
-  sources: {
-    K: number;
-    angles: { mode: string; values?: number[] };
-    snr_db: number;
-    correlation: { mode: string; rho_mag?: number | null; phases_deg?: string | number[] };
-  };
-  snapshots: number;
-  noise_power: number;
-  impairments: Array<Record<string, any>>;
-}
-
-export interface AlgorithmInstance {
-  enabled?: boolean;
-  id: string;
-  label: string;
-  params?: Record<string, any>;
-}
-
-export interface SweepConfig {
-  path: string;
-  values: number[];
-  label: string;
-  unit: string;
-}
+import type { ExperimentConfig } from './generated';
+export type { ExperimentConfig, ScenarioConfig, SweepConfig } from './generated';
+export type { AlgorithmConfig as AlgorithmInstance } from './generated';
 
 export interface Task {
+  notes?: string;
+  tags?: string[];
+  starred?: boolean;
   task_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
   created_at: number;
   started_at?: number;
   completed_at?: number;

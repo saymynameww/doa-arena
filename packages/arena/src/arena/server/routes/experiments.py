@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
 from ...core.config import ExperimentConfig
+from ..contracts import ExperimentNotes
 from ..tasks import Task, get_task_manager
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,34 @@ def _task_or_404(task_id: str) -> Task:
     if task is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return task
+
+
+@router.get("/experiments/tasks/{task_id}/notes", response_model=ExperimentNotes)
+async def get_notes(task_id: str) -> ExperimentNotes:
+    """读取独立备注文件，旧实验使用配置中的初始标签。"""
+    task = _task_or_404(task_id)
+    path = task.result_path / "notes.json" if task.result_path else None
+    if path and path.exists():
+        return ExperimentNotes.model_validate_json(path.read_text(encoding="utf-8"))
+    return ExperimentNotes(tags=task.config.tags)
+
+
+@router.put("/experiments/tasks/{task_id}/notes", response_model=ExperimentNotes)
+async def update_notes(task_id: str, notes: ExperimentNotes) -> ExperimentNotes:
+    """改名、备注、标签和收藏只写 notes.json，不改变原实验配置。"""
+    from datetime import datetime
+
+    from ...core.storage import ResultWriter
+
+    task = _task_or_404(task_id)
+    if task.result_path is None:
+        raise HTTPException(status_code=400, detail="实验目录尚未创建")
+    notes.updated_at = datetime.now().astimezone().isoformat()
+    ResultWriter(task.result_path)._write_json(
+        task.result_path / "notes.json", notes.model_dump(mode="json")
+    )
+    get_task_manager()._save_index()
+    return notes
 
 
 @router.post("/experiments/run")
@@ -53,12 +82,9 @@ async def run_experiment(
                 raise ValueError(f"算法 {algorithm.id} 未注册，请刷新算法库")
             if discovered[algorithm.id]["type"] == "external":
                 algorithm.origin = discovered[algorithm.id]["origin"]
-        from ...core.runner.core import build_scene, expand_point
+        from ...core.operations import invoke
 
-        for value in (
-            exp_config.sweep.values if exp_config.type == "sweep" and exp_config.sweep else [None]
-        ):
-            build_scene(expand_point(exp_config, value))
+        await asyncio.to_thread(invoke, "validate", {"config": exp_config.model_dump(mode="json")})
 
     except Exception as e:
         logger.error(f"配置校验失败: {e}")
@@ -129,7 +155,7 @@ async def stream_progress(task_id: str) -> StreamingResponse:
                 yield f"data: {data}\n\n"
 
                 # 如果任务完成，结束流
-                if message["status"] in ["completed", "failed", "cancelled"]:
+                if message["status"] in ["completed", "failed", "cancelled", "interrupted"]:
                     break
 
                 # 避免过于频繁
@@ -173,7 +199,11 @@ async def cancel_task(task_id: str) -> dict[str, Any]:
     """
     task_manager = get_task_manager()
     task = task_manager.tasks.get(task_id)
-    if task and task.status in {"completed", "failed", "cancelled"} and task.result_path:
+    if (
+        task
+        and task.status in {"completed", "failed", "cancelled", "interrupted"}
+        and task.result_path
+    ):
         trash_dir = task_manager.output_dir / ".trash"
         trash_dir.mkdir(exist_ok=True)
         if task.result_path.exists():
@@ -220,8 +250,10 @@ async def get_task_result(task_id: str) -> dict[str, Any]:
     """
     task = _task_or_404(task_id)
 
-    if task.status != "completed":
-        raise HTTPException(status_code=400, detail="任务未完成")
+    if task.status not in {"completed", "cancelled"} or task.result_path is None:
+        raise HTTPException(status_code=400, detail="任务尚未形成结果，中断实验请先整理部分结果")
+    if not (task.result_path / "results.npz").exists():
+        raise HTTPException(status_code=400, detail="尚未保存完整试验块，请重新运行")
 
     return {
         "task_id": task_id,
@@ -239,19 +271,55 @@ async def get_task_result(task_id: str) -> dict[str, Any]:
 async def get_task_charts(task_id: str) -> dict[str, Any]:
     """读取实验汇总并转换为前端图表数据。"""
     task = _task_or_404(task_id)
-    if task.status != "completed" or task.result_path is None:
+    if task.status not in {"completed", "cancelled"} or task.result_path is None:
         raise HTTPException(status_code=400, detail="任务未完成")
 
-    from ...core.figures.presentation import build_figures
-    from ...core.storage.reader import read_result
+    from ...core.operations import invoke
 
-    result = task.result or read_result(task.result_path)
-    return {
-        "charts": [
-            {"title": title, **json.loads(figure.to_json())}
-            for title, figure in build_figures(result).items()
-        ]
-    }
+    return await asyncio.to_thread(invoke, "charts", {"directory": str(task.result_path)})
+
+
+@router.post("/experiments/tasks/{task_id}/finalize")
+async def finalize_partial(task_id: str) -> dict[str, str]:
+    """将中断实验的最后完整检查点整理为取消结果。"""
+    from ...core.storage import ResultWriter
+    from ..tasks import TaskStatus
+
+    task = _task_or_404(task_id)
+    if task.status != TaskStatus.INTERRUPTED or task.result_path is None:
+        raise HTTPException(status_code=400, detail="只有已中断的实验需要整理部分结果")
+    if not (task.result_path / "results.npz").exists():
+        raise HTTPException(status_code=400, detail="中断前没有完整检查点，请重新运行")
+    writer = ResultWriter(task.result_path)
+    for filename in ("meta.json", "status.json"):
+        path = task.result_path / filename
+        data = json.loads(path.read_text(encoding="utf-8"))
+        writer._write_json(path, {**data, "status": "cancelled"})
+    task.status = TaskStatus.CANCELLED
+    task.error = None
+    get_task_manager()._save_index()
+    return {"message": "已整理最后完整检查点，可查看部分结果"}
+
+
+@router.post("/experiments/tasks/{task_id}/recompute")
+async def recompute_task(task_id: str, metrics: dict[str, Any]) -> dict[str, Any]:
+    """使用保存的估计重算统计，原始估计文件保持不变。"""
+    task = _task_or_404(task_id)
+    if task.status != "completed" or task.result_path is None:
+        raise HTTPException(status_code=400, detail="请等待实验完成后重算指标")
+    from ...core.operations import invoke
+
+    async with get_task_manager()._lock:
+        try:
+            updated = await asyncio.to_thread(
+                invoke, "recompute", {"directory": str(task.result_path), "metrics": metrics}
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        task.config = ExperimentConfig.model_validate(updated["config"])
+        task.result = None
+        get_task_manager()._save_index()
+    return {"message": "指标已重算，原始估计未改变", **updated}
 
 
 @router.get("/experiments/tasks/{task_id}/export/{fmt}")

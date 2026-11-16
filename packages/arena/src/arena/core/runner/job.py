@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,23 @@ def run_job(config: dict[str, Any], directory: str) -> None:
     log = logging.FileHandler(output / "log.txt", encoding="utf-8")
     logging.getLogger().addHandler(log)
     last_update = 0.0
+    state: dict[str, Any] = {"status": "running", "pid": os.getpid()}
+    lock = threading.Lock()
+    stopped = threading.Event()
+
+    def heartbeat() -> None:
+        while not stopped.is_set():
+            with lock:
+                state.update(
+                    schema_version=1,
+                    heartbeat=time.time(),
+                    heartbeat_at=datetime.now().astimezone().isoformat(),
+                )
+                writer._write_json(output / "status.json", state)
+            stopped.wait(0.5)
+
+    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+    heartbeat_thread.start()
 
     def progress(completed: int, total: int, point: int, points: int) -> None:
         nonlocal last_update
@@ -31,20 +50,25 @@ def run_job(config: dict[str, Any], directory: str) -> None:
             return
         last_update = now
         elapsed = time.time() - started
-        writer._write_json(
-            output / "status.json",
-            {
-                "status": "running",
-                "completed_trials": completed,
-                "total_trials": total,
-                "current_point": point,
-                "total_points": points,
-                "percent": int(100 * completed / total),
-                "heartbeat": time.time(),
-                "pid": os.getpid(),
-                "eta_seconds": elapsed * (total - completed) / completed if completed else None,
-            },
-        )
+        with lock:
+            state.update(
+                {
+                    "status": "running",
+                    "completed_trials": completed,
+                    "total_trials": total,
+                    "current_point": point,
+                    "total_points": points,
+                    "percent": int(100 * completed / total),
+                    "heartbeat": time.time(),
+                    "pid": os.getpid(),
+                    "eta_seconds": elapsed * (total - completed) / completed if completed else None,
+                    "point_index": point,
+                    "points_total": points,
+                    "trials_done": completed,
+                    "trials_total": total,
+                    "eta_s": elapsed * (total - completed) / completed if completed else None,
+                }
+            )
 
     try:
         result = run_experiment(
@@ -53,10 +77,14 @@ def run_job(config: dict[str, Any], directory: str) -> None:
             cancel_callback=lambda: (output / "CANCEL").exists(),
             checkpoint_callback=writer.write_experiment,
         )
+        result.metadata["mode"] = "web"
         writer.write_experiment(result)
+        stopped.set()
+        heartbeat_thread.join()
         writer._write_json(
             output / "status.json",
             {
+                **state,
                 "status": result.metadata["status"],
                 "heartbeat": time.time(),
                 "pid": os.getpid(),
@@ -66,9 +94,12 @@ def run_job(config: dict[str, Any], directory: str) -> None:
             },
         )
     except BaseException as exc:
+        stopped.set()
+        heartbeat_thread.join()
         writer._write_json(
             output / "status.json",
             {
+                **state,
                 "status": "failed",
                 "error": str(exc),
                 "traceback": traceback.format_exc(),
@@ -77,5 +108,8 @@ def run_job(config: dict[str, Any], directory: str) -> None:
         )
         raise
     finally:
+        stopped.set()
+        heartbeat_thread.join()
+        (output / "CANCEL").unlink(missing_ok=True)
         logging.getLogger().removeHandler(log)
         log.close()

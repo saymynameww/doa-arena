@@ -19,6 +19,7 @@ async def experiment_schema() -> dict[str, Any]:
     for definition, labels in {
         "SourcesConfig": {
             "K": "信源数 K",
+            "signal": "信源波形",
             "angles": "角度",
             "snr_db": "SNR（dB）",
             "correlation": "相关性",
@@ -54,8 +55,15 @@ async def experiment_schema() -> dict[str, Any]:
         "center": "separation",
     }.items():
         schema["$defs"]["AnglesConfig"]["properties"][key]["x-visible-when"] = {"mode": mode}
-    for key, mode in {"rho_mag": "partial", "phases_deg": "coherent"}.items():
+    for key, mode in {
+        "rho_mag": "partial",
+        "rho_phase_deg": "partial",
+        "phases_deg": "coherent",
+    }.items():
         schema["$defs"]["CorrelationConfig"]["properties"][key]["x-visible-when"] = {"mode": mode}
+    schema["$defs"]["SourcesConfig"]["properties"]["signal"]["x-enum-labels"] = {
+        "gaussian": "复高斯信号"
+    }
     schema["x-default"] = ExperimentConfig.model_validate({}).model_dump(mode="json")
     schema["x-arrays"] = [
         {

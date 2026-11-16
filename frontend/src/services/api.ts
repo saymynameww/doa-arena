@@ -57,14 +57,32 @@ export const getTask = async (taskId: string): Promise<Task> => {
   return response.data;
 };
 
+export const getExperimentNotes = async (taskId: string) => {
+  const response = await api.get<import('@/types/generated').ExperimentNotes>(`/experiments/tasks/${taskId}/notes`);
+  return response.data;
+};
+
+export const saveExperimentNotes = async (taskId: string, notes: import('@/types/generated').ExperimentNotes) => {
+  await api.put(`/experiments/tasks/${taskId}/notes`, notes);
+};
+
 export const getTaskResult = async (taskId: string): Promise<ExperimentResult> => {
   const response = await api.get(`/experiments/tasks/${taskId}/result`);
   return response.data;
 };
 
+export const finalizePartialResult = async (taskId: string) => {
+  await api.post(`/experiments/tasks/${taskId}/finalize`);
+};
+
 export const getTaskCharts = async (taskId: string): Promise<ChartData[]> => {
   const response = await api.get(`/experiments/tasks/${taskId}/charts`);
   return response.data.charts;
+};
+
+export const recomputeTaskMetrics = async (taskId: string, metrics: Record<string, unknown>) => {
+  const response = await api.post(`/experiments/tasks/${taskId}/recompute`, metrics);
+  return response.data;
 };
 
 export const downloadTaskExport = async (taskId: string, format: string): Promise<Blob> => {

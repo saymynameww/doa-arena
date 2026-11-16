@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import multiprocessing as mp
 import time
+import traceback
 from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import replace
 
 import numpy as np
@@ -27,6 +30,9 @@ def run_trial(
     algorithms: dict[str, Algorithm],
     trial_rng: TrialRNG,
     ctx: RunContext,
+    source_count: str = "true",
+    save_observation: bool = False,
+    batch_results: dict[str, tuple[Estimate | Exception, float]] | None = None,
 ) -> TrialResult:
     """运行单次试验。
 
@@ -36,24 +42,44 @@ def run_trial(
         algorithms: 算法字典 {label: algorithm}
         trial_rng: 试验随机数管理器
         ctx: 运行上下文
+        source_count: 信源数提供方式
+        save_observation: 是否保留接收数据
+        batch_results: 已执行的批量结果及均摊耗时
 
     Returns:
         试验结果
     """
     # 生成观测数据
     obs = scenario_gen.generate(trial_rng)
+    if source_count != "true":
+        from .source_count import estimate_source_count
+
+        obs = replace(obs, K=estimate_source_count(obs, source_count))
 
     # 运行所有算法
     estimates = {}
     errors = {}
     times_ms = {}
+    error_details = {}
 
     for label, algo in algorithms.items():
         try:
             # 计时
-            start = time.perf_counter()
             algo_ctx = replace(ctx, rng=trial_rng.for_impairment("algorithm:" + label, "random"))
-            est = algo.estimate(obs, algo_ctx)
+            if batch_results and label in batch_results:
+                output, elapsed = batch_results[label]
+                if isinstance(output, Exception):
+                    raise output
+                est = output
+            else:
+                start = time.perf_counter()
+                est = algo.estimate(obs, algo_ctx)
+                if algo.capabilities.uses_gpu:
+                    import torch
+
+                    if torch.cuda.is_available():
+                        torch.cuda.synchronize()
+                elapsed = (time.perf_counter() - start) * 1000
             if not isinstance(est, Estimate):
                 raise ValueError("bad_output：算法必须返回 Estimate")
             if not np.all(np.isfinite(est.angles)):
@@ -68,7 +94,6 @@ def run_trial(
                 not np.all(np.isfinite(est.spectrum.values)) or np.any(est.spectrum.values < 0)
             ):
                 est = replace(est, spectrum=None, info={**est.info, "warning": "无效空间谱已丢弃"})
-            elapsed = (time.perf_counter() - start) * 1000  # 毫秒
 
             estimates[label] = est
             times_ms[label] = elapsed
@@ -76,6 +101,7 @@ def run_trial(
         except Exception as e:
             logger.error(f"算法 {label} 在试验 {trial_idx} 出错: {e}")
             errors[label] = str(e)
+            error_details[label] = {"type": type(e).__name__, "traceback": traceback.format_exc()}
 
     return TrialResult(
         trial_idx=trial_idx,
@@ -83,6 +109,9 @@ def run_trial(
         errors=errors,
         times_ms=times_ms,
         truth_angles=scenario_gen.config.angles.copy(),
+        observation=obs.X if save_observation else None,
+        source_count=obs.K,
+        error_details=error_details,
     )
 
 
@@ -130,6 +159,11 @@ def run_experiment(
     total_points = len(sweep_values)
     total_trials = total_points * config.trials
 
+    pool = (
+        ProcessPoolExecutor(max_workers=config.options.workers, mp_context=mp.get_context("spawn"))
+        if config.options.workers > 1
+        else None
+    )
     try:
         for point_idx, sweep_val in enumerate(sweep_values):
             logger.info(f"运行扫描点 {point_idx + 1}/{len(sweep_values)}")
@@ -146,19 +180,174 @@ def run_experiment(
             ctx = RunContext(
                 device="cpu",
                 log=logger,
-                want_spectrum=config.type == "single",
+                want_spectrum=(
+                    config.options.save_spectra == "all"
+                    or (config.options.save_spectra == "auto" and config.type == "single")
+                ),
                 workspace=None,
                 rng=RNGTree(config.scenario.seed).for_scenario(),
             )
+            if pool is not None:
+                safe_labels = {
+                    label
+                    for label, algo in algorithms.items()
+                    if algo.capabilities.parallel
+                    and not algo.capabilities.uses_gpu
+                    and "<locals>" not in type(algo).__qualname__
+                }
+                worker_config = point_config.model_copy(deep=True)
+                worker_config.algorithms = [
+                    item for item in worker_config.algorithms if item.get_label() in safe_labels
+                ]
+                local_algorithms = {
+                    label: algo for label, algo in algorithms.items() if label not in safe_labels
+                }
+                if safe_labels:
+                    from .parallel import execute_chunk
+
+                    blocks = iter(
+                        [
+                            list(
+                                range(start, min(config.trials, start + config.options.chunk_size))
+                            )
+                            for start in range(0, config.trials, config.options.chunk_size)
+                        ]
+                    )
+                    pending = {}
+                    trials = []
+                    consecutive = {label: 0 for label in algorithms}
+                    disabled: set[str] = set()
+
+                    def submit_next() -> None:
+                        indices = next(blocks, None)
+                        if indices is not None:
+                            future = pool.submit(
+                                execute_chunk,
+                                worker_config.model_dump(mode="json"),
+                                point_idx,
+                                indices,
+                                {
+                                    k: v
+                                    for k, v in (algorithm_classes or {}).items()
+                                    if k in safe_labels
+                                },
+                            )
+                            pending[future] = indices
+
+                    for _ in range(config.options.workers):
+                        submit_next()
+                    while pending:
+                        if cancel_callback and cancel_callback():
+                            cancelled = True
+                        # 按试验序号消费结果，使连续错误策略不依赖工作进程完成顺序。
+                        first_pending = min(pending, key=lambda future: pending[future][0])
+                        completed, _ = wait(
+                            [first_pending], timeout=0.1, return_when=FIRST_COMPLETED
+                        )
+                        for future in completed:
+                            indices = pending.pop(future)
+                            try:
+                                block_results = future.result()
+                            except Exception as exc:
+                                raise RuntimeError(
+                                    f"工作进程执行失败，请检查插件是否可以通过 spawn 导入：{exc}"
+                                ) from exc
+                            from .batch import execute_batches
+
+                            local_batch = execute_batches(
+                                point_config, point_idx, indices, local_algorithms, ctx
+                            )
+                            for trial in block_results:
+                                random_index = (
+                                    trial.trial_idx
+                                    if config.options.common_random_numbers
+                                    else point_idx * config.trials + trial.trial_idx
+                                )
+                                if local_algorithms:
+                                    local_scene, _ = build_scene(point_config, random_index)
+                                    local = run_trial(
+                                        trial.trial_idx,
+                                        local_scene,
+                                        local_algorithms,
+                                        rng_tree.for_trial(random_index),
+                                        ctx,
+                                        config.options.source_count,
+                                        config.type == "single"
+                                        and config.options.save_observations == "auto",
+                                        local_batch.get(trial.trial_idx),
+                                    )
+                                    trial.estimates.update(local.estimates)
+                                    trial.errors.update(local.errors)
+                                    trial.times_ms.update(local.times_ms)
+                                    trial.error_details.update(local.error_details)
+                                trial.errors.update(setup_errors)
+                                for label in algorithms:
+                                    if label in disabled:
+                                        trial.estimates.pop(label, None)
+                                        trial.times_ms.pop(label, None)
+                                        trial.errors[label] = (
+                                            "连续错误达到上限，本扫描点剩余试验已跳过"
+                                        )
+                                    else:
+                                        consecutive[label] = (
+                                            consecutive[label] + 1 if label in trial.errors else 0
+                                        )
+                                        if (
+                                            consecutive[label]
+                                            >= config.options.max_consecutive_errors
+                                        ):
+                                            disabled.add(label)
+                                            local_algorithms.pop(label, None)
+                                for item in worker_config.algorithms:
+                                    if item.get_label() in disabled:
+                                        item.enabled = False
+                            trials.extend(block_results)
+                            trials.sort(key=lambda trial: trial.trial_idx)
+                            if checkpoint_callback:
+                                checkpoint_callback(
+                                    ExperimentResult(
+                                        config.model_dump(),
+                                        [
+                                            *points,
+                                            SweepPointResult(point_idx, sweep_val, list(trials)),
+                                        ],
+                                        {
+                                            "status": "running",
+                                            "generator_version": GENERATOR_VERSION,
+                                            "start_time": start_time,
+                                        },
+                                    )
+                                )
+                            if progress_callback:
+                                progress_callback(
+                                    point_idx * config.trials + len(trials),
+                                    total_trials,
+                                    point_idx,
+                                    total_points,
+                                )
+                            if not cancelled:
+                                submit_next()
+                    points.append(SweepPointResult(point_idx, sweep_val, trials))
+                    if cancelled:
+                        break
+                    continue
             scenario_gen = scene
             # 运行所有试验
             trials = []
 
             consecutive = {label: 0 for label in algorithms}
+            from .batch import execute_batches
+
+            batch_cache = {}
             for trial_idx in range(config.trials):
                 if cancel_callback and cancel_callback():
                     cancelled = True
                     break
+                if trial_idx % config.options.chunk_size == 0:
+                    indices = list(
+                        range(trial_idx, min(config.trials, trial_idx + config.options.chunk_size))
+                    )
+                    batch_cache = execute_batches(point_config, point_idx, indices, algorithms, ctx)
                 # 获取试验随机数管理器
                 trial_rng = rng_tree.for_trial(
                     trial_idx
@@ -183,6 +372,9 @@ def run_experiment(
                     algorithms,
                     trial_rng,
                     ctx,
+                    config.options.source_count,
+                    config.type == "single" and config.options.save_observations == "auto",
+                    batch_cache.get(trial_idx),
                 )
                 result.errors.update(setup_errors)
                 for label in list(algorithms):
@@ -221,6 +413,8 @@ def run_experiment(
             if cancelled:
                 break
     finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
         for algo in instances.values():
             try:
                 algo.close()
@@ -230,12 +424,17 @@ def run_experiment(
     # 元信息
     metadata = {
         "status": "cancelled" if cancelled else "completed",
+        "workers": config.options.workers,
+        "timing_note": "并行运行，计时仅供参考" if config.options.workers > 1 else "串行逐次计时",
         "start_time": start_time,
         "elapsed_seconds": time.time() - start_time,
         "num_points": len(sweep_values),
         "generator_version": GENERATOR_VERSION,
         "num_trials": config.trials,
     }
+    from ..storage.provenance import capture
+
+    metadata.update(capture(config, instances))
 
     return ExperimentResult(
         config=config.model_dump(),
@@ -260,7 +459,7 @@ def expand_point(config: ExperimentConfig, value: float | None) -> ExperimentCon
                 node = (
                     node[int(token)]
                     if token.isdigit()
-                    else next(x for x in node if x.get("label", x.get("type")) == token)
+                    else next(x for x in node if (x.get("label") or x.get("type")) == token)
                 )
             else:
                 node = node[token]
@@ -423,6 +622,13 @@ def _load_algorithms(
             if AlgoClass is None:
                 AlgoClass = resolve_algorithm(algo_id, algo_config.origin)
             params = AlgoClass.Params(**algo_config.params)
+            source_count = config.scenario.sources.K
+            counts = [source_count] if isinstance(source_count, int) else source_count.values
+            for count in counts:
+                issues = AlgoClass.check(params, array, count) or []
+                errors = [issue.message for issue in issues if issue.level == "error"]
+                if errors:
+                    raise ValueError("；".join(errors))
             algo_config.params = params.model_dump(mode="json")
             algo = instances.get(label) if instances else None
             if algo is None:

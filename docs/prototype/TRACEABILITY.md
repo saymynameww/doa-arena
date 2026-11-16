@@ -2,6 +2,20 @@
 
 # 原型需求追踪表
 
+## 当前增量验收（2026-11-16，覆盖旧表同名项）
+
+| 原型需求 | 组件 | API / 核心 | 测试证据 | 当前结论 |
+|---|---|---|---|---|
+| 执行选项真实生效 | ConfigFields | source_count / batch / parallel | test_execution_options、test_parallel_runner | 自动化通过，界面待复验 |
+| 指标重算 | RecomputeMetrics、ResultCharts | POST tasks/{id}/recompute | test_metric_recompute_api_preserves_raw | 自动化通过，界面待复验 |
+| 备注、标签、收藏、改名 | ExperimentNotes、History | GET/PUT tasks/{id}/notes | test_notes_do_not_mutate_experiment_config | 自动化通过，界面待复验 |
+| 脚本结果自动进入历史 | History | SQLite 索引、文件增量扫描 | test_sqlite_index_rebuild_and_live_script_discovery | 自动化通过 |
+| 排队及中断恢复 | ExperimentRun | FIFO、heartbeat、finalize | test_task_queue_runs_one_at_a_time、test_restart_cancels_queue_and_detects_interrupted | 队列与判定通过，整理入口待复验 |
+| 原型场景预览及紧凑参数行 | ScenePreview、ConfigFields、index.css | schema/experiment | 构建与类型检查 | 修改已实现，视觉待验收 |
+| 后端配置类型一致 | generated.ts | OpenAPI ExperimentConfig / ExperimentNotes | generate_api_types.py --check | 已生成；其他响应类型待迁移 |
+
+此表不把“自动化通过”记为“原型视觉通过”。M6 模型闭环、M7 排行榜在本轮 M1–M5 范围之外。
+
 ## 验收状态更正（2026-11-16）
 
 下表早期“已完成”只反映接口或入口存在，不代表原型视觉和完整交互通过验收。

@@ -16,6 +16,15 @@ from numpy.typing import ArrayLike
 
 
 @dataclass(frozen=True)
+class Issue:
+    """静态兼容性问题，param 用于定位表单字段。"""
+
+    level: Literal["error", "warning"]
+    message: str
+    param: str | None = None
+
+
+@dataclass(frozen=True)
 class ArrayDescriptor:
     """标称阵列描述（不含误差）。
 
@@ -301,6 +310,7 @@ class RunContext:
     want_spectrum: bool
     workspace: Path | None
     rng: np.random.Generator
+    _batch_rngs: tuple[np.random.Generator, ...] | None = field(default=None, repr=False)
 
     def rng_for(self, i: int) -> np.random.Generator:
         """批量调用中第 i 个观测的随机数生成器。
@@ -311,6 +321,10 @@ class RunContext:
         Returns:
             该观测专用的随机数生成器
         """
+        if self._batch_rngs is not None:
+            from copy import deepcopy
+
+            return deepcopy(self._batch_rngs[i])
         # 从当前 rng 派生子生成器
         # 使用固定方式派生，保证可复现
         parent = getattr(self.rng.bit_generator, "seed_seq", None)

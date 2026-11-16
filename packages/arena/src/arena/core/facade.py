@@ -106,3 +106,64 @@ def load_result(workspace: Workspace | str | Path, experiment_id: str) -> Experi
     if Path(experiment_id).name != experiment_id or experiment_id in {".", ".."}:
         raise ValueError("实验 ID 必须是单个目录名")
     return read_result(ws.experiments / experiment_id)
+
+
+def recompute_metrics(
+    directory: str | Path,
+    metrics: dict[str, Any],
+) -> ExperimentResult:
+    """只更新指标数组和汇总，保留原始估计、真值及历史设置。"""
+    import hashlib
+    import json
+
+    import numpy as np
+
+    from .config.experiment import MetricsConfig
+
+    output = Path(directory)
+    result = read_result(output)
+    if not result.config.get("options", {}).get("save_estimates", True):
+        raise ValueError("此实验未保存逐次估计，无法重算指标，请重新运行并开启保存估计")
+    previous = result.config["metrics"]
+    merged = {
+        **previous,
+        **metrics,
+        "params": {**previous.get("params", {}), **metrics.get("params", {})},
+    }
+    result.config["metrics"] = MetricsConfig.model_validate(merged).model_dump(mode="json")
+    result.metadata.setdefault("history", []).append(
+        {
+            "at": datetime.now().astimezone().isoformat(),
+            "action": "recompute_metrics",
+            "old_metrics": previous,
+            "previous_metrics": previous,
+            "new_metrics": result.config["metrics"],
+        }
+    )
+    writer = ResultWriter(output)
+    writer._write_summary(result)
+    summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+    with np.load(output / "results.npz", allow_pickle=False) as saved:
+        arrays = {
+            name: saved[name]
+            for name in saved.files
+            if not name.startswith("metric__") and name not in {"crb", "crb_per_source"}
+        }
+    for identifier, metric in summary["metrics"].items():
+        arrays[f"metric__{identifier}__value"] = np.asarray(metric["value"], dtype=float)
+        arrays[f"metric__{identifier}__n_used"] = np.asarray(metric["n_used"], dtype=np.int32)
+    if summary.get("crb"):
+        arrays["crb"] = np.asarray(summary["crb"]["value"], dtype=float)
+    writer._write_npz(output / "results.npz", arrays)
+    document = ExperimentConfig.model_validate(result.config).to_document()
+    result.metadata["config_hash"] = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+    )
+    writer._write_json(output / "config.json", document)
+    writer._write_json(output / "meta.json", result.metadata)
+    return result
