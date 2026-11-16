@@ -158,12 +158,40 @@ async def cancel_task(task_id: str) -> dict[str, Any]:
         取消结果
     """
     task_manager = get_task_manager()
+    task = task_manager.tasks.get(task_id)
+    if task and task.status in {"completed", "failed", "cancelled"} and task.result_path:
+        trash_dir = task_manager.output_dir / ".trash"
+        trash_dir.mkdir(exist_ok=True)
+        if task.result_path.exists():
+            task.result_path.replace(trash_dir / task.result_path.name)
+        task_manager.tasks.pop(task_id, None)
+        task_manager._save_index()
+        return {"message": "实验已移入回收站"}
+
     success = task_manager.cancel_task(task_id)
 
     if not success:
         raise HTTPException(status_code=404, detail="任务不存在或已完成")
 
     return {"message": "任务已取消"}
+
+
+@router.post("/experiments/tasks/{task_id}/copy")
+async def copy_task(task_id: str) -> dict[str, Any]:
+    """复制任务配置，返回新的待运行任务。"""
+    task = _task_or_404(task_id)
+    new_id = get_task_manager().create_task(task.config.model_copy(deep=True))
+    return {"task_id": new_id, "status": "created"}
+
+
+@router.post("/experiments/tasks/{task_id}/rerun")
+async def rerun_task(task_id: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """使用原配置创建并启动新任务。"""
+    task = _task_or_404(task_id)
+    task_manager = get_task_manager()
+    new_id = task_manager.create_task(task.config.model_copy(deep=True))
+    background_tasks.add_task(task_manager.run_task, new_id)
+    return {"task_id": new_id, "status": "created"}
 
 
 @router.get("/experiments/tasks/{task_id}/result")

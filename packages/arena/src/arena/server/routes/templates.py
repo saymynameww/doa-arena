@@ -78,5 +78,19 @@ async def delete_template(template_id: str) -> dict[str, str]:
     path = TEMPLATES_DIR / f"{template_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="模板不存在")
-    path.unlink()
+    trash_dir = TEMPLATES_DIR / ".trash"
+    trash_dir.mkdir(exist_ok=True)
+    path.replace(trash_dir / path.name)
     return {"message": "模板已删除"}
+
+
+@router.put("/templates/{template_id}")
+async def update_template(template_id: str, template: dict[str, Any]) -> dict[str, Any]:
+    """更新工作目录模板。"""
+    path = TEMPLATES_DIR / f"{template_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="模板不存在")
+    updated = dict(template)
+    updated["id"] = template_id
+    path.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    return updated

@@ -52,6 +52,8 @@ runs/
 arena_ws/
 experiments/
 .arena_index.sqlite
+arena_settings.json
+workspaces.json
 
 # Claude
 .claude/

@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, Form, Input, InputNumber, Select, Switch, Button, message, Divider } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
+import { getSettings, updateSettings } from '@/services/api';
 
 const { Option } = Select;
 
 const SettingsPage: React.FC = () => {
   const [form] = Form.useForm();
 
+  useEffect(() => {
+    void getSettings().then((settings) => form.setFieldsValue(settings));
+  }, [form]);
+
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      console.log('保存设置:', values);
+      await updateSettings(values);
       message.success('设置已保存');
     } catch (error) {
       message.error('保存失败');

@@ -83,6 +83,34 @@ export const deleteTemplate = async (templateId: string): Promise<void> => {
   await api.delete(`/templates/${templateId}`);
 };
 
+export const updateTemplate = async (
+  templateId: string,
+  template: Partial<Template>
+): Promise<Template> => {
+  const response = await api.put(`/templates/${templateId}`, template);
+  return response.data;
+};
+
+export const getSettings = async (): Promise<Record<string, any>> => {
+  const response = await api.get('/settings');
+  return response.data;
+};
+
+export const updateSettings = async (settings: Record<string, any>) => {
+  const response = await api.put('/settings', settings);
+  return response.data;
+};
+
+export const copyTask = async (taskId: string) => {
+  const response = await api.post(`/experiments/tasks/${taskId}/copy`);
+  return response.data;
+};
+
+export const rerunTask = async (taskId: string) => {
+  const response = await api.post(`/experiments/tasks/${taskId}/rerun`);
+  return response.data;
+};
+
 export const cancelTask = async (taskId: string) => {
   const response = await api.delete(`/experiments/tasks/${taskId}`);
   return response.data;

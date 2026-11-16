@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Card, Button, Tag, Space, message, Select, Input } from 'antd';
 import { EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { getTasks } from '@/services/api';
+import { cancelTask, copyTask, getTasks, rerunTask } from '@/services/api';
 import type { Task } from '@/types';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -16,6 +16,7 @@ const HistoryPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchText, setSearchText] = useState<string>('');
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   useEffect(() => {
     loadTasks();
@@ -112,7 +113,7 @@ const HistoryPage: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      width: 120,
+      width: 260,
       render: (_, record) => (
         <Space>
           <Button
@@ -122,6 +123,15 @@ const HistoryPage: React.FC = () => {
             onClick={() => navigate(`/runs/${record.task_id}`)}
           >
             查看
+          </Button>
+          <Button type="link" size="small" onClick={() => void handleCopy(record.task_id)}>
+            复制
+          </Button>
+          <Button type="link" size="small" onClick={() => void handleRerun(record.task_id)}>
+            重跑
+          </Button>
+          <Button type="link" danger size="small" onClick={() => void handleDelete(record.task_id)}>
+            删除
           </Button>
         </Space>
       ),
@@ -166,6 +176,10 @@ const HistoryPage: React.FC = () => {
         columns={columns}
         dataSource={filteredTasks}
         rowKey="task_id"
+      rowSelection={{
+        selectedRowKeys,
+        onChange: (keys) => setSelectedRowKeys(keys as string[]),
+      }}
         loading={loading}
         pagination={{
           pageSize: 20,
@@ -175,6 +189,24 @@ const HistoryPage: React.FC = () => {
       />
     </Card>
   );
+
+  async function handleCopy(taskId: string) {
+    await copyTask(taskId);
+    message.success('已复制实验配置');
+    await loadTasks();
+  }
+
+  async function handleRerun(taskId: string) {
+    const result = await rerunTask(taskId);
+    message.success('已重新提交实验');
+    navigate(`/runs/${result.task_id}`);
+  }
+
+  async function handleDelete(taskId: string) {
+    await cancelTask(taskId);
+    message.success('实验已移入回收站');
+    await loadTasks();
+  }
 };
 
 export default HistoryPage;

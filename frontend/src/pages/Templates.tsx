@@ -7,7 +7,7 @@ import {
   EditOutlined,
   CopyOutlined,
 } from '@ant-design/icons';
-import { deleteTemplate, getTemplates } from '@/services/api';
+import { deleteTemplate, getTemplates, updateTemplate } from '@/services/api';
 import type { Template } from '@/types';
 
 const TemplatesPage: React.FC = () => {
@@ -82,7 +82,7 @@ const TemplatesPage: React.FC = () => {
                   >
                     使用
                   </Button>
-                  <Button type="text" icon={<EditOutlined />}>
+                  <Button type="text" icon={<EditOutlined />} onClick={() => void handleEdit(template.id)}>
                     编辑
                   </Button>
                   <Button
@@ -115,6 +115,16 @@ const TemplatesPage: React.FC = () => {
       )}
     </Card>
   );
+
+  async function handleEdit(templateId: string) {
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+    const name = window.prompt('模板名称', template.name);
+    if (!name || name === template.name) return;
+    const updated = await updateTemplate(templateId, { ...template, name });
+    setTemplates((current) => current.map((item) => (item.id === templateId ? updated : item)));
+    message.success('模板已更新');
+  }
 };
 
 export default TemplatesPage;

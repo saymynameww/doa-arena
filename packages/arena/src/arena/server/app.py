@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import algorithms, experiments, health, schema, templates
+from .routes import algorithms, experiments, health, schema, settings, templates
 
 logger = logging.getLogger(__name__)
 
@@ -52,5 +52,6 @@ def create_app() -> FastAPI:
     app.include_router(algorithms.router, prefix="/api", tags=["algorithms"])
     app.include_router(schema.router, prefix="/api", tags=["schema"])
     app.include_router(templates.router, prefix="/api", tags=["templates"])
+    app.include_router(settings.router, prefix="/api", tags=["settings"])
 
     return app
