@@ -145,6 +145,48 @@ def test_list_algorithms(client):
     assert "description" in algo
 
 
+def test_experiment_schema(client):
+    """实验 Schema 应包含算法和扫描变量声明。"""
+    response = client.get("/api/schema/experiment")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "properties" in data
+    assert len(data["x-algorithms"]) >= 1
+    assert {item["path"] for item in data["x-sweep-paths"]} >= {
+        "scenario.sources.snr_db",
+        "scenario.snapshots",
+    }
+
+
+def test_settings_and_templates(client):
+    """设置和模板接口应支持持久化读写。"""
+    settings = {"workDir": "D:/ArenaTests", "defaultTrials": 12}
+    response = client.put("/api/settings", json=settings)
+    assert response.status_code == 200
+    assert client.get("/api/settings").json()["defaultTrials"] == 12
+
+    template = {
+        "name": "接口测试模板",
+        "description": "测试模板",
+        "type": "monte_carlo",
+        "algorithms": ["music"],
+    }
+    response = client.post("/api/templates", json=template)
+    assert response.status_code == 200
+    template_id = response.json()["id"]
+
+    response = client.put(
+        f"/api/templates/{template_id}",
+        json={**template, "name": "更新后的模板"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "更新后的模板"
+
+    response = client.delete(f"/api/templates/{template_id}")
+    assert response.status_code == 200
+
+
 def test_get_algorithm(client):
     """测试获取算法详情。"""
     response = client.get("/api/algorithms/music")
