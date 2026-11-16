@@ -54,11 +54,13 @@ def execute_batches(
         try:
             start = time.perf_counter()
             estimates = algo.estimate_batch(observations, batch_ctx)
-            if algo.capabilities.uses_gpu:
+            if algo.capabilities.uses_gpu and getattr(algo, "device_str", "cuda").startswith(
+                "cuda"
+            ):
                 import torch
 
                 if torch.cuda.is_available():
-                    torch.cuda.synchronize()
+                    torch.cuda.synchronize(getattr(algo, "device_str", None))
             elapsed = (time.perf_counter() - start) * 1000 / len(indices)
             if len(estimates) != len(indices):
                 raise ValueError("bad_output：批量输出数量必须与观测数量相同")

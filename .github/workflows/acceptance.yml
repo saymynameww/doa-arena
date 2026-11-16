@@ -1,8 +1,26 @@
-name: M1-M5 acceptance
+name: Milestone acceptance
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
+  linux-learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python -c "import torch; from pathlib import Path; Path('torch-before.txt').write_text(torch.__version__, encoding='utf-8')"
+      - run: python -m pip install -e packages/arena_api -e 'packages/arena[dev]'
+      - run: python -c "import torch; from pathlib import Path; assert torch.__version__ == Path('torch-before.txt').read_text(encoding='utf-8')"
+      - run: python -m pytest tests/integration/test_datasets.py tests/integration/test_models.py tests/integration/test_learning_workflow.py -q --junitxml=learning.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-learning-results
+          path: learning.xml
   linux-python310:
     runs-on: ubuntu-latest
     timeout-minutes: 15

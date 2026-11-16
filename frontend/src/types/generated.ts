@@ -102,6 +102,28 @@ export type MetricsConfig = {
   "origins"?: Record<string, Record<string, unknown>>;
 };
 
+export type ModelImportRequest = {
+  "path": string;
+};
+
+export type ModelInspection = {
+  "metadata": Record<string, unknown>;
+  "checks": Array<string>;
+  "warnings": Array<string>;
+};
+
+export type ModelList = {
+  "models": Array<ModelRecord>;
+  "failures": Array<string>;
+};
+
+export type ModelRecord = {
+  "path": string;
+  "name": string;
+  "algorithm_id": string;
+  "metadata": Record<string, unknown>;
+};
+
 export type ParamSchema = {
   "type"?: string;
   "default"?: unknown;

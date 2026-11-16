@@ -33,6 +33,25 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
     """执行子进程收到的白名单操作。"""
     from .config import ExperimentConfig
 
+    if operation == "inspect_model":
+        from .models import inspect_package
+
+        return inspect_package(payload["source"])
+
+    if operation == "import_model":
+        from arena_api import ModelMeta
+
+        from .models import import_package
+
+        path = import_package(payload["source"], payload["workspace"])
+        meta = ModelMeta.from_file(path)
+        return {
+            "path": str(path),
+            "name": meta.model_name,
+            "algorithm_id": meta.algorithm_id,
+            "metadata": meta.model_dump(mode="json"),
+        }
+
     if operation == "preview":
         from .exploration import preview_scenario
 
@@ -41,6 +60,7 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         from .validation import validate_configuration
 
         config = ExperimentConfig.model_validate(payload["config"])
+        config._workspace = Path(payload["workspace"]) if payload.get("workspace") else None
         return {"valid": True, "issues": validate_configuration(config)}
     directory = Path(payload["directory"])
     if operation == "export":

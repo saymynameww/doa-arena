@@ -104,11 +104,13 @@ def run_trial(
             else:
                 start = time.perf_counter()
                 est = algo.estimate(obs, algo_ctx)
-                if algo.capabilities.uses_gpu:
+                if algo.capabilities.uses_gpu and getattr(algo, "device_str", "cuda").startswith(
+                    "cuda"
+                ):
                     import torch
 
                     if torch.cuda.is_available():
-                        torch.cuda.synchronize()
+                        torch.cuda.synchronize(getattr(algo, "device_str", None))
                 elapsed = (time.perf_counter() - start) * 1000
             if not isinstance(est, Estimate):
                 raise ValueError("bad_output：算法必须返回 Estimate")
@@ -529,6 +531,7 @@ def expand_point(config: ExperimentConfig, value: float | None) -> ExperimentCon
             int(value) if isinstance(node[key], int) and float(value).is_integer() else value
         )
     result = ExperimentConfig.model_validate(data)
+    result._workspace = config._workspace
     return result
 
 
@@ -676,7 +679,9 @@ def _load_algorithms(
             AlgoClass = (algorithm_classes or {}).get(label)
             if AlgoClass is None:
                 AlgoClass = resolve_algorithm(algo_id, algo_config.origin)
-            params = AlgoClass.Params(**algo_config.params)
+            from ..models import parameters
+
+            params = parameters(AlgoClass, algo_config.params, config._workspace)
             source_count = config.scenario.sources.K
             counts = [source_count] if isinstance(source_count, int) else source_count.values
             for count in counts:
@@ -684,7 +689,7 @@ def _load_algorithms(
                 errors = [issue.message for issue in issues if issue.level == "error"]
                 if errors:
                     raise ValueError("；".join(errors))
-            algo_config.params = params.model_dump(mode="json")
+            algo_config.params = AlgoClass.Params(**algo_config.params).model_dump(mode="json")
             algo = instances.get(label) if instances else None
             if algo is None:
                 algo = AlgoClass()

@@ -16,6 +16,15 @@ def main() -> None:
     run_parser.add_argument("--workspace", type=Path, default=Path("arena_workspace"))
     serve_parser = commands.add_parser("serve", help="启动本地 Web 服务")
     serve_parser.add_argument("--port", type=int, default=8765)
+    dataset_parser = commands.add_parser("dataset", help="生成训练数据集")
+    dataset_commands = dataset_parser.add_subparsers(dest="dataset_command", required=True)
+    generate_parser = dataset_commands.add_parser("generate", help="可恢复地生成 npz 分片")
+    generate_parser.add_argument("config", type=Path)
+    generate_parser.add_argument("--out", type=Path, required=True)
+    generate_parser.add_argument("--range", dest="sample_range", help="全局索引区间 start:stop")
+    schema_parser = commands.add_parser("schema", help="导出配置 JSON Schema")
+    schema_parser.add_argument("action", choices=["export"])
+    schema_parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "run":
@@ -29,6 +38,27 @@ def main() -> None:
 
                 result = run(args.config, workspace=args.workspace)
                 print(result.metadata["directory"])
+        elif args.command == "dataset":
+            from .core.datasets import generate
+
+            start, stop = 0, None
+            if args.sample_range:
+                start, stop = map(int, args.sample_range.split(":"))
+            print(generate(args.config, args.out, start=start, stop=stop))
+        elif args.command == "schema":
+            from arena_api import ModelMeta
+
+            from .core.config import ExperimentConfig
+            from .core.datasets import DatasetConfig
+            from .core.storage.writer import ResultWriter
+
+            writer = ResultWriter(args.out)
+            for name, model in (
+                ("experiment", ExperimentConfig),
+                ("dataset", DatasetConfig),
+                ("model", ModelMeta),
+            ):
+                writer._write_json(args.out / f"{name}.schema.json", model.model_json_schema())
         else:
             import uvicorn
 

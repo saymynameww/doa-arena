@@ -3,7 +3,7 @@
 from dataclasses import asdict
 from typing import Any
 
-from arena_api import Algorithm, Issue
+from arena_api import Algorithm, Issue, ModelAlgorithm, ModelMeta
 
 from .config import ExperimentConfig
 from .rng import RNGTree
@@ -45,8 +45,21 @@ def validate_configuration(
             if not item.enabled:
                 continue
             cls = (classes or {}).get(item.get_label()) or resolve_algorithm(item.id, item.origin)
-            params = cls.Params(**item.params)
+            from .models import parameters
+
+            params = parameters(cls, item.params, config._workspace)
             warnings = []
+            if issubclass(cls, ModelAlgorithm):
+                from .models import training_issues
+
+                try:
+                    model = ModelMeta.from_file(getattr(params, "model"))
+                    warnings.extend(
+                        training_issues(model, point.scenario, (item.origin or {}).get("commit"))
+                    )
+                except (OSError, ValueError):
+                    # 由 check 生成统一的、可定位到算法卡片的错误。
+                    pass
             if point.scenario.snapshots < array.M:
                 warnings.append(Issue("warning", "快拍数小于阵元数，样本协方差可能奇异"))
             coherent = point.scenario.sources.correlation.mode == "coherent"

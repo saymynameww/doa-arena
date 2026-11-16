@@ -1,7 +1,6 @@
 """参数声明工具，基于 Pydantic。"""
 
-from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -109,28 +108,5 @@ class ComplexValue(BaseModel):
         return self.magnitude * np.exp(1j * phase_rad)
 
 
-class ModelPath(BaseModel):
-    """模型文件路径（用于学习型算法参数）。
-
-    Attributes:
-        path: 模型文件路径
-        device: 推理设备，"cpu" 或 "cuda"
-    """
-
-    path: Path
-    device: str = "cpu"
-
-    def validate_device(self) -> None:
-        """验证设备可用性。"""
-        if self.device == "cpu":
-            return
-
-        # 检查 CUDA
-        if self.device.startswith("cuda"):
-            try:
-                import torch
-
-                if not torch.cuda.is_available():
-                    raise ValueError("CUDA 不可用")
-            except ImportError:
-                raise ValueError("PyTorch 未安装，无法使用 CUDA")
+# 接口规范 7.3：路径在配置中保持用户输入，界面根据标记提供选择器。
+ModelPath = Annotated[str, Field(json_schema_extra={"x-widget": "model"})]

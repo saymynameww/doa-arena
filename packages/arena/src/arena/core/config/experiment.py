@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from .scenario import ScenarioConfig
 
@@ -114,6 +115,7 @@ class ExperimentConfig(BaseModel):
     """
 
     schema_version: Literal[1] = 1
+    _workspace: Path | None = PrivateAttr(default=None)
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     name: str = Field("Untitled Experiment", min_length=1, max_length=80, description="实验名称")

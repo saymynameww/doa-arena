@@ -71,8 +71,10 @@ def run_job(config: dict[str, Any], directory: str) -> None:
             )
 
     try:
+        parsed = ExperimentConfig.model_validate(config)
+        parsed._workspace = output.resolve().parent.parent
         result = run_experiment(
-            ExperimentConfig.model_validate(config),
+            parsed,
             progress,
             cancel_callback=lambda: (output / "CANCEL").exists(),
             checkpoint_callback=writer.write_experiment,

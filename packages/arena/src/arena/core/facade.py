@@ -107,6 +107,7 @@ def run(
             algorithms.append(entry)
     document["algorithms"] = algorithms
     parsed = ExperimentConfig.model_validate(document)
+    parsed._workspace = ws.path
     manifest = json.loads((ws.path / "arena_workspace.json").read_text(encoding="utf-8"))
     sources = manifest.get("algorithm_sources", [])
     if sources:

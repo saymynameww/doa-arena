@@ -3,6 +3,7 @@ import { Alert, Button, Card, List, Tag, Space, Spin, message, Descriptions } fr
 import { ReloadOutlined } from '@ant-design/icons';
 import { getAlgorithms, refreshAlgorithms } from '@/services/api';
 import type { Algorithm } from '@/types';
+import ModelsPanel from '@/components/ModelsPanel';
 
 const AlgorithmsPage: React.FC = () => {
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
@@ -69,6 +70,7 @@ const AlgorithmsPage: React.FC = () => {
   }
 
   return (
+    <>
     <Card title="算法库" extra={<Space><Tag color="blue">{algorithms.length} 个算法</Tag><Button icon={<ReloadOutlined />} onClick={() => void handleRefresh()}>刷新</Button></Space>}>
       {failures.length > 0 && <Alert type="warning" showIcon message="部分算法来源加载失败" description={failures.map((failure) => failure.message || String(failure)).join('；')} style={{ marginBottom: 16 }} />}
       {algorithms.length === 0 ? (
@@ -113,6 +115,8 @@ const AlgorithmsPage: React.FC = () => {
         />
       )}
     </Card>
+    <ModelsPanel />
+    </>
   );
 };
 

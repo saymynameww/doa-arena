@@ -5,13 +5,14 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import numpy as np
 
 from .capabilities import Capabilities
 from .metrics import MatchedSet, MetricValue
-from .params import ParamsModel
+from .model import ModelMeta
+from .params import ModelPath, Param, ParamsModel
 from .types import ArrayDescriptor, Estimate, Issue, Observation, RunContext
 
 
@@ -199,101 +200,141 @@ class Algorithm(ABC):
 
 
 class ModelAlgorithm(Algorithm):
-    """学习型算法基类。
+    """接口规范第 7 章：模型元数据校验、设备管理与批量推理。"""
 
-    为学习型算法提供额外的模型加载、设备管理等功能。
+    category = "learning"
+    capabilities = Capabilities(batch=True, parallel=False, uses_gpu=True)
 
-    子类只需实现：
-    1. build_network() - 构建网络
-    2. preprocess() - 预处理观测数据
-    3. postprocess() - 后处理网络输出
-    """
+    class Params(ParamsModel):
+        """所有学习算法共有的参数。"""
+
+        model: ModelPath = Param(..., label="模型包", json_schema_extra={"x-reload": True})
+        device: Literal["auto", "cuda", "cpu"] = Param(
+            "auto", label="推理设备", json_schema_extra={"x-reload": True}
+        )
+        batch_size: int = Param(256, ge=1, le=8192, label="推理批大小")
 
     def __init__(self) -> None:
         super().__init__()
         self.model: Any = None
-        self.device_str: str = "cpu"
+        self.device_str = "cpu"
+        self.meta: ModelMeta | None = None
+        self.params: ParamsModel | None = None
 
     @abstractmethod
-    def build_network(self, params: ParamsModel, ctx: RunContext) -> Any:
-        """构建网络结构。
-
-        Args:
-            params: 算法参数（包含模型路径等）
-            ctx: 运行上下文
-
-        Returns:
-            网络实例（PyTorch nn.Module）
-        """
-        pass
+    def build_network(self, meta: ModelMeta, params: ParamsModel) -> Any:
+        """根据元数据构造网络；子类在方法内导入 torch。"""
+        raise NotImplementedError
 
     @abstractmethod
-    def preprocess(self, obs: Observation) -> Any:
-        """预处理观测数据为网络输入。
-
-        Args:
-            obs: 观测数据
-
-        Returns:
-            网络输入（如 torch.Tensor）
-        """
-        pass
+    def preprocess(
+        self, obs_list: Sequence[Observation], meta: ModelMeta, params: ParamsModel
+    ) -> Any:
+        """将一批观测转换为网络输入张量。"""
+        raise NotImplementedError
 
     @abstractmethod
     def postprocess(
         self,
-        network_output: Any,
-        obs: Observation,
-        ctx: RunContext,
-    ) -> Estimate:
-        """后处理网络输出为估计结果。
+        output: Any,
+        obs_list: Sequence[Observation],
+        meta: ModelMeta,
+        params: ParamsModel,
+        want_spectrum: bool,
+    ) -> list[Estimate]:
+        """将一批网络输出转换为相同数量的估计。"""
+        raise NotImplementedError
 
-        Args:
-            network_output: 网络输出
-            obs: 观测数据
-            ctx: 运行上下文
+    @classmethod
+    def check_model(
+        cls, meta: ModelMeta, params: ParamsModel, array: ArrayDescriptor, K: int | None
+    ) -> list[Issue]:
+        """子类可增加模型结构或信源数限制。"""
+        return []
 
-        Returns:
-            估计结果
-        """
-        pass
+    @classmethod
+    def check(cls, params: ParamsModel, array: ArrayDescriptor, K: int | None) -> list[Issue]:
+        """只读取 JSON，检查算法、接口及训练阵列兼容性。"""
+        issues = super().check(params, array, K)
+        try:
+            meta = ModelMeta.from_file(getattr(params, "model"))
+            if meta.algorithm_id != cls.id:
+                issues.append(Issue("error", "模型包所属算法不匹配，请选择此算法导出的模型"))
+            if meta.array.get("type") != array.type or any(
+                array.params.get(k) != v for k, v in meta.array.get("params", {}).items()
+            ):
+                issues.append(Issue("error", "评测阵列与模型训练阵列不一致，请选择匹配的模型"))
+            if meta.trained_on.get("source") != "arena":
+                issues.append(Issue("warning", "训练范围未知：模型使用外部数据集"))
+            issues.extend(cls.check_model(meta, params, array, K))
+        except (ValueError, OSError) as exc:
+            issues.append(Issue("error", f"无法读取模型包：{exc}"))
+        return issues
 
     def load(self, params: ParamsModel, ctx: RunContext) -> None:
-        """加载模型权重。"""
+        """核对哈希后安全加载 state_dict，使用指定设备进入评估模式。"""
         import torch
 
-        self.device_str = ctx.device
-
-        # 构建网络
-        self.model = self.build_network(params, ctx)
-
-        # 加载权重
-        model_path = getattr(params, "model_path", None)
-        if model_path is not None:
-            state_dict = torch.load(
-                model_path,
-                map_location=self.device_str,
-                weights_only=True,  # 安全加载
-            )
-            self.model.load_state_dict(state_dict)
-
-        # 设置为评估模式
-        self.model.eval()
+        self.meta = ModelMeta.from_file(getattr(params, "model"))
+        self.meta.verify_weights()
+        self._model_provenance = {
+            "path": str(self.meta.path),
+            "weights_sha256": self.meta.weights["sha256"],
+            "model_name": self.meta.model_name,
+        }
+        requested = getattr(params, "device")
+        self.device_str = (
+            ("cuda" if torch.cuda.is_available() else "cpu") if requested == "auto" else requested
+        )
+        if self.device_str == "cuda" and not torch.cuda.is_available():
+            raise ValueError("CUDA 不可用，请将推理设备改为 CPU 或自动")
+        self.model = self.build_network(self.meta, params)
+        state = torch.load(
+            self.meta.path / "model.pt", map_location=self.device_str, weights_only=True
+        )
+        self.model.load_state_dict(state, strict=True)
         self.model.to(self.device_str)
+        self.model.eval()
+        self.params = params
+
+    def configure(self, params: ParamsModel, array: ArrayDescriptor, ctx: RunContext) -> None:
+        """更新轻量参数；模型与设备改变由 Runner 重新 load。"""
+        self.params = params
 
     def estimate(self, obs: Observation, ctx: RunContext) -> Estimate:
-        """估计（调用预处理、网络推理、后处理）。"""
+        """单次估计使用同一批推理实现。"""
+        return self.estimate_batch([obs], ctx)[0]
+
+    def estimate_batch(self, obs_list: Sequence[Observation], ctx: RunContext) -> list[Estimate]:
+        """按 batch_size 切分，在 inference_mode 下运行网络。"""
         import torch
 
-        # 预处理
-        net_input = self.preprocess(obs)
+        if self.model is None or self.meta is None or self.params is None:
+            raise ValueError("模型尚未加载，请先调用 load")
+        result = []
+        batch_size = int(getattr(self.params, "batch_size"))
+        with torch.inference_mode():
+            for start in range(0, len(obs_list), batch_size):
+                observations = obs_list[start : start + batch_size]
+                inputs = self.preprocess(observations, self.meta, self.params).to(self.device_str)
+                output = self.model(inputs)
+                estimates = self.postprocess(
+                    output, observations, self.meta, self.params, ctx.want_spectrum
+                )
+                if len(estimates) != len(observations):
+                    raise ValueError("模型后处理结果数量必须等于输入观测数量")
+                result.extend(estimates)
+        return result
 
-        # 推理
-        with torch.no_grad():
-            net_output = self.model(net_input)
+    def close(self) -> None:
+        """释放网络引用及本算法使用的 CUDA 缓存。"""
+        self.model = None
+        self.meta = None
+        self.params = None
+        if self.device_str == "cuda":
+            import torch
 
-        # 后处理
-        return self.postprocess(net_output, obs, ctx)
+            torch.cuda.empty_cache()
 
 
 class ArrayModel(ABC):

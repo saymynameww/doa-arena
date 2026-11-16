@@ -97,7 +97,12 @@ async def _prepare_config(config: dict[str, Any]) -> tuple[ExperimentConfig, lis
     from ...core.operations import invoke
 
     checked = await asyncio.to_thread(
-        invoke, "validate", {"config": exp_config.model_dump(mode="json")}
+        invoke,
+        "validate",
+        {
+            "config": exp_config.model_dump(mode="json"),
+            "workspace": str(get_task_manager().output_dir.resolve().parent),
+        },
     )
     return exp_config, checked["issues"]
 

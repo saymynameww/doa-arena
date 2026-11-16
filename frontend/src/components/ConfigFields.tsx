@@ -1,4 +1,5 @@
 import { Button, Input, InputNumber, Select, Switch } from "antd";
+import ModelSelector from './ModelSelector';
 
 export type JsonSchema = Record<string, any>;
 export function resolveSchema(
@@ -49,6 +50,7 @@ export default function ConfigFields({
   onSweep,
 }: Props) {
   const schema = resolveSchema(raw, root);
+  if (schema['x-widget'] === 'model') return <ModelSelector value={value} onChange={onChange} />;
   if (schema.anyOf) {
     const choices = schema.anyOf
       .map((s: JsonSchema) => resolveSchema(s, root))

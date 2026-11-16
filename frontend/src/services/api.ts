@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { ModelList, ModelRecord, ModelInspection } from '@/types/generated';
 import type {
   Algorithm,
   ChartData,
@@ -13,6 +14,10 @@ const api = axios.create({
   baseURL: '/api',
   timeout: 30000,
 });
+
+export const getModels = async (): Promise<ModelList> => (await api.get('/models')).data;
+export const importModel = async (path: string): Promise<ModelRecord> => (await api.post('/models/import', {path})).data;
+export const inspectModel = async (path: string): Promise<ModelInspection> => (await api.post('/models/inspect', {path})).data;
 
 // 健康检查
 export const checkHealth = async () => {

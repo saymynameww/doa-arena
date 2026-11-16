@@ -41,6 +41,8 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
             "api_version": cls.api_version,
             "source": {"type": "builtin", "location": cls.__module__},
         }
+        if hasattr(instance, "_model_provenance"):
+            record["model"] = instance._model_provenance
         if not cls.__module__.startswith("arena.core."):
             source = provenance(cls)
             record["source"] = {
