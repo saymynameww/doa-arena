@@ -74,6 +74,8 @@ def export(
     """在临时目录导出 state_dict 与元数据后重命名，不覆盖已有模型包。"""
     import torch
 
+    import arena
+
     target = Path(out_dir).resolve()
     if target.exists():
         raise ValueError("模型输出目录已存在，请使用新的模型包目录")
@@ -97,7 +99,7 @@ def export(
                 "dataset_id": None,
                 "dataset_config": read_config(dataset).model_dump(mode="json"),
                 "generator_version": GENERATOR_VERSION,
-                "arena_version": "0.1.0",
+                "arena_version": arena.__version__,
             }
     temporary = Path(tempfile.mkdtemp(prefix=".model-", dir=target.parent))
     try:
@@ -279,12 +281,31 @@ def training_issues(
         if impairment.type not in impairments:
             issues.append(Issue("warning", f"超出训练范围：训练中未包含误差 {impairment.type}"))
         else:
-            for key, value in impairment.params.items():
-                support = impairments[impairment.type].get("params", {}).get(key)
-                if (
-                    isinstance(value, int | float)
-                    and not isinstance(value, bool)
-                    and support is not None
-                ):
-                    compare(f"{impairment.type}.{key}", value, support)
+            from .datasets import _realize
+            from .plugins import resolve_plugin
+
+            cls = resolve_plugin("impairment", impairment.type, impairment.origin)
+            raw = impairments[impairment.type].get("params", {})
+            support = {
+                **cls.Params.model_validate(_realize(raw, 0, 0)).model_dump(mode="json"),
+                **raw,
+            }
+            actual = cls.Params.model_validate(impairment.params).model_dump(mode="json")
+
+            def compare_tree(value: Any, reference: Any, label: str) -> None:
+                if isinstance(value, bool) or value is None or reference is None:
+                    return
+                if isinstance(value, int | float):
+                    compare(label, value, reference)
+                elif isinstance(value, dict) and isinstance(reference, dict):
+                    for key, child in value.items():
+                        if key in reference:
+                            compare_tree(child, reference[key], label + "." + key)
+                elif isinstance(value, list) and isinstance(reference, list):
+                    if len(value) != len(reference):
+                        issues.append(Issue("warning", f"超出训练范围：{label} 长度不同"))
+                    for index, (child, ref) in enumerate(zip(value, reference)):
+                        compare_tree(child, ref, f"{label}[{index}]")
+
+            compare_tree(actual, support, impairment.type)
     return issues

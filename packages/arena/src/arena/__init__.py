@@ -3,7 +3,7 @@
 脚本模式门面，提供简洁的顶层API。
 """
 
-__version__ = "0.3.0"  # M3 版本
+__version__ = "0.1.0"  # 与发行包 pyproject.toml 一致；里程碑通过分支和报告标识。
 
 # M2: 导出基础 API
 from typing import Any

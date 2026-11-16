@@ -1,6 +1,7 @@
 """独立课题目录中的生成—训练—导出—评测链路，可在无显示器 Linux 运行。"""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ def test_external_training_workflow(tmp_path):
     import arena
 
     root = Path(__file__).resolve().parents[2]
+    environment = {**os.environ, "PYTHONUTF8": "1"}
     project = tmp_path / "独立训练课题"
     created = subprocess.run(
         [sys.executable, str(root / "scripts/create_learning_example.py"), str(project)],
@@ -21,6 +23,7 @@ def test_external_training_workflow(tmp_path):
         text=True,
         encoding="utf-8",
         timeout=30,
+        env=environment,
     )
     assert created.returncode == 0, created.stderr
     trained = subprocess.run(
@@ -30,6 +33,7 @@ def test_external_training_workflow(tmp_path):
         text=True,
         encoding="utf-8",
         timeout=120,
+        env=environment,
     )
     assert trained.returncode == 0, trained.stderr
     log = json.loads(trained.stdout.splitlines()[-1])

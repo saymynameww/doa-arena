@@ -94,6 +94,24 @@ def test_zip_path_traversal_rejected(tmp_path):
     assert not (tmp_path / "outside.txt").exists()
 
 
+@pytest.mark.gpu
+def test_explicit_cuda_model(tmp_path):
+    torch = pytest.importorskip("torch")
+    if not torch.cuda.is_available():
+        pytest.skip("当前 PyTorch 环境不提供 CUDA")
+    package = export_tiny(tmp_path / "gpu-model")
+    trial = Scenario({"array": {"params": {"M": 8, "d": 0.5}}}).sample(seed=10)
+    params = TinyModel.Params(model=str(package), device="cuda")
+    ctx = RunContext("cuda", logging.getLogger("gpu"), False, tmp_path, np.random.default_rng(0))
+    instance = TinyModel()
+    try:
+        instance.load(params, ctx)
+        assert instance.device_str == "cuda"
+        assert len(instance.estimate(trial.observation, ctx).angles) == 2
+    finally:
+        instance.close()
+
+
 def test_metadata_checks_do_not_import_torch(tmp_path):
     import subprocess
     import sys

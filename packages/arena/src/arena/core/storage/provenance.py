@@ -30,6 +30,7 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
             environment[name] = None
     plugins = {}
     patches = {}
+    models = {}
     for item in config.algorithms:
         instance = instances.get(item.get_label())
         if instance is None:
@@ -43,6 +44,7 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
         }
         if hasattr(instance, "_model_provenance"):
             record["model"] = instance._model_provenance
+            models[item.get_label()] = instance._model_provenance
         if not cls.__module__.startswith("arena.core."):
             source = provenance(cls)
             record["source"] = {
@@ -101,5 +103,6 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
         },
         "environment": environment,
         "plugins": plugins,
+        "models": models,
         "_patches": patches,
     }

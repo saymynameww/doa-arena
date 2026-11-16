@@ -1,6 +1,8 @@
 param(
     [switch]$NoBrowser,
-    [switch]$WithPrototype
+    [switch]$WithPrototype,
+    [string]$PythonExecutable,
+    [switch]$SequentialMkl
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +10,13 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FrontendRoot = Join-Path $ProjectRoot "frontend"
 $PrototypeRoot = Join-Path $ProjectRoot "docs\prototype"
 $Python = "D:\00_Inbox\Anaconda\python.exe"
+if ($PythonExecutable) {
+    $Python = (Resolve-Path -LiteralPath $PythonExecutable).Path
+}
+if ($SequentialMkl) {
+    # Anaconda MKL 与 pip PyTorch 同用时，使用顺序 MKL 避免重复 OpenMP 运行库。
+    $env:MKL_THREADING_LAYER = "SEQUENTIAL"
+}
 
 if (-not (Test-Path $Python)) {
     $Python = (Get-Command python -ErrorAction Stop).Source

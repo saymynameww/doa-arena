@@ -93,6 +93,21 @@ def test_dataset_validation_rejects_unusable_distribution():
     cfg["scenario"]["array"]["params"]["M"] = {"choice": [8, 16]}
     with pytest.raises(ValueError, match="不允许分布"):
         read_config(cfg)
+    cfg = configuration()
+    cfg["scenario"]["sources"]["snnr_db"] = 10
+    with pytest.raises(ValueError, match="未知字段"):
+        read_config(cfg)
+    cfg = configuration()
+    cfg["scenario"]["sources"]["correlation"] = {
+        "mode": "partial",
+        "rho": {"mag": 0.9, "phase_deg": {"uniform": [0, 90]}},
+    }
+    with pytest.raises(ValueError):
+        read_config(cfg)
+    cfg = configuration()
+    cfg["content"]["grid_labels"]["grid"]["stop"] = 20
+    with pytest.raises(ValueError, match="超出"):
+        read_config(cfg)
 
 
 def test_torch_online_offline(tmp_path):

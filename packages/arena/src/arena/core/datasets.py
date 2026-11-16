@@ -111,6 +111,32 @@ class DatasetConfig(BaseModel):
         """只允许设计文档列出的分布字段，并检查形状约束。"""
         import re
 
+        from .config.scenario import (
+            AnglesConfig,
+            ArrayConfig,
+            CorrelationConfig,
+            ImpairmentConfig,
+            ScenarioConfig,
+            SourcesConfig,
+        )
+
+        def check_keys(value: dict[str, Any], fields: set[str], path: str) -> None:
+            unknown = set(value) - fields
+            if unknown:
+                raise ValueError(f"{path} 含未知字段 {sorted(unknown)}，请检查拼写")
+
+        check_keys(self.scenario, set(ScenarioConfig.model_fields) | {"carrier_hz"}, "scenario")
+        check_keys(self.scenario.get("array", {}), set(ArrayConfig.model_fields), "array")
+        sources = self.scenario.get("sources", {})
+        check_keys(sources, set(SourcesConfig.model_fields), "sources")
+        check_keys(
+            sources.get("angles", {}), set(AnglesConfig.model_fields) | {"min", "max"}, "angles"
+        )
+        correlation = sources.get("correlation", {})
+        check_keys(correlation, set(CorrelationConfig.model_fields) | {"rho"}, "correlation")
+        check_keys(correlation.get("rho", {}), {"mag", "phase_deg"}, "rho")
+        for impairment in self.scenario.get("impairments", []):
+            check_keys(impairment, set(ImpairmentConfig.model_fields), "impairment")
         for path, distribution in _distributions(self.scenario):
             allowed = path in {
                 "scenario.sources.K",
@@ -118,7 +144,9 @@ class DatasetConfig(BaseModel):
                 "scenario.snapshots",
                 "scenario.sources.correlation.rho.mag",
                 "scenario.sources.correlation.rho.phase_deg",
-            } or re.fullmatch(r"scenario\.impairments\[\d+\]\.params\.[a-zA-Z_][a-zA-Z_0-9]*", path)
+            } or re.fullmatch(
+                r"scenario\.impairments\[\d+\]\.params\.[a-zA-Z_][a-zA-Z_0-9.\[\]]*", path
+            )
             if not allowed:
                 raise ValueError(f"字段 {path} 不允许分布")
             if path in {"scenario.sources.K", "scenario.snapshots"}:
@@ -149,7 +177,8 @@ class DatasetConfig(BaseModel):
                 tokens = re.findall(r"[^.\[\]]+", path)[1:]
                 for token in tokens[:-1]:
                     node = node[int(token)] if isinstance(node, list) else node[token]
-                node[tokens[-1]] = edge
+                key = int(tokens[-1]) if isinstance(node, list) else tokens[-1]
+                node[key] = edge
                 parsed = ExperimentConfig.model_validate({"scenario": sample})
                 from .plugins import resolve_plugin
 
@@ -166,6 +195,22 @@ class DatasetConfig(BaseModel):
         correlation = sources.get("correlation", {})
         if correlation.get("mode") == "partial":
             _check_correlation_support(correlation, int(max(k_values)))
+        if self.content.grid_labels:
+            parsed = ExperimentConfig.model_validate(
+                {"scenario": _realize(self.scenario, self.seed, 0)}
+            )
+            angles = parsed.scenario.sources.angles
+            if angles.mode == "random":
+                bounds = list(angles.range_deg or [])
+            elif angles.mode == "separation":
+                bounds = [
+                    angles.center - (angles.delta or 0) / 2,
+                    angles.center + (angles.delta or 0) / 2,
+                ]
+            else:
+                bounds = angles.values or []
+            for angle in bounds:
+                self.content.grid_labels.grid.index(angle)
         return self
 
 
@@ -306,6 +351,9 @@ def _generate(
     start: int = 0,
     stop: int | None = None,
 ) -> Path:
+    import arena
+    import arena_api
+
     original = config
     cfg = read_config(config)
     stop = cfg.num_samples if stop is None else stop
@@ -339,7 +387,11 @@ def _generate(
             "config": document,
             "config_hash": fingerprint,
             "status": "generating",
-            "versions": {"arena": "0.1.0", "arena_api": "1.0.0", "generator": GENERATOR_VERSION},
+            "versions": {
+                "arena": arena.__version__,
+                "arena_api": arena_api.__version__,
+                "generator": GENERATOR_VERSION,
+            },
             "environment": {
                 "os": platform.system(),
                 "python": platform.python_version(),
