@@ -17,6 +17,7 @@ import {
   Collapse,
   Tag,
   Typography,
+  Dropdown,
 } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
 import { createTemplate, getAlgorithms, getExperimentSchema, getTemplates, runExperiment } from '@/services/api';
@@ -46,6 +47,7 @@ const ExperimentConfigPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
   const [schema, setSchema] = useState<ExperimentSchema | null>(null);
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; level?: string }>>([]);
   const [selectedAlgorithms, setSelectedAlgorithms] = useState<AlgorithmInstance[]>([]);
   const [experimentType, setExperimentType] = useState<'single' | 'monte_carlo' | 'sweep'>(
     'monte_carlo'
@@ -107,12 +109,14 @@ const ExperimentConfigPage: React.FC = () => {
 
   const loadConfiguration = async () => {
     try {
-      const [loadedSchema, loadedAlgorithms] = await Promise.all([
+      const [loadedSchema, loadedAlgorithms, loadedTemplates] = await Promise.all([
         getExperimentSchema(),
         getAlgorithms(),
+        getTemplates(),
       ]);
       setSchema(loadedSchema);
       setAlgorithms(loadedAlgorithms);
+      setTemplates(loadedTemplates);
       const templateId = searchParams.get('template');
       if (templateId) {
         const template = (await getTemplates()).find((item) => item.id === templateId);
@@ -275,6 +279,39 @@ const ExperimentConfigPage: React.FC = () => {
     }
   };
 
+  const handleExport = (format: 'json' | 'py') => {
+    const values = form.getFieldsValue(true);
+    const payload = {
+      name: values.name || '未命名实验',
+      type: experimentType,
+      trials: values.trials || 50,
+      scenario: {
+        seed: values.seed || 42,
+        array: { type: 'ula', params: { M: values.arraySize || 16, d: values.elementSpacing || 0.5 } },
+        sources: {
+          K: values.sourceCount || 2,
+          angles: { mode: 'fixed', values: String(values.sourceAngles || '-20, 20').split(',').map(Number) },
+          snr_db: values.snrDb || 10,
+          correlation: { mode: 'none' },
+        },
+        snapshots: values.snapshots || 100,
+        noise_power: values.noisePower || 1,
+        impairments: [],
+      },
+      algorithms: selectedAlgorithms,
+      options: {},
+    };
+    const content = format === 'json'
+      ? JSON.stringify(payload, null, 2)
+      : `import arena\nconfig = ${JSON.stringify(payload, null, 2)}\nresult = arena.run(config)\n`;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+    link.download = format === 'json' ? 'experiment_config.json' : 'experiment_config.py';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    message.success(`已导出 ${format.toUpperCase()}`);
+  };
+
   return (
     <Row gutter={16}>
       <Col span={16}>
@@ -282,32 +319,28 @@ const ExperimentConfigPage: React.FC = () => {
           title="新建实验"
           extra={
             <Space>
-              <Button
-                onClick={() => {
-                  const config = form.getFieldsValue();
-                  const blob = new Blob([JSON.stringify(config, null, 2)], {
-                    type: 'application/json',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = 'experiment_config.json';
-                  link.click();
-                  URL.revokeObjectURL(url);
-                  message.success('配置已导出');
+              <Dropdown
+                menu={{
+                  items: templates.map((template) => ({
+                    key: template.id,
+                    label: `${template.name}${template.level === '内置' ? '（内置）' : ''}`,
+                    onClick: () => navigate(`/?template=${encodeURIComponent(template.id)}`),
+                  })),
                 }}
               >
-                导出 JSON
-              </Button>
+                <Button>从模板加载</Button>
+              </Dropdown>
               <Button onClick={() => void handleSaveTemplate()}>保存为模板</Button>
-              <Button
-                type="primary"
-                onClick={handleSubmit}
-                loading={loading}
-                icon={<PlayCircleOutlined />}
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'json', label: 'JSON', onClick: () => handleExport('json') },
+                    { key: 'py', label: 'Python 脚本', onClick: () => handleExport('py') },
+                  ],
+                }}
               >
-                运行实验
-              </Button>
+                <Button>导出 JSON / 脚本</Button>
+              </Dropdown>
             </Space>
           }
         >
@@ -542,6 +575,25 @@ const ExperimentConfigPage: React.FC = () => {
             </Space>
           </div>
         </Form>
+        <div className="experiment-runbar">
+          <div>
+            <strong>{experimentType === 'sweep' ? `${form.getFieldValue('sweepValues')?.length || 0} 个扫描点 × ` : ''}</strong>
+            {experimentType === 'single' ? '单次实验' : `${form.getFieldValue('trials') || 50} 次试验`} × {selectedAlgorithms.length} 个算法
+            {validationErrors.filter((error) => error.severity === 'warning').length > 0 && (
+              <Tag color="warning" style={{ marginLeft: 12 }}>
+                {validationErrors.filter((error) => error.severity === 'warning').length} 条警告
+              </Tag>
+            )}
+          </div>
+          <Button
+            type="primary"
+            onClick={handleSubmit}
+            loading={loading}
+            icon={<PlayCircleOutlined />}
+          >
+            运行实验
+          </Button>
+        </div>
       </Card>
     </Col>
 

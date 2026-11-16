@@ -10,6 +10,7 @@ import AlgorithmsPage from './pages/Algorithms';
 import TemplatesPage from './pages/Templates';
 import ComparePage from './pages/Compare';
 import SettingsPage from './pages/Settings';
+import LeaderboardPage from './pages/Leaderboard';
 
 const App: React.FC = () => {
   return (
@@ -24,6 +25,7 @@ const App: React.FC = () => {
             <Route path="templates" element={<TemplatesPage />} />
             <Route path="compare" element={<ComparePage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
