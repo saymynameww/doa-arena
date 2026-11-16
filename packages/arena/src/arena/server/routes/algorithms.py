@@ -7,64 +7,18 @@ router = APIRouter()
 
 def _builtin_algorithms() -> list[dict]:
     """返回内置算法清单。"""
+    from ...core.algorithms import CBF, ESPRIT, MUSIC, MVDR, RootMUSIC
+
     return [
         {
-            "id": "cbf",
-            "name": "CBF",
-            "description": "常规波束形成",
-            "type": "spectral",
-            "params": {"grid_step": {"type": "number", "default": 0.1, "min": 0.01, "max": 1.0}},
-        },
-        {
-            "id": "mvdr",
-            "name": "MVDR",
-            "description": "最小方差无失真响应",
-            "type": "spectral",
-            "params": {"grid_step": {"type": "number", "default": 0.1, "min": 0.01, "max": 1.0}},
-        },
-        {
-            "id": "music",
-            "name": "MUSIC",
-            "description": "多重信号分类",
-            "type": "subspace",
-            "params": {
-                "grid_step": {"type": "number", "default": 0.1},
-                "smoothing": {
-                    "type": "string",
-                    "default": "none",
-                    "enum": ["none", "forward", "fb"],
-                },
-                "subarray_size": {"type": "integer", "default": None},
-            },
-        },
-        {
-            "id": "root_music",
-            "name": "Root-MUSIC",
-            "description": "求根 MUSIC",
-            "type": "subspace",
-            "params": {
-                "smoothing": {
-                    "type": "string",
-                    "default": "none",
-                    "enum": ["none", "forward", "fb"],
-                },
-                "subarray_size": {"type": "integer", "default": None},
-            },
-        },
-        {
-            "id": "esprit",
-            "name": "ESPRIT",
-            "description": "旋转不变子空间",
-            "type": "subspace",
-            "params": {
-                "smoothing": {
-                    "type": "string",
-                    "default": "none",
-                    "enum": ["none", "forward", "fb"],
-                },
-                "subarray_size": {"type": "integer", "default": None},
-            },
-        },
+            "id": cls.id,
+            "name": cls.name,
+            "description": (cls.__doc__ or "").strip(),
+            "type": "builtin",
+            "schema": cls.Params.model_json_schema(),
+            "params": cls.Params.model_json_schema().get("properties", {}),
+        }
+        for cls in (CBF, MVDR, MUSIC, RootMUSIC, ESPRIT)
     ]
 
 

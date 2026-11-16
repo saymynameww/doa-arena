@@ -17,12 +17,19 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
     """测试客户端。"""
+    from arena.server import tasks
     from arena.server.app import create_app
+    from arena.server.routes import settings, templates
 
+    for name in ("SETTINGS_PATH", "WORKSPACES_PATH", "CURRENT_WORKSPACE_PATH"):
+        monkeypatch.setattr(settings, name, tmp_path / getattr(settings, name).name)
+    monkeypatch.setattr(templates, "TEMPLATES_DIR", tmp_path / "templates")
+    monkeypatch.setattr(tasks, "_task_manager", tasks.TaskManager(tmp_path / "results"))
     app = create_app()
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_health_check(client):

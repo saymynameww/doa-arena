@@ -133,7 +133,7 @@ class ScenarioGenerator:
             from ..arrays import ULA
 
             ula = ULA()
-            A = ula._compute_steering(positions, self.config.angles)
+            A = ula.steering(self.config.angles, positions)
         else:
             A = self.A_nominal.copy()
 

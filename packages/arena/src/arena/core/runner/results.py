@@ -17,6 +17,8 @@ class TrialResult:
     errors: dict[str, str]  # 算法 label -> 错误信息
     times_ms: dict[str, float]  # 算法 label -> 耗时（毫秒）
 
+    truth_angles: Any = None
+
 
 @dataclass
 class SweepPointResult:

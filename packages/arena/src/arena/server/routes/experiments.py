@@ -45,6 +45,12 @@ async def run_experiment(
         # 解析配置
         exp_config = ExperimentConfig(**config)
         exp_config.validate_experiment()
+        from ...core.runner.core import build_scene, expand_point
+
+        for value in (
+            exp_config.sweep.values if exp_config.type == "sweep" and exp_config.sweep else [None]
+        ):
+            build_scene(expand_point(exp_config, value))
 
     except Exception as e:
         logger.error(f"配置校验失败: {e}")
@@ -290,7 +296,16 @@ async def get_task_charts(task_id: str) -> dict[str, Any]:
         ("rmse_mean", "RMSE", "RMSE (°)"),
         ("success_rate", "成功率", "成功率"),
         ("avg_time_ms", "运行时间", "时间 (ms)"),
+        ("resolution_probability", "分辨概率", "分辨概率"),
     ):
+        metric_id = {
+            "rmse_mean": "rmse",
+            "success_rate": "success_rate",
+            "avg_time_ms": "time",
+            "resolution_probability": "resolution",
+        }[metric]
+        if metric_id not in task.config.metrics.include:
+            continue
         data = []
         for label in labels:
             data.append(
@@ -302,6 +317,17 @@ async def get_task_charts(task_id: str) -> dict[str, Any]:
                     "type": "scatter",
                     "mode": "lines+markers",
                     "name": label,
+                }
+            )
+        if metric == "rmse_mean" and "crb" in task.config.metrics.include:
+            data.append(
+                {
+                    "x": x,
+                    "y": [p.get("crb_deg") for p in points],
+                    "type": "scatter",
+                    "mode": "lines",
+                    "name": "CRB",
+                    "line": {"color": "black", "dash": "dash"},
                 }
             )
         charts.append(

@@ -42,7 +42,7 @@ const ExperimentRunPage: React.FC = () => {
     const eventSource = subscribeTaskProgress(
       id,
       (data) => {
-        setTask(data);
+        setTask((previous) => ({ ...previous, ...data }));
 
         // 任务完成时加载结果
         if (data.status === 'completed') {

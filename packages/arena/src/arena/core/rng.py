@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from typing import Literal
 
 import numpy as np
@@ -46,7 +47,7 @@ class RNGTree:
 
     def for_scenario(self) -> np.random.Generator:
         """场景级随机数生成器。"""
-        seq = self._root_seq.spawn(1)[0]
+        seq = np.random.SeedSequence(self.seed, spawn_key=(0,))
         return np.random.Generator(np.random.PCG64(seq))
 
     def for_trial(self, trial_idx: int) -> TrialRNG:
@@ -59,8 +60,7 @@ class RNGTree:
             TrialRNG 实例
         """
         # 从 scenario 分支派生
-        scenario_seq = self._root_seq.spawn(1)[0]
-        trial_seq = scenario_seq.spawn(trial_idx + 1)[trial_idx]
+        trial_seq = np.random.SeedSequence(self.seed, spawn_key=(0, trial_idx))
         return TrialRNG(trial_seq)
 
     def for_algorithm(self, algorithm_id: str, trial_idx: int) -> np.random.Generator:
@@ -73,14 +73,9 @@ class RNGTree:
         Returns:
             该算法该试验的随机数生成器
         """
-        # 从 algorithms 分支派生
-        algo_branch = self._root_seq.spawn(2)[1]  # [scenario, algorithms]
-        # 使用 algorithm_id 的哈希作为子索引
-        algo_hash = hash(algorithm_id) % (2**32)
-        algo_seq = algo_branch.spawn(1, spawn_key=(algo_hash,))[0]
-        # 再派生该算法的第 trial_idx 次试验
-        trial_seq = algo_seq.spawn(trial_idx + 1)[trial_idx]
-        return np.random.Generator(np.random.PCG64(trial_seq))
+        stable_id = int.from_bytes(sha256(algorithm_id.encode("utf-8")).digest()[:4], "little")
+        seq = np.random.SeedSequence(self.seed, spawn_key=(1, stable_id, trial_idx))
+        return np.random.Generator(np.random.PCG64(seq))
 
 
 class TrialRNG:
@@ -110,14 +105,14 @@ class TrialRNG:
         idx = self._get_counter("sources")
         # 从当前序列派生子序列
         # 使用计数器确保每次调用得到不同的子序列
-        seq = self._seq.spawn(idx + 1)[idx]
+        seq = np.random.SeedSequence(self._seq.entropy, spawn_key=(*self._seq.spawn_key, 0, idx))
         return np.random.Generator(np.random.PCG64(seq))
 
     def for_noise(self) -> np.random.Generator:
         """噪声随机数生成器。"""
         idx = self._get_counter("noise")
         # 使用大偏移避免与 sources 冲突
-        seq = self._seq.spawn(1000 + idx + 1)[1000 + idx]
+        seq = np.random.SeedSequence(self._seq.entropy, spawn_key=(*self._seq.spawn_key, 1, idx))
         return np.random.Generator(np.random.PCG64(seq))
 
     def for_impairment(
@@ -143,9 +138,9 @@ class TrialRNG:
             idx = self._get_counter(key)
 
         # 使用类型哈希 + 索引作为偏移
-        type_hash = hash(impairment_type) % 10000
+        type_hash = int.from_bytes(sha256(impairment_type.encode("utf-8")).digest()[:4], "little")
         offset = 10000 + type_hash + idx
-        seq = self._seq.spawn(offset + 1)[offset]
+        seq = np.random.SeedSequence(self._seq.entropy, spawn_key=(*self._seq.spawn_key, 2, offset))
         return np.random.Generator(np.random.PCG64(seq))
 
     def _get_counter(self, key: str) -> int:

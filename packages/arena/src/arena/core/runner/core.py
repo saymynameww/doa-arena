@@ -65,6 +65,7 @@ def run_trial(
         estimates=estimates,
         errors=errors,
         times_ms=times_ms,
+        truth_angles=scenario_gen.config.angles.copy(),
     )
 
 
@@ -89,80 +90,11 @@ def run_experiment(
     # 创建随机数树
     rng_tree = RNGTree(config.scenario.seed)
 
-    # 构建场景配置（简化版）
-    from arena_api import ArrayDescriptor
-
-    # 阵列
-    array = ArrayDescriptor(
-        type=config.scenario.array.type,
-        params=config.scenario.array.params,
-        positions=_create_ula_positions(
-            config.scenario.array.params["M"],
-            config.scenario.array.params["d"],
-        ),
-    )
-
-    # 信源角度（简化：固定角度）
-    if config.scenario.sources.angles.mode == "fixed":
-        angles = np.array(config.scenario.sources.angles.values or [-10.0, 10.0])
-    else:
-        # 简化：随机角度
-        angles = np.array([-10.0, 10.0])
-
-    # 信源功率
-    K = config.scenario.sources.K
-    snr_db = config.scenario.sources.snr_db
-    noise_power = config.scenario.noise_power
-    signal_power = noise_power * (10 ** (snr_db / 10))
-    powers = np.full(K, signal_power)
-
-    # 相关性
-    corr_mode = config.scenario.sources.correlation.mode
-    if corr_mode == "none":
-        corr = CorrelationMatrix.independent(powers)
-    elif corr_mode == "coherent":
-        alpha = np.ones(K, dtype=complex)
-        corr = CorrelationMatrix.coherent(powers, alpha)
-    else:
-        corr = CorrelationMatrix.independent(powers)
-
-    # 场景配置
-    scenario_config = ScenarioConfig(
-        array=array,
-        K=K,
-        angles=angles,
-        snr_db=snr_db,
-        N=config.scenario.snapshots,
-        correlation=corr,
-        noise_power=noise_power,
-    )
-
-    # 误差实例（简化：暂不支持）
-    impairments: list[ImpairmentInstance] = []
-
-    # 创建场景生成器
-    scenario_gen = ScenarioGenerator(scenario_config, impairments)
-
-    # 加载算法
-    algorithms = _load_algorithms(config, array)
-
-    # 预热
-    if config.options.warmup:
-        logger.info("预热算法...")
-        _warmup_algorithms(scenario_gen, algorithms, rng_tree)
-
-    # 运行上下文
-    ctx = RunContext(
-        device="cpu",
-        log=logger,
-        want_spectrum=False,
-        workspace=None,
-        rng=np.random.Generator(np.random.PCG64(42)),
-    )
-
+    # 每个扫描点重新构建场景，避免只改坐标而未改变观测数据。
     # 确定扫描点
+    sweep_values: list[float | None]
     if config.type == "sweep" and config.sweep:
-        sweep_values = config.sweep.values
+        sweep_values = list(config.sweep.values)
     else:
         sweep_values = [None]  # 单点
 
@@ -175,12 +107,31 @@ def run_experiment(
     for point_idx, sweep_val in enumerate(sweep_values):
         logger.info(f"运行扫描点 {point_idx + 1}/{len(sweep_values)}")
 
+        point_config = expand_point(config, sweep_val)
+        scene, array = build_scene(point_config)
+        algorithms = _load_algorithms(point_config, array)
+        if config.options.warmup:
+            _warmup_algorithms(scene, algorithms, RNGTree(config.scenario.seed))
+        ctx = RunContext(
+            device="cpu",
+            log=logger,
+            want_spectrum=config.type == "single",
+            workspace=None,
+            rng=RNGTree(config.scenario.seed).for_scenario(),
+        )
+        scenario_gen = scene
         # 运行所有试验
         trials = []
 
         for trial_idx in range(config.trials):
             # 获取试验随机数管理器
-            trial_rng = rng_tree.for_trial(trial_idx)
+            trial_rng = rng_tree.for_trial(
+                trial_idx
+                if config.options.common_random_numbers
+                else point_idx * config.trials + trial_idx
+            )
+            if point_config.scenario.sources.angles.mode == "random":
+                scenario_gen, _ = build_scene(point_config, trial_idx)
 
             # 运行试验
             result = run_trial(
@@ -212,6 +163,7 @@ def run_experiment(
         "start_time": start_time,
         "elapsed_seconds": time.time() - start_time,
         "num_points": len(sweep_values),
+        "generator_version": GENERATOR_VERSION,
         "num_trials": config.trials,
     }
 
@@ -220,6 +172,123 @@ def run_experiment(
         points=points,
         metadata=metadata,
     )
+
+
+GENERATOR_VERSION = 2
+
+
+def expand_point(config: ExperimentConfig, value: float | None) -> ExperimentConfig:
+    """按数据格式 3.8 节展开数值扫描路径，并重新校验配置。"""
+    import re
+
+    data = config.model_dump(mode="json")
+    if value is not None and config.sweep:
+        tokens = re.findall(r"[^.\[\]]+", config.sweep.path)
+        node = data
+        for token in tokens[:-1]:
+            if isinstance(node, list):
+                node = (
+                    node[int(token)]
+                    if token.isdigit()
+                    else next(x for x in node if x.get("label", x.get("type")) == token)
+                )
+            else:
+                node = node[token]
+        key = int(tokens[-1]) if isinstance(node, list) else tokens[-1]
+        if isinstance(node[key], bool) or (
+            node[key] is not None and not isinstance(node[key], int | float)
+        ):
+            raise ValueError("扫描路径必须指向数值字段，请选择数值字段旁的扫描按钮")
+        node[key] = (
+            int(value) if isinstance(node[key], int) and float(value).is_integer() else value
+        )
+    result = ExperimentConfig.model_validate(data)
+    return result
+
+
+def build_scene(
+    config: ExperimentConfig, trial_idx: int = 0
+) -> tuple[ScenarioGenerator, ArrayDescriptor]:
+    """使用配置中的真实参数创建场景和误差实例。"""
+    from ..arrays import ULA
+    from ..impairments import ElementFailure, GainPhase, MutualCoupling, PositionError
+
+    sc = config.scenario
+    if sc.array.type != ULA.id:
+        raise ValueError("未知阵列类型，请从 Schema 中选择可用阵列")
+    params = ULA.Params(**sc.array.params)
+    array = ArrayDescriptor(
+        type=sc.array.type, params=params.model_dump(), positions=ULA().positions(params)
+    )
+    if isinstance(sc.sources.K, int):
+        k = sc.sources.K
+    else:
+        if sc.sources.angles.mode != "random":
+            raise ValueError("随机信源数要求随机角度模式")
+        rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(8, trial_idx)))
+        if any(not 1 <= n < array.M for n in sc.sources.K.values):
+            raise ValueError("所有随机信源数取值都必须大于零且小于阵元数")
+        k = int(rng.choice(sc.sources.K.values))
+    if not 1 <= k < array.M:
+        raise ValueError("信源数必须小于阵元数")
+    angle_config = sc.sources.angles
+    if angle_config.mode == "fixed":
+        angles = np.asarray(
+            angle_config.values if angle_config.values is not None else np.linspace(-10, 10, k),
+            dtype=float,
+        )
+    elif angle_config.mode == "separation":
+        if k != 2 or angle_config.delta is None or angle_config.delta <= 0:
+            raise ValueError("角度间隔模式要求两个信源且间隔大于零")
+        angles = angle_config.center + np.asarray([-angle_config.delta / 2, angle_config.delta / 2])
+    else:
+        bounds = angle_config.range_deg
+        if not bounds or bounds[0] >= bounds[1]:
+            raise ValueError("随机角度要求有效的起止范围")
+        rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(9, trial_idx)))
+        gap = angle_config.min_separation
+        width = bounds[1] - bounds[0] - gap * (k - 1)
+        if width <= 0:
+            raise ValueError("随机角度范围无法容纳所需信源数和最小间隔")
+        angles = np.sort(rng.uniform(bounds[0], bounds[0] + width, size=k)) + np.arange(k) * gap
+    if len(angles) != k or np.any(np.abs(angles) >= 90):
+        raise ValueError("角度数量必须等于信源数且位于 (-90, 90) 度")
+    snr = np.asarray(sc.sources.snr_db)
+    if snr.ndim > 0 and len(snr) != k:
+        raise ValueError("逐信源 SNR 数量必须等于信源数")
+    powers = np.broadcast_to(sc.noise_power * 10 ** (snr / 10), (k,)).copy()
+    corr_config = sc.sources.correlation
+    if corr_config.mode == "partial":
+        corr = CorrelationMatrix.partial_correlated(powers, corr_config.rho_mag or 0)
+    elif corr_config.mode == "coherent":
+        phases = corr_config.phases_deg
+        if phases == "random":
+            rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(10, trial_idx)))
+            phases = rng.uniform(-180, 180, k - 1).tolist()
+        if len(phases) != k - 1:
+            raise ValueError("相干相位列表长度必须为 K−1")
+        corr = CorrelationMatrix.coherent(powers, np.exp(1j * np.deg2rad([0, *phases])))
+    else:
+        corr = CorrelationMatrix.independent(powers)
+    registry = {cls.id: cls for cls in (GainPhase, PositionError, MutualCoupling, ElementFailure)}
+    impairments = []
+    for index, imp in enumerate(sc.impairments):
+        if not imp.enabled:
+            continue
+        if imp.type not in registry:
+            raise ValueError("未知误差插件，请刷新配置 Schema")
+        plugin = registry[imp.type]()
+        rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(11, index)))
+        impairments.append(
+            ImpairmentInstance(
+                plugin,
+                plugin.Params(**imp.params),
+                imp.realization,
+                dict(plugin.sample(rng, array.M)) if imp.realization == "fixed" else None,
+            )
+        )
+    scene = ScenarioConfig(array, k, angles, sc.sources.snr_db, sc.snapshots, corr, sc.noise_power)
+    return ScenarioGenerator(scene, impairments), array
 
 
 def _create_ula_positions(M: int, d: float) -> np.ndarray:
@@ -263,7 +332,7 @@ def _load_algorithms(
         log=logger,
         want_spectrum=False,
         workspace=None,
-        rng=np.random.Generator(np.random.PCG64(42)),
+        rng=RNGTree(config.scenario.seed).for_scenario(),
     )
 
     for algo_config in config.algorithms:
@@ -274,8 +343,7 @@ def _load_algorithms(
         algo_id = algo_config.id
 
         if algo_id not in builtin_algorithms:
-            logger.warning(f"未知算法: {algo_id}，跳过")
-            continue
+            raise ValueError(f"未知算法: {algo_id}，请选择已注册算法")
 
         # 创建算法实例
         AlgoClass = builtin_algorithms[algo_id]
@@ -305,7 +373,7 @@ def _warmup_algorithms(
         log=logger,
         want_spectrum=False,
         workspace=None,
-        rng=np.random.Generator(np.random.PCG64(42)),
+        rng=rng_tree.for_scenario(),
     )
 
     # 生成预热数据

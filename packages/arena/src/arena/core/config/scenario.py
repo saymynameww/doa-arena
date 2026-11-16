@@ -14,6 +14,7 @@ class ArrayConfig(BaseModel):
     """阵列配置（简化版）。"""
 
     type: str = Field("ula", description="阵列类型")
+    carrier_hz: float = Field(3e9, gt=0, description="载频（Hz，仅用于物理间距显示，不影响仿真）")
     params: dict[str, Any] = Field(
         default_factory=lambda: {"M": 16, "d": 0.5},
         description="阵列参数",
@@ -28,13 +29,15 @@ class AnglesConfig(BaseModel):
         description="角度生成模式",
     )
     values: list[float] | None = Field(
-        None,
+        [-10.0, 10.0],
         description="固定角度（mode=fixed）",
     )
     range_deg: tuple[float, float] | None = Field(
         None,
         description="随机范围（mode=random）",
     )
+    center: float = Field(0, gt=-90, lt=90, description="角度中心（度）")
+    min_separation: float = Field(0, ge=0, description="最小角度间隔（度）")
     delta: float | None = Field(
         None,
         description="角度间隔（mode=separation）",
@@ -60,12 +63,20 @@ class CorrelationConfig(BaseModel):
     )
 
 
+class RandomSourceCount(BaseModel):
+    """随机信源数的离散取值。"""
+
+    values: list[int] = Field(
+        default_factory=lambda: [1, 2, 3], min_length=1, description="信源数取值集合"
+    )
+
+
 class SourcesConfig(BaseModel):
     """信源配置（简化版）。"""
 
-    K: int = Field(2, ge=1, le=20, description="信源数")
+    K: int | RandomSourceCount = Field(2, description="信源数")
     angles: AnglesConfig = Field(default_factory=AnglesConfig)
-    snr_db: float = Field(10.0, description="信噪比（dB）")
+    snr_db: float | list[float] = Field(10.0, description="信噪比（dB）")
     correlation: CorrelationConfig = Field(default_factory=CorrelationConfig)
 
 

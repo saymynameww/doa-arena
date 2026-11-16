@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, TypedDict
+
 import numpy as np
 
 from arena_api import Estimate, kit
@@ -10,7 +12,7 @@ from arena_api import Estimate, kit
 def match_and_compute(
     estimate: Estimate,
     truth: np.ndarray,
-) -> dict[str, float | np.ndarray]:
+) -> dict[str, Any]:
     """匹配估计与真值，计算基础指标。
 
     Args:
@@ -58,15 +60,31 @@ def match_and_compute(
     }
 
 
+class MetricsResult(TypedDict):
+    """汇总指标，分辨概率仅对双信源定义。"""
+
+    rmse_mean: float
+    rmse_std: float
+    success_rate: float
+    resolution_probability: float | None
+    avg_K_hat: float
+    num_trials: int
+    num_valid: int
+
+
 def compute_metrics(
     estimates: list[Estimate],
     truth: np.ndarray,
-) -> dict[str, float]:
+    threshold_deg: float | None = None,
+    truths: list[np.ndarray] | None = None,
+) -> MetricsResult:
     """批量计算指标统计量。
 
     Args:
         estimates: 估计结果列表
         truth: 真实角度
+        threshold_deg: 成功门限，None 保留旧版检出数判定
+        truths: 每次试验的真实角度，用于随机角度或间隔扫描
 
     Returns:
         统计指标字典：
@@ -80,11 +98,23 @@ def compute_metrics(
     successes = []
     K_hats = []
 
-    for est in estimates:
-        result = match_and_compute(est, truth)
-        rmses.append(result["rmse"])
-        successes.append(result["success"])
-        K_hats.append(result["K_hat"])
+    resolutions = []
+    for idx, est in enumerate(estimates):
+        actual_truth = truths[idx] if truths is not None else truth
+        result = match_and_compute(est, actual_truth)
+        rmses.append(float(result["rmse"]))
+        successes.append(
+            bool(
+                result["success"]
+                and (threshold_deg is None or result["max_error"] <= threshold_deg)
+            )
+        )
+        if len(actual_truth) == 2:
+            resolutions.append(
+                result["success"]
+                and result["max_error"] < abs(actual_truth[1] - actual_truth[0]) / 2
+            )
+        K_hats.append(float(result["K_hat"]))
 
     # 过滤 NaN
     rmses_valid = [r for r in rmses if not np.isnan(r)]
@@ -103,6 +133,7 @@ def compute_metrics(
         "rmse_mean": rmse_mean,
         "rmse_std": rmse_std,
         "success_rate": success_rate,
+        "resolution_probability": float(np.mean(resolutions)) if resolutions else None,
         "avg_K_hat": avg_K_hat,
         "num_trials": num_trials,
         "num_valid": len(rmses_valid),

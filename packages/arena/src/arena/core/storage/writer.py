@@ -68,7 +68,14 @@ class ResultWriter:
         num_points = len(result.points)
         num_trials = len(result.points[0].trials) if result.points else 0
 
-        data = {}
+        data: dict[str, np.ndarray] = {}
+        truths = [trial.truth_angles for point in result.points for trial in point.trials]
+        max_truth = max((len(x) for x in truths if x is not None), default=0)
+        truth_data = np.full((num_points, num_trials, max_truth), np.nan)
+        for i, truth in enumerate(truths):
+            if truth is not None:
+                truth_data[i // num_trials, i % num_trials, : len(truth)] = truth
+        data["truth_angles"] = truth_data
 
         for label in algo_labels:
             # 收集该算法的所有估计
@@ -93,11 +100,11 @@ class ResultWriter:
 
             # 填充到统一长度
             estimates_padded = np.full((num_points, num_trials, max_K), np.nan)
-            for i, est in enumerate(estimates_list):
+            for i, angles in enumerate(estimates_list):
                 point_idx = i // num_trials
                 trial_idx = i % num_trials
-                if len(est) > 0:
-                    estimates_padded[point_idx, trial_idx, : len(est)] = est
+                if len(angles) > 0:
+                    estimates_padded[point_idx, trial_idx, : len(angles)] = angles
 
             # 存储
             data[f"{label}__estimates"] = estimates_padded
@@ -114,8 +121,13 @@ class ResultWriter:
             result: 实验结果
         """
         truth_angles = _truth_angles_from_config(result.config)
+        from ..config import ExperimentConfig
+        from ..crb import compute_stochastic_crb
+        from ..runner.core import build_scene, expand_point
 
-        summary = {
+        config = ExperimentConfig.model_validate(result.config)
+
+        summary: dict[str, Any] = {
             "algorithms": [],
             "points": [],
         }
@@ -131,12 +143,36 @@ class ResultWriter:
 
         # 每个扫描点
         for point in result.points:
-            point_summary = {
+            point_summary: dict[str, Any] = {
                 "point_idx": point.point_idx,
                 "sweep_value": point.sweep_value,
                 "algorithms": {},
             }
 
+            if "crb" in config.metrics.include:
+                point_config = expand_point(config, point.sweep_value)
+                scene, array = build_scene(point_config)
+                # 当前 CRB 实现限于不相干理想阵列，不伪造其他条件下的参考线。
+                if (
+                    point_config.scenario.sources.angles.mode != "random"
+                    and point_config.scenario.sources.correlation.mode == "none"
+                    and not any(x.enabled for x in point_config.scenario.impairments)
+                ):
+                    crb = compute_stochastic_crb(
+                        array,
+                        scene.config.angles,
+                        np.asarray(point_config.scenario.sources.snr_db)
+                        if isinstance(point_config.scenario.sources.snr_db, list)
+                        else point_config.scenario.sources.snr_db,
+                        scene.config.N,
+                        noise_power=scene.config.noise_power,
+                    )
+                    point_summary["crb_deg"] = (
+                        float(np.sqrt(np.mean(crb))) if np.all(np.isfinite(crb)) else None
+                    )
+                else:
+                    point_summary["crb_deg"] = None
+                    point_summary["crb_reason"] = "当前 CRB 仅适用于固定角度的不相干理想阵列"
             # 每个算法
             for label in algo_labels:
                 # 收集该算法该点的所有估计
@@ -149,7 +185,20 @@ class ResultWriter:
                     continue
 
                 # 计算指标
-                metrics = compute_metrics(estimates, truth_angles)
+                threshold = (
+                    result.config.get("metrics", {})
+                    .get("params", {})
+                    .get("success_rate", {})
+                    .get("threshold_deg", 1.0)
+                )
+                truths = [
+                    trial.truth_angles if trial.truth_angles is not None else truth_angles
+                    for trial in point.trials
+                    if label in trial.estimates
+                ]
+                metrics = compute_metrics(
+                    estimates, truth_angles, threshold_deg=threshold, truths=truths
+                )
                 times = [
                     trial.times_ms.get(label, np.nan)
                     for trial in point.trials
@@ -196,5 +245,6 @@ def _truth_angles_from_config(config: dict[str, Any]) -> np.ndarray:
     values = angles.get("values") if isinstance(angles, dict) else None
     if values:
         return np.asarray(values, dtype=float)
-    count = int(sources.get("K", 2))
+    count = sources.get("K", 2)
+    count = int(count) if isinstance(count, int | float) else int(count["values"][0])
     return np.linspace(-10.0, 10.0, count, dtype=float)

@@ -43,3 +43,16 @@
 2. 新建实验页：原型规定的顶部操作、实验方式卡片、三栏结构、Schema 配置入口、右侧预览摘要和底部运行操作栏。
 
 每完成一项，必须同时更新本表的状态，并补充至少一个 API、组件或浏览器验收证据。
+
+
+## 2026-11-16 配置专项状态（覆盖上表对应项）
+
+| 需求 | 组件 | API / 核心 | 验收证据 | 状态 |
+|---|---|---|---|---|
+| 完整插件 Schema 字段 | ConfigFields、ExperimentConfig | schema/experiment、真实 Params | test_schema_contains_all_plugin_fields；浏览器误差字段 | 已实现 |
+| 数值字段旁扫描与范围输入 | ConfigFields | expand_point、build_scene | 快拍/算法参数扫描测试；浏览器 SNR 和误差扫描 | 已实现 |
+| 指标选择与成功门限 | ExperimentConfig | MetricsConfig、compute_metrics、charts | 门限统计测试；浏览器指标切换 | 已实现 |
+| 同一配置运行/保存/导出 | ExperimentConfig.build | 模板 API、run API | 单一配置构建路径；运行任务 21aac325 | 已实现 |
+| 中文摘要及紧凑布局 | ExperimentConfig、index.css | Schema 标签 | HTTP 原型与实际截图对照 | 已复验 |
+
+此前表中的“已完成”不应解释为全产品逐像素验收通过。真实空间谱、外部模型包、场景集评测等仍须按独立范围验收；详见本轮测试报告。

@@ -49,6 +49,29 @@ class ExperimentOptions(BaseModel):
     save_estimates: bool = Field(True, description="保存估计值")
 
 
+class SuccessParameters(BaseModel):
+    """成功判定参数，角度单位为度。"""
+
+    threshold_deg: float = Field(1.0, gt=0, description="成功门限（度）")
+
+
+class MetricParameters(BaseModel):
+    """指标参数。"""
+
+    success_rate: SuccessParameters = Field(
+        default_factory=lambda: SuccessParameters(threshold_deg=1.0)
+    )
+
+
+class MetricsConfig(BaseModel):
+    """数据格式 3.7 节的指标选择。"""
+
+    include: list[str] = Field(
+        default_factory=lambda: ["rmse", "success_rate", "resolution", "time", "crb"]
+    )
+    params: MetricParameters = Field(default_factory=MetricParameters)
+
+
 class ExperimentConfig(BaseModel):
     """实验配置（简化版）。
 
@@ -68,6 +91,8 @@ class ExperimentConfig(BaseModel):
     type: ExperimentType = Field(ExperimentType.MONTE_CARLO)
     trials: int = Field(100, ge=1, le=1000000, description="试验次数")
     sweep: SweepConfig | None = Field(None, description="扫描配置")
+
+    metrics: MetricsConfig = Field(default_factory=MetricsConfig)
 
     # 选项
     options: ExperimentOptions = Field(default_factory=ExperimentOptions)
@@ -92,7 +117,7 @@ class ExperimentConfig(BaseModel):
             raise ValueError("sweep 实验必须提供 sweep 配置")
 
         # 至少一个算法
-        if not self.algorithms:
+        if not any(algo.enabled for algo in self.algorithms):
             raise ValueError("至少需要一个算法")
 
         # 算法 label 唯一
