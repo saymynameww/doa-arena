@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps -- callbacks are local UI actions and dependencies are keyed by task id. */
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Spin, Empty, Button, Space } from 'antd';
+import { Card, Tabs, Spin, Empty, Button, Space, Dropdown, message } from 'antd';
 import { DownloadOutlined, FullscreenOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
 import { downloadTaskExport, getTaskCharts } from '@/services/api';
@@ -37,12 +37,12 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
     }
   };
 
-  const handleDownload = async () => {
-    const blob = await downloadTaskExport(taskId, 'html');
+  const handleDownload = async (format: string) => {
+    const blob = await downloadTaskExport(taskId, format);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `experiment_${taskId}.html`;
+    link.download = `experiment_${taskId}.${format}`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -72,13 +72,24 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
       <div>
         <div style={{ marginBottom: 16, textAlign: 'right' }}>
           <Space>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={() => void handleDownload()}
+            <Dropdown
+              menu={{
+                items: ['html', 'png', 'svg', 'pdf'].map((format) => ({
+                  key: format,
+                  label: format.toUpperCase(),
+                  onClick: () =>
+                    void handleDownload(format).catch(() => message.error('图表导出失败')),
+                })),
+              }}
             >
-              下载
+              <Button icon={<DownloadOutlined />}>导出图表</Button>
+            </Dropdown>
+            <Button
+              icon={<FullscreenOutlined />}
+              onClick={() => void document.documentElement.requestFullscreen?.()}
+            >
+              全屏
             </Button>
-            <Button icon={<FullscreenOutlined />}>全屏</Button>
           </Space>
         </div>
         <Plot
