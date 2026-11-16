@@ -51,6 +51,7 @@ Thumbs.db
 runs/
 arena_ws/
 experiments/
+templates/
 .arena_index.sqlite
 arena_settings.json
 workspaces.json
