@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Card, Form, Input, InputNumber, Select, Switch, Button, message, Divider } from 'antd';
+import { Card, Form, Input, InputNumber, Select, Switch, Button, message, Divider, Table, Tag, Descriptions } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { getSettings, getWorkspaces, rebuildWorkspaceIndex, updateSettings } from '@/services/api';
 
@@ -58,6 +58,22 @@ const SettingsPage: React.FC = () => {
             已配置工作目录：{workspaces.length} 个
           </span>
         </div>
+        <Table
+          size="small"
+          pagination={false}
+          rowKey={(row) => row.path || row.name}
+          dataSource={workspaces}
+          columns={[{ title: '名称', dataIndex: 'name' }, { title: '路径', dataIndex: 'path' }, { title: '状态', render: () => <Tag color="green">可用</Tag> }]}
+          locale={{ emptyText: '尚未配置工作目录' }}
+        />
+
+        <Divider orientation="left">运行环境</Divider>
+        <Descriptions column={2} size="small">
+          <Descriptions.Item label="服务地址">127.0.0.1:8765</Descriptions.Item>
+          <Descriptions.Item label="结果格式">JSON / NPZ</Descriptions.Item>
+          <Descriptions.Item label="算法来源">内置算法库</Descriptions.Item>
+          <Descriptions.Item label="前端模式">本地开发</Descriptions.Item>
+        </Descriptions>
 
         {/* 默认参数 */}
         <Divider orientation="left">默认参数</Divider>

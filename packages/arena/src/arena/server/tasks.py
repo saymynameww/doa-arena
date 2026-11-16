@@ -99,6 +99,14 @@ class TaskManager:
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("跳过损坏的任务索引记录: %s", exc)
 
+    def switch_output_dir(self, output_dir: Path) -> None:
+        """切换后续任务的结果目录并加载该目录的历史索引。"""
+        self.output_dir = output_dir.expanduser()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._index_path = self.output_dir / "tasks.json"
+        self.tasks.clear()
+        self._load_index()
+
     def _save_index(self) -> None:
         """原子写入任务索引。"""
         records = []

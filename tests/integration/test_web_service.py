@@ -187,6 +187,30 @@ def test_settings_and_templates(client):
     assert response.status_code == 200
 
 
+def test_workspace_selection_and_algorithm_refresh(client, tmp_path):
+    """工作目录切换和算法刷新接口应返回可消费的状态。"""
+    response = client.post("/api/workspaces", json={"name": "测试目录", "path": str(tmp_path)})
+    assert response.status_code == 200
+    response = client.put("/api/workspaces/current", json=response.json())
+    assert response.status_code == 200
+    assert client.get("/api/workspaces/current").json()["path"] == str(tmp_path)
+
+    response = client.post("/api/algorithms/refresh")
+    assert response.status_code == 200
+    assert response.json()["failures"] == []
+    assert len(response.json()["algorithms"]) >= 1
+
+
+def test_leaderboard_endpoint(client):
+    """排行榜接口在没有完成实验时也应返回稳定结构。"""
+    response = client.get("/api/leaderboard")
+    assert response.status_code == 200
+    assert "rows" in response.json()
+    response = client.get("/api/leaderboard/scenarios")
+    assert response.status_code == 200
+    assert "scenarios" in response.json()
+
+
 def test_get_algorithm(client):
     """测试获取算法详情。"""
     response = client.get("/api/algorithms/music")

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, Select, Button, Space, Row, Col, Empty, Tabs } from 'antd';
+import { Card, Select, Button, Space, Row, Col, Empty, Tabs, Table } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
 import { getTaskCharts, getTasks } from '@/services/api';
@@ -12,6 +12,7 @@ interface CompareExperiment {
   id: string;
   name: string;
   date: string;
+  config?: Record<string, any>;
 }
 
 /**
@@ -33,8 +34,9 @@ const ComparePage: React.FC = () => {
             .filter((task) => task.status === 'completed')
             .map((task) => ({
               id: task.task_id,
-              name: `实验 ${task.task_id}`,
+              name: task.name || `实验 ${task.task_id}`,
               date: new Date(task.created_at * 1000).toLocaleString('zh-CN'),
+              config: task.config,
             }))
         );
       })
@@ -122,7 +124,10 @@ const ComparePage: React.FC = () => {
       },
     ];
 
-    return <Tabs items={tabs} />;
+    const selected = selectedExperiments.map((id) => availableExperiments.find((item) => item.id === id)).filter(Boolean) as CompareExperiment[];
+    const keys = Array.from(new Set(selected.flatMap((item) => Object.keys(item.config || {}))));
+    const settings = keys.map((key) => ({ key, field: key, ...Object.fromEntries(selected.map((item, index) => [`exp${index}`, JSON.stringify(item.config?.[key] ?? '')])) }));
+    return <Tabs items={[...tabs, { key: 'settings', label: '设置差异', children: <Table size="small" pagination={false} dataSource={settings} columns={[{ title: '字段', dataIndex: 'field' }, ...selected.map((item, index) => ({ title: item.name, dataIndex: `exp${index}` }))]} /> }]} />;
   };
 
   return (

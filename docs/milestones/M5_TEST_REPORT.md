@@ -10,7 +10,9 @@
 - 保留 `arena_api`、`arena.core`、算法实现、Runner 和现有测试体系。
 - 新增 `/api/schema/experiment`，前端配置页改为读取 Schema，并完整提交阵列、信源、角度、SNR、误差和算法参数。
 - 任务索引落盘，后端重启后可以恢复历史任务。
-- 新增设置、工作目录和索引重建接口。
+- 新增设置、工作目录、当前目录切换和索引重建接口。
+- 新增算法库刷新/来源状态、排行榜场景集与 RMSE 排名接口。
+- 结果页补充单次估计散点和蒙特卡罗估计分布视图；对比页补充实验设置差异表。
 - 完善模板创建、读取、编辑、删除和回收站流程。
 - 完善历史实验复制、重跑、删除和批量对比约束。
 - 完善 JSON、NPZ、CSV、MAT、LaTeX、HTML、PNG、SVG、PDF 和 Python 脚本导出。
@@ -30,12 +32,12 @@ npm run build
 
 结果：
 
-- pytest：**56 passed，1 skipped**；跳过项为未安装 Kaleido 的静态图导出测试。
+- pytest：**58 passed，1 skipped**；跳过项为未安装 Kaleido 的静态图导出测试。
 - Ruff lint：**通过**。
 - Ruff format：**通过**。
 - 前端 ESLint：**通过，0 errors / 0 warnings**。
 - 前端 TypeScript/Vite build：**通过**。
-- Web Service/Runner 集成测试：**20 passed**，包含 Schema、设置和模板接口。
+- Web Service/Runner 集成测试：包含 Schema、设置、模板、工作目录切换、算法刷新和排行榜接口。
 - 运行中的服务验证：后端 `/api/health` 返回 `ok`，Schema 返回 5 个算法，前端返回 HTTP 200。
 
 ## 3. 当前仍需安排的专项工作

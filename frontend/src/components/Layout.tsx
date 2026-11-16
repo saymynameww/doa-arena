@@ -9,7 +9,7 @@ import {
   SettingOutlined,
   TrophyOutlined,
 } from '@ant-design/icons';
-import { getTasks, getWorkspaces } from '@/services/api';
+import { getTasks, getWorkspaces, selectWorkspace } from '@/services/api';
 import type { Task } from '@/types';
 
 const { Sider, Content } = Layout;
@@ -65,6 +65,12 @@ const AppLayout: React.FC = () => {
     },
   ];
 
+  const handleWorkspaceChange = (value: string) => {
+    const workspace = workspaces.find((item) => (item.name || item.path) === value);
+    if (!workspace) return;
+    void selectWorkspace(workspace).then(() => window.location.reload());
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -90,6 +96,7 @@ const AppLayout: React.FC = () => {
               value: workspace.name || workspace.path,
             }))}
             placeholder="选择工作目录"
+            onChange={handleWorkspaceChange}
             style={{ width: '100%', marginTop: 6 }}
           />
         </div>

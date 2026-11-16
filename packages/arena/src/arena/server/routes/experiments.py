@@ -8,6 +8,7 @@ import logging
 import shutil
 from typing import Any
 
+import numpy as np
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
@@ -240,6 +241,51 @@ async def get_task_charts(task_id: str) -> dict[str, Any]:
         for point in points
     ]
     charts = []
+    experiment_type = getattr(task.config, "type", "sweep") if task.config else "sweep"
+    if experiment_type in {"single", "monte_carlo"}:
+        npz_path = task.result_path / "results.npz"
+        if npz_path.exists() and labels:
+            with np.load(npz_path, allow_pickle=False) as raw:
+                key = f"{labels[0]}__estimates"
+                if key in raw:
+                    values = raw[key].reshape(-1, raw[key].shape[-1])
+                    if experiment_type == "single":
+                        charts.append(
+                            {
+                                "title": "空间谱估计",
+                                "data": [
+                                    {
+                                        "x": list(range(len(row))),
+                                        "y": row.tolist(),
+                                        "type": "scatter",
+                                        "mode": "markers",
+                                        "name": f"{labels[0]} 第 {idx + 1} 次",
+                                    }
+                                    for idx, row in enumerate(values)
+                                    if np.isfinite(row).any()
+                                ],
+                                "layout": {
+                                    "title": {"text": "空间谱估计"},
+                                    "xaxis": {"title": "源序号"},
+                                    "yaxis": {"title": "估计角度 (°)"},
+                                },
+                            }
+                        )
+                    else:
+                        finite = values[np.isfinite(values)]
+                        charts.append(
+                            {
+                                "title": "蒙特卡罗估计分布",
+                                "data": [
+                                    {"x": finite.tolist(), "type": "histogram", "name": labels[0]}
+                                ],
+                                "layout": {
+                                    "title": {"text": "蒙特卡罗估计分布"},
+                                    "xaxis": {"title": "估计角度 (°)"},
+                                    "yaxis": {"title": "次数"},
+                                },
+                            }
+                        )
     for metric, title, y_title in (
         ("rmse_mean", "RMSE", "RMSE (°)"),
         ("success_rate", "成功率", "成功率"),

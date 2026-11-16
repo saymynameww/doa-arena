@@ -55,6 +55,7 @@ templates/
 .arena_index.sqlite
 arena_settings.json
 workspaces.json
+current_workspace.json
 
 # Claude
 .claude/

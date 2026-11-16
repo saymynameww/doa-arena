@@ -26,6 +26,11 @@ export const getAlgorithms = async (): Promise<Algorithm[]> => {
   return response.data.algorithms;
 };
 
+export const refreshAlgorithms = async (): Promise<{ algorithms: Algorithm[]; failures: any[]; sources: any[] }> => {
+  const response = await api.post('/algorithms/refresh');
+  return response.data;
+};
+
 export const getAlgorithm = async (id: string): Promise<Algorithm> => {
   const response = await api.get(`/algorithms/${id}`);
   return response.data;
@@ -104,6 +109,26 @@ export const updateSettings = async (settings: Record<string, any>) => {
 export const getWorkspaces = async (): Promise<Array<Record<string, any>>> => {
   const response = await api.get('/workspaces');
   return response.data.workspaces;
+};
+
+export const getCurrentWorkspace = async (): Promise<Record<string, any>> => {
+  const response = await api.get('/workspaces/current');
+  return response.data;
+};
+
+export const selectWorkspace = async (workspace: Record<string, any>) => {
+  const response = await api.put('/workspaces/current', workspace);
+  return response.data;
+};
+
+export const getLeaderboard = async (): Promise<{ rows: Array<Record<string, any>> }> => {
+  const response = await api.get('/leaderboard');
+  return response.data;
+};
+
+export const getLeaderboardScenarios = async (): Promise<{ scenarios: Array<Record<string, any>> }> => {
+  const response = await api.get('/leaderboard/scenarios');
+  return response.data;
 };
 
 export const rebuildWorkspaceIndex = async (): Promise<Record<string, any>> => {

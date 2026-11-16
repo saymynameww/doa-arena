@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, List, Tag, Space, Spin, message, Descriptions } from 'antd';
-import { getAlgorithms } from '@/services/api';
+import { Alert, Button, Card, List, Tag, Space, Spin, message, Descriptions } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { getAlgorithms, refreshAlgorithms } from '@/services/api';
 import type { Algorithm } from '@/types';
 
 const AlgorithmsPage: React.FC = () => {
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failures, setFailures] = useState<any[]>([]);
 
   useEffect(() => {
     loadAlgorithms();
@@ -20,6 +22,20 @@ const AlgorithmsPage: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to load algorithms:', error);
       message.error('加载算法列表失败: ' + (error.message || '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      const data = await refreshAlgorithms();
+      setAlgorithms(data.algorithms);
+      setFailures(data.failures || []);
+      message.success('算法库已刷新');
+    } catch {
+      message.error('刷新算法库失败');
     } finally {
       setLoading(false);
     }
@@ -53,7 +69,8 @@ const AlgorithmsPage: React.FC = () => {
   }
 
   return (
-    <Card title="算法库" extra={<Tag color="blue">{algorithms.length} 个算法</Tag>}>
+    <Card title="算法库" extra={<Space><Tag color="blue">{algorithms.length} 个算法</Tag><Button icon={<ReloadOutlined />} onClick={() => void handleRefresh()}>刷新</Button></Space>}>
+      {failures.length > 0 && <Alert type="warning" showIcon message="部分算法来源加载失败" description={failures.map((failure) => failure.message || String(failure)).join('；')} style={{ marginBottom: 16 }} />}
       {algorithms.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
           暂无算法数据
