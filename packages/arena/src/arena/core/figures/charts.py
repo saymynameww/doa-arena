@@ -197,7 +197,7 @@ class ChartGenerator:
         fig = go.Figure()
 
         # 真值
-        truth_angles = np.array([-10.0, 10.0])  # 简化：从配置读取
+        truth_angles = _truth_angles_from_config(self.result.config)
 
         # 算法估计
         trial = self.result.points[0].trials[0]
@@ -266,7 +266,7 @@ class ChartGenerator:
             return np.nan
 
         # 计算指标
-        truth_angles = np.array([-10.0, 10.0])  # 简化
+        truth_angles = _truth_angles_from_config(self.result.config)
         metrics = compute_metrics(estimates, truth_angles)
 
         return metrics.get("rmse_mean", np.nan)
@@ -285,7 +285,7 @@ class ChartGenerator:
             return np.nan
 
         # 计算指标
-        truth_angles = np.array([-10.0, 10.0])  # 简化
+        truth_angles = _truth_angles_from_config(self.result.config)
         metrics = compute_metrics(estimates, truth_angles)
 
         return metrics.get("success_rate", np.nan)
@@ -315,3 +315,14 @@ def create_success_rate_curve(result: ExperimentResult) -> go.Figure:
     """
     gen = ChartGenerator(result)
     return gen.create_success_rate_curve()
+
+
+def _truth_angles_from_config(config: dict) -> np.ndarray:
+    """从实验配置读取真实角度，保持图表与指标使用同一真值。"""
+    sources = config.get("scenario", {}).get("sources", {})
+    angles = sources.get("angles", {})
+    values = angles.get("values") if isinstance(angles, dict) else None
+    if values:
+        return np.asarray(values, dtype=float)
+    count = int(sources.get("K", 2))
+    return np.linspace(-10.0, 10.0, count, dtype=float)

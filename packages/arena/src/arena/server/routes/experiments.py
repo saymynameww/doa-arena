@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import html
 import json
 import logging
 import shutil
@@ -302,11 +301,26 @@ async def export_task(task_id: str, fmt: str) -> FileResponse:
         except ImportError as exc:
             raise HTTPException(status_code=501, detail=str(exc)) from exc
     elif fmt == "html":
-        summary = (task.result_path / "summary.json").read_text(encoding="utf-8")
+        from ...core.reports.html import generate_html_report
+
+        generate_html_report(task.result, output)
+    elif fmt in {"png", "svg", "pdf"}:
+        from ...core.figures import ChartGenerator
+        from ...core.figures.export import export_figure
+
+        charts = ChartGenerator(task.result).create_all_charts()
+        if not charts:
+            raise HTTPException(status_code=400, detail="当前实验没有可导出的图表")
+        first_chart = next(iter(charts.values()))
+        try:
+            export_figure(first_chart, output, format=fmt)
+        except ImportError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
+    elif fmt == "py":
         output.write_text(
-            "<html><meta charset='utf-8'><body><pre>"
-            + html.escape(summary)
-            + "</pre></body></html>",
+            "import arena\n"
+            f"config = {json.dumps(task.result.config, ensure_ascii=False, indent=2)}\n"
+            "result = arena.run(config)\n",
             encoding="utf-8",
         )
     else:
