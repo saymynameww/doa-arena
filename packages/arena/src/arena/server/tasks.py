@@ -124,7 +124,11 @@ class TaskManager:
 
     def rebuild_index(self, changed_only: bool = False) -> int:
         """从实验文件恢复历史，兼容旧目录和规范的 experiments 子目录。"""
-        roots = [self.output_dir, self.output_dir / "experiments"]
+        roots = [
+            self.output_dir,
+            self.output_dir / "experiments",
+            self.output_dir / "experiments" / "experiments",  # 兼容旧版重复嵌套目录。
+        ]
         count = 0
         for root in roots:
             if not root.is_dir():
@@ -233,16 +237,19 @@ class TaskManager:
                 [(record["task_id"], json.dumps(record, ensure_ascii=False)) for record in records],
             )
 
-    def create_task(self, config: ExperimentConfig) -> str:
+    def create_task(self, config: ExperimentConfig, task_id: str | None = None) -> str:
         """创建任务。
 
         Args:
             config: 实验配置
+            task_id: 场景集预创建的实验 ID；省略时自动生成
 
         Returns:
             任务 ID
         """
-        task_id = str(uuid.uuid4())[:8]  # 短 ID
+        task_id = task_id or str(uuid.uuid4())[:8]
+        if Path(task_id).name != task_id or task_id in {".", ".."} or task_id in self.tasks:
+            raise ValueError("任务 ID 无效或已经存在")
 
         # 结果路径
         result_path = self.output_dir / "experiments" / task_id
@@ -563,5 +570,9 @@ def get_task_manager() -> TaskManager:
     """
     global _task_manager
     if _task_manager is None:
-        _task_manager = TaskManager()
+        from .routes.settings import CURRENT_WORKSPACE_PATH, _read_json
+
+        current = _read_json(CURRENT_WORKSPACE_PATH, {})
+        path = Path(current["path"]) if current.get("path") else None
+        _task_manager = TaskManager(path if path is not None and path.is_dir() else None)
     return _task_manager

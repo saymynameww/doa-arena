@@ -29,12 +29,20 @@ def _discover() -> dict:
     from pathlib import Path
 
     from ...core.plugins import probe
-    from .settings import CURRENT_WORKSPACE_PATH, SETTINGS_PATH, _read_json
+    from ..tasks import get_task_manager
+    from .settings import SETTINGS_PATH, _read_json
 
     settings = _read_json(SETTINGS_PATH, {})
-    current = _read_json(CURRENT_WORKSPACE_PATH, {})
-    workspace = _read_json(Path(current.get("path", ".")) / "arena_workspace.json", {})
-    sources = settings.get("algorithm_sources", []) + workspace.get("algorithm_sources", [])
+    workspace_root = get_task_manager().output_dir.resolve()
+    workspace = _read_json(workspace_root / "arena_workspace.json", {})
+    sources = list(settings.get("algorithm_sources", []))
+    for item in workspace.get("algorithm_sources", []):
+        item = dict(item)
+        if item.get("type") == "path":
+            for key in ("value", "import_root"):
+                if item.get(key) and not Path(item[key]).is_absolute():
+                    item[key] = str((workspace_root / item[key]).resolve())
+        sources.append(item)
     if not sources:
         from ...core.plugins import discover
 

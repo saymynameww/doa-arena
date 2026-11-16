@@ -51,7 +51,7 @@ def test_external_training_workflow(tmp_path):
         {
             "schema_version": 1,
             "name": "训练测试",
-            "algorithm_sources": sources,
+            "algorithm_sources": [{"type": "path", "value": "../algorithms"}],
         },
     )
     result = arena.run(
@@ -61,7 +61,6 @@ def test_external_training_workflow(tmp_path):
             "algorithms": [
                 {
                     "id": plugin["id"],
-                    "origin": plugin["origin"],
                     "params": {"model": "models/cnn_demo", "device": "cpu", "batch_size": 2},
                 }
             ],

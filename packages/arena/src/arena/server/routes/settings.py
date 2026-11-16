@@ -78,14 +78,18 @@ async def select_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     selected = {**workspace, "path": str(initialized.path)}
     _write_json(CURRENT_WORKSPACE_PATH, selected)
     manager = get_task_manager()
-    manager.switch_output_dir(initialized.experiments)
+    manager.switch_output_dir(initialized.path)
     return selected
 
 
 @router.get("/workspaces/current")
 async def get_current_workspace() -> dict[str, Any]:
     """读取当前工作目录。"""
-    return _read_json(CURRENT_WORKSPACE_PATH, {})
+    selected = _read_json(CURRENT_WORKSPACE_PATH, {})
+    actual = get_task_manager().output_dir.resolve()
+    if selected.get("path") and Path(selected["path"]).resolve() == actual:
+        return selected
+    return {"path": str(actual), "name": actual.name}
 
 
 @router.post("/workspaces/rebuild-index")

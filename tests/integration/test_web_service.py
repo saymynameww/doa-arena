@@ -374,4 +374,4 @@ def test_web_workspace_uses_same_layout_as_script(client, tmp_path):
     response = client.put("/api/workspaces/current", json={"name": "课题", "path": str(root)})
     assert response.status_code == 200
     assert (root / "arena_workspace.json").exists()
-    assert get_task_manager().output_dir == root / "experiments"
+    assert get_task_manager().output_dir == root

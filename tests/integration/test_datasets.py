@@ -84,6 +84,24 @@ def test_shards_do_not_change_sample_values(tmp_path):
             np.testing.assert_array_equal(a[i][key], b[i][key])
 
 
+def test_training_branch_is_distinct_from_experiment():
+    from arena import Scenario
+
+    scenario = {"seed": 123, "array": {"params": {"M": 8, "d": 0.5}}, "snapshots": 20}
+    config = read_config(
+        {"num_samples": 2, "seed": 123, "scenario": scenario, "content": {"observation": "both"}}
+    )
+    trained = sample(config, 0)
+    experiment = Scenario(scenario).sample(0)
+    assert not np.allclose(trained["X"], experiment.observation.X, rtol=1e-5, atol=1e-6)
+    np.testing.assert_array_equal(trained["X"], sample(config, 0)["X"])
+    # 单精度存储的协方差与同次观测计算一致，容差覆盖 complex64 舍入。
+    expected = trained["X"].astype(np.complex128)
+    np.testing.assert_allclose(
+        trained["R"], expected @ expected.conj().T / 20, rtol=2e-6, atol=1e-6
+    )
+
+
 def test_dataset_validation_rejects_unusable_distribution():
     cfg = configuration()
     cfg["content"]["observation"] = "X"
@@ -123,3 +141,15 @@ def test_torch_online_offline(tmp_path):
             )
     batch = next(iter(torch.utils.data.DataLoader(online, batch_size=3)))
     assert batch["R"].shape == (3, 8, 8)
+
+
+@pytest.mark.slow
+def test_spawn_dataloader_reproduces_indices():
+    torch = pytest.importorskip("torch")
+    online = datasets.TorchDataset(configuration())
+    loader = torch.utils.data.DataLoader(
+        online, batch_size=3, num_workers=2, multiprocessing_context="spawn"
+    )
+    batches = list(loader)
+    assert torch.cat([batch["index"] for batch in batches]).tolist() == list(range(9))
+    torch.testing.assert_close(batches[1]["R"][1], online[4]["R"], rtol=0, atol=0)

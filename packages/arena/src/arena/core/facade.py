@@ -110,6 +110,11 @@ def run(
     parsed._workspace = ws.path
     manifest = json.loads((ws.path / "arena_workspace.json").read_text(encoding="utf-8"))
     sources = manifest.get("algorithm_sources", [])
+    for item in sources:
+        if item.get("type") == "path":
+            for key in ("value", "import_root"):
+                if item.get(key) and not Path(item[key]).is_absolute():
+                    item[key] = str((ws.path / item[key]).resolve())
     if sources:
         from .plugins import discover
 
