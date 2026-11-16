@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -42,3 +43,9 @@ class ExperimentResult:
     points: list[SweepPointResult]  # 扫描点结果
     metadata: dict[str, Any]  # 元信息（开始时间、耗时等）
     saved_summary: dict[str, Any] | None = None
+
+    def to_latex_table(self, metric: str, path: str | Path, *, bold_best: bool = False) -> None:
+        """将指定指标写成可直接插入论文的 booktabs 表格。"""
+        from ..export.latex import export_to_latex
+
+        export_to_latex(self, path, metric=metric, bold_best=bold_best)

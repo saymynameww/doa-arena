@@ -128,12 +128,9 @@ class ScenarioGenerator:
 
         # 用实际位置重新计算导向矢量
         if self.impairments_by_stage["positions"]:
-            # 简化：使用实际位置计算（完整版需要阵列插件）
-            # 这里假设 ULA
-            from ..arrays import ULA
+            from dataclasses import replace
 
-            ula = ULA()
-            A = ula.steering(self.config.angles, positions)
+            A = replace(self.config.array, positions=positions).steering(self.config.angles)
         else:
             A = self.A_nominal.copy()
 
@@ -173,6 +170,18 @@ class ScenarioGenerator:
             X = imp_inst.impairment.apply(X, draw, imp_inst.params)
 
         return Observation(X=X, K=K)
+
+    def algorithm_array(self, trial_rng: TrialRNG) -> ArrayDescriptor:
+        """只公开允许算法知道的故障掩码，不泄露实际阵列误差。"""
+        from dataclasses import replace
+
+        mask = self.config.array.element_mask.copy()
+        for item in self.impairments:
+            draw = self._get_draw(item, trial_rng, self.config.array.M)
+            known = item.impairment.known_mask(draw, item.params, self.config.array.M)
+            if known is not None:
+                mask &= known
+        return replace(self.config.array, element_mask=mask)
 
     def _get_draw(
         self,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
@@ -9,6 +10,7 @@ from typing import Any, ClassVar
 import numpy as np
 
 from .capabilities import Capabilities
+from .metrics import MatchedSet, MetricValue
 from .params import ParamsModel
 from .types import ArrayDescriptor, Estimate, Issue, Observation, RunContext
 
@@ -44,6 +46,26 @@ class Algorithm(ABC):
     category: ClassVar[str] = "general"
     description: ClassVar[str] = ""
     reference: ClassVar[str] = ""
+    _once_params: dict[str, Any]
+    _loaded_parameters: dict[str, Any]
+    _current_mask: np.ndarray
+
+    def estimate_once(self, trial: Any, **params: Any) -> Estimate:
+        """接口规范 6.6 节：单次 CPU 调试，始终释放资源且不写工作目录。"""
+        values = self.Params.model_validate({**getattr(self, "_once_params", {}), **params})
+        ctx = RunContext(
+            "cpu", logging.getLogger(self.id), True, None, trial.algorithm_rng(self.id)
+        )
+        try:
+            issues = self.check(values, trial.array, trial.observation.K) or []
+            errors = [issue.message for issue in issues if issue.level == "error"]
+            if errors:
+                raise ValueError("；".join(errors))
+            self.load(values, ctx)
+            self.configure(values, trial.array, ctx)
+            return self.estimate(trial.observation, ctx)
+        finally:
+            self.close()
 
     @classmethod
     def spec(cls, label: str | None = None, **params: Any) -> AlgorithmSpec:
@@ -99,6 +121,12 @@ class Algorithm(ABC):
         # 检查信源数
         if caps.needs_K and K is None:
             issues.append(Issue("error", f"{cls.name} 需要已知信源数"))
+        if not caps.supports_masked_elements and not np.all(array.element_mask):
+            issues.append(
+                Issue("error", f"{cls.name} 不支持已知故障阵元，请关闭此算法或关闭算法已知选项")
+            )
+        if array.dims not in caps.dims:
+            issues.append(Issue("error", f"{cls.name} 不支持当前角度维数"))
         return issues
 
     def load(self, params: ParamsModel, ctx: RunContext) -> None:
@@ -159,7 +187,11 @@ class Algorithm(ABC):
             估计结果列表
         """
         # 默认实现：逐个调用 estimate
-        return [self.estimate(obs, ctx) for obs in obs_list]
+        from dataclasses import replace
+
+        return [
+            self.estimate(obs, replace(ctx, rng=ctx.rng_for(i))) for i, obs in enumerate(obs_list)
+        ]
 
     def close(self) -> None:
         """释放资源（实验结束时调用）。"""
@@ -278,6 +310,18 @@ class ArrayModel(ABC):
     id: ClassVar[str]
     name: ClassVar[str]
     Params: ClassVar[type[ParamsModel]]
+    version: ClassVar[str] = "1.0.0"
+    api_version: ClassVar[int] = 1
+    dims: ClassVar[tuple[int, ...]] = (1,)
+
+    @classmethod
+    def check(cls, params: ParamsModel) -> list[Issue]:
+        """返回阵列参数兼容性问题。"""
+        return []
+
+    def steering_derivative(self, angles: np.ndarray, positions: np.ndarray) -> np.ndarray:
+        """默认平面波流形对弧度求导，使用传入的实际阵元位置。"""
+        return ArrayDescriptor(self.id, {}, positions).steering_derivative(angles)
 
     @abstractmethod
     def positions(self, params: ParamsModel) -> np.ndarray:
@@ -336,6 +380,13 @@ class Impairment(ABC):
     name: ClassVar[str]
     stage: ClassVar[str]  # "positions" | "manifold" | "signal" | "output"
     Params: ClassVar[type[ParamsModel]]
+    version: ClassVar[str] = "1.0.0"
+    api_version: ClassVar[int] = 1
+
+    @classmethod
+    def check(cls, params: ParamsModel, M: int) -> list[Issue]:
+        """返回与阵元数量有关的误差参数问题。"""
+        return []
 
     @abstractmethod
     def sample(self, rng: np.random.Generator, M: int) -> Mapping[str, np.ndarray]:
@@ -348,6 +399,12 @@ class Impairment(ABC):
     ) -> np.ndarray:
         """按误差参数将基础随机量施加到当前阶段数据。"""
         raise NotImplementedError
+
+    def known_mask(
+        self, draw: Mapping[str, np.ndarray], params: ParamsModel, M: int
+    ) -> np.ndarray | None:
+        """返回算法已知的有效阵元掩码；默认不公开误差位置。"""
+        return None
 
     def describe(
         self, draw: Mapping[str, np.ndarray], params: ParamsModel, M: int
@@ -368,29 +425,29 @@ class Metric(ABC):
     """
 
     id: ClassVar[str]
+    version: ClassVar[str] = "1.0.0"
+    api_version: ClassVar[int] = 1
     name: ClassVar[str]
     unit: ClassVar[str] = ""
     lower_is_better: ClassVar[bool] = True
-    Params: ClassVar[type[ParamsModel] | None] = None
+    Params: ClassVar[type[ParamsModel]] = ParamsModel
+    higher_is_better: ClassVar[bool] = False
+    log_axis: ClassVar[bool] = False
 
     @abstractmethod
     def compute(
         self,
-        estimates: np.ndarray,
-        truth: np.ndarray,
-        matched: np.ndarray,
-        **kwargs: Any,
-    ) -> float | np.ndarray:
+        ms: MatchedSet,
+        params: ParamsModel,
+    ) -> MetricValue:
         """计算指标。
 
         Args:
-            estimates: 估计角度，形状 (K̂,)
-            truth: 真实角度，形状 (K,)
-            matched: 匹配关系，形状 (K_matched,)，每行为 (est_idx, truth_idx)
-            **kwargs: 额外参数
+            ms: 一个扫描点一个算法的全部匹配结果
+            params: 指标参数
 
         Returns:
-            标量或按信源的数组
+            汇总值与可选的逐源统计
         """
         pass
 

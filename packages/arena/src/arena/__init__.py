@@ -6,6 +6,7 @@
 __version__ = "0.3.0"  # M3 版本
 
 # M2: 导出基础 API
+from .core import figures, metrics
 from .core.config import (
     AlgorithmConfig,
     ExperimentConfig,
@@ -13,15 +14,22 @@ from .core.config import (
     ScenarioConfig,
     SweepConfig,
 )
-from .core.facade import Workspace, algorithm_spec, load_result, recompute_metrics, run
+from .core.exploration import Scenario, algorithm, crb
+from .core.facade import Workspace, algorithm_spec, finalize, load_result, recompute_metrics, run
 from .core.runner import run_experiment
 
 __all__ = [
     "__version__",
+    "Scenario",
+    "algorithm",
+    "crb",
+    "metrics",
+    "figures",
     "Workspace",
     "algorithm_spec",
     "load_result",
     "run",
+    "finalize",
     "recompute_metrics",
     "ScenarioConfig",
     "ExperimentConfig",

@@ -32,6 +32,7 @@ class RootMUSIC(Algorithm):
 
     capabilities: ClassVar[Capabilities] = Capabilities(
         requires_ula=True,
+        supports_masked_elements=False,
         needs_K=True,
         coherent="with_smoothing",
         batch=False,

@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import shutil
 from collections.abc import AsyncIterator
-from typing import Any, Literal, cast
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
 from ...core.config import ExperimentConfig
-from ..contracts import ExperimentNotes
+from ...core.config.scenario import ArrayConfig, ImpairmentConfig
+from ..contracts import (
+    ChartList,
+    ExperimentNotes,
+    ResultFiles,
+    TaskList,
+    TaskResponse,
+    ValidationResult,
+)
 from ..tasks import Task, get_task_manager
 
 logger = logging.getLogger(__name__)
@@ -56,6 +62,58 @@ async def update_notes(task_id: str, notes: ExperimentNotes) -> ExperimentNotes:
     return notes
 
 
+async def _prepare_config(config: dict[str, Any]) -> tuple[ExperimentConfig, list[dict[str, Any]]]:
+    """绑定四类插件的真实来源，并在核心进程校验。"""
+    # 解析配置
+    exp_config = ExperimentConfig(**config)
+    exp_config.validate_experiment()
+    from .algorithms import list_algorithms
+
+    plugins = await list_algorithms()
+    discovered = {item["id"]: item for item in plugins["algorithms"]}
+    for algorithm in exp_config.algorithms:
+        if algorithm.id not in discovered:
+            raise ValueError(f"算法 {algorithm.id} 未注册，请刷新算法库")
+        if discovered[algorithm.id]["type"] == "external":
+            algorithm.origin = discovered[algorithm.id]["origin"]
+    targets: list[tuple[ArrayConfig | ImpairmentConfig, str]] = [
+        (exp_config.scenario.array, "arrays"),
+        *((item, "impairments") for item in exp_config.scenario.impairments),
+    ]
+    for item, kind in targets:
+        entries = {record["id"]: record for record in plugins[kind]}
+        if item.type not in entries:
+            raise ValueError(f"插件 {item.type} 未注册，请刷新插件来源")
+        item.origin = entries[item.type]["origin"]
+    metric_entries = {record["id"]: record for record in plugins["metrics"]}
+    for identifier in exp_config.metrics.include:
+        if identifier == "crb":
+            continue
+        name = "resolution_prob" if identifier == "resolution" else identifier
+        if name not in metric_entries:
+            raise ValueError(f"指标 {name} 未注册，请刷新插件来源")
+        if metric_entries[name]["origin"]:
+            exp_config.metrics.origins[name] = metric_entries[name]["origin"]
+    from ...core.operations import invoke
+
+    checked = await asyncio.to_thread(
+        invoke, "validate", {"config": exp_config.model_dump(mode="json")}
+    )
+    return exp_config, checked["issues"]
+
+
+@router.post(
+    "/experiments/validate", response_model=ValidationResult, response_model_exclude_none=True
+)
+async def validate_experiment(config: dict[str, Any]) -> dict[str, Any]:
+    """草稿静态检查，不创建任务或写入实验。"""
+    try:
+        _, issues = await _prepare_config(config)
+        return {"valid": True, "issues": issues}
+    except ValueError as exc:
+        return {"valid": False, "issues": [{"level": "error", "message": str(exc)}]}
+
+
 @router.post("/experiments/run")
 async def run_experiment(
     config: dict[str, Any],
@@ -71,24 +129,9 @@ async def run_experiment(
         任务信息
     """
     try:
-        # 解析配置
-        exp_config = ExperimentConfig(**config)
-        exp_config.validate_experiment()
-        from .algorithms import list_algorithms
-
-        discovered = {item["id"]: item for item in (await list_algorithms())["algorithms"]}
-        for algorithm in exp_config.algorithms:
-            if algorithm.id not in discovered:
-                raise ValueError(f"算法 {algorithm.id} 未注册，请刷新算法库")
-            if discovered[algorithm.id]["type"] == "external":
-                algorithm.origin = discovered[algorithm.id]["origin"]
-        from ...core.operations import invoke
-
-        await asyncio.to_thread(invoke, "validate", {"config": exp_config.model_dump(mode="json")})
-
-    except Exception as e:
-        logger.error(f"配置校验失败: {e}")
-        raise HTTPException(status_code=400, detail=f"配置错误: {e}")
+        exp_config, _ = await _prepare_config(config)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"配置错误: {exc}") from exc
 
     # 创建任务
     task_manager = get_task_manager()
@@ -104,7 +147,9 @@ async def run_experiment(
     }
 
 
-@router.get("/experiments/tasks/{task_id}")
+@router.get(
+    "/experiments/tasks/{task_id}", response_model=TaskResponse, response_model_exclude_none=True
+)
 async def get_task_status(task_id: str) -> dict[str, Any]:
     """查询任务状态。
 
@@ -174,7 +219,7 @@ async def stream_progress(task_id: str) -> StreamingResponse:
     )
 
 
-@router.get("/experiments/tasks")
+@router.get("/experiments/tasks", response_model=TaskList, response_model_exclude_none=True)
 async def list_tasks() -> dict[str, Any]:
     """列出所有任务。
 
@@ -238,7 +283,11 @@ async def rerun_task(task_id: str, background_tasks: BackgroundTasks) -> dict[st
     return {"task_id": new_id, "status": "created"}
 
 
-@router.get("/experiments/tasks/{task_id}/result")
+@router.get(
+    "/experiments/tasks/{task_id}/result",
+    response_model=ResultFiles,
+    response_model_exclude_none=True,
+)
 async def get_task_result(task_id: str) -> dict[str, Any]:
     """获取任务结果路径。
 
@@ -267,7 +316,11 @@ async def get_task_result(task_id: str) -> dict[str, Any]:
     }
 
 
-@router.get("/experiments/tasks/{task_id}/charts")
+@router.get(
+    "/experiments/tasks/{task_id}/charts",
+    response_model=ChartList,
+    response_model_exclude_none=True,
+)
 async def get_task_charts(task_id: str) -> dict[str, Any]:
     """读取实验汇总并转换为前端图表数据。"""
     task = _task_or_404(task_id)
@@ -282,19 +335,16 @@ async def get_task_charts(task_id: str) -> dict[str, Any]:
 @router.post("/experiments/tasks/{task_id}/finalize")
 async def finalize_partial(task_id: str) -> dict[str, str]:
     """将中断实验的最后完整检查点整理为取消结果。"""
-    from ...core.storage import ResultWriter
+    from ...core.operations import invoke
     from ..tasks import TaskStatus
 
     task = _task_or_404(task_id)
     if task.status != TaskStatus.INTERRUPTED or task.result_path is None:
         raise HTTPException(status_code=400, detail="只有已中断的实验需要整理部分结果")
-    if not (task.result_path / "results.npz").exists():
-        raise HTTPException(status_code=400, detail="中断前没有完整检查点，请重新运行")
-    writer = ResultWriter(task.result_path)
-    for filename in ("meta.json", "status.json"):
-        path = task.result_path / filename
-        data = json.loads(path.read_text(encoding="utf-8"))
-        writer._write_json(path, {**data, "status": "cancelled"})
+    try:
+        await asyncio.to_thread(invoke, "finalize", {"directory": str(task.result_path)})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     task.status = TaskStatus.CANCELLED
     task.error = None
     get_task_manager()._save_index()
@@ -323,78 +373,29 @@ async def recompute_task(task_id: str, metrics: dict[str, Any]) -> dict[str, Any
 
 
 @router.get("/experiments/tasks/{task_id}/export/{fmt}")
-async def export_task(task_id: str, fmt: str) -> FileResponse:
-    """导出真实实验结果文件。"""
+async def export_task(
+    task_id: str, fmt: str, metric: str = "rmse", chart: str | None = None
+) -> FileResponse:
+    """隔离执行导出，按指标和当前图表选择生成文件。"""
+    from pathlib import Path
+
+    from ...core.operations import invoke
+
     task = _task_or_404(task_id)
-    if task.status != "completed" or task.result_path is None:
-        raise HTTPException(status_code=400, detail="任务未完成或结果不可导出")
-
-    if task.result is None:
-        from ...core.storage.reader import read_result
-
-        task.result = read_result(task.result_path)
-    exports_dir = task.result_path / "exports"
-    exports_dir.mkdir(parents=True, exist_ok=True)
-    fmt = fmt.lower()
-    output = exports_dir / f"experiment_{task_id}.{fmt}"
-    if fmt == "json":
-        summary_path = task.result_path / "summary.json"
-        summary = (
-            json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+    if task.status not in {"completed", "cancelled"} or task.result_path is None:
+        raise HTTPException(status_code=400, detail="任务尚未形成可导出的结果")
+    try:
+        exported = await asyncio.to_thread(
+            invoke,
+            "export",
+            {
+                "directory": str(task.result_path),
+                "format": fmt.lower(),
+                "metric": metric,
+                "chart": chart,
+            },
         )
-        output.write_text(
-            json.dumps(
-                {
-                    "config": task.result.config,
-                    "metadata": task.result.metadata,
-                    "summary": summary,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-    elif fmt == "npz":
-        source = task.result_path / "results.npz"
-        if not source.exists():
-            raise HTTPException(status_code=404, detail="原始结果不存在")
-        shutil.copyfile(source, output)
-    elif fmt in {"csv", "mat", "tex"}:
-        from ...core.export import export_to_csv, export_to_latex, export_to_mat
-
-        exporters = {"csv": export_to_csv, "mat": export_to_mat, "tex": export_to_latex}
-        try:
-            exporters[fmt](task.result, output)
-        except ImportError as exc:
-            raise HTTPException(status_code=501, detail=str(exc)) from exc
-    elif fmt == "html":
-        from ...core.reports.html import generate_html_report
-
-        generate_html_report(task.result, output)
-    elif fmt in {"png", "svg", "pdf"}:
-        from ...core.figures import ChartGenerator
-        from ...core.figures.export import export_figure
-
-        charts = ChartGenerator(task.result).create_all_charts()
-        if not charts:
-            raise HTTPException(status_code=400, detail="当前实验没有可导出的图表")
-        first_chart = next(iter(charts.values()))
-        try:
-            export_figure(
-                first_chart, output, format=cast(Literal["png", "pdf", "svg", "html"], fmt)
-            )
-        except ImportError as exc:
-            raise HTTPException(status_code=501, detail=str(exc)) from exc
-    elif fmt == "py":
-        output.write_text(
-            "import arena\n"
-            "import json\n"
-            "config = json.loads("
-            + json.dumps(json.dumps(task.result.config, ensure_ascii=False))
-            + ")\n"
-            "result = arena.run(config)\n",
-            encoding="utf-8",
-        )
-    else:
-        raise HTTPException(status_code=400, detail=f"不支持导出格式：{fmt}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    output = Path(exported["path"])
     return FileResponse(output, filename=output.name)

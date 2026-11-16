@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from ..contracts import Template, TemplateList
+from .settings import _write_json
+
 router = APIRouter()
 TEMPLATES_DIR = Path("templates")
+
+
+def _template_path(identifier: str) -> Path:
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", identifier):
+        raise HTTPException(status_code=400, detail="模板 ID 只能包含字母、数字、下划线或短横线")
+    return TEMPLATES_DIR / f"{identifier}.json"
 
 
 def _ensure_templates() -> None:
@@ -45,19 +55,15 @@ def _ensure_templates() -> None:
     for template in defaults:
         path = TEMPLATES_DIR / f"{template['id']}.json"
         if not path.exists():
-            path.write_text(json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8")
+            _write_json(path, template)
         else:
             try:
                 existing = json.loads(path.read_text(encoding="utf-8"))
                 if existing.get("level") != "内置":
                     existing["level"] = "内置"
-                    path.write_text(
-                        json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
-                    )
+                    _write_json(path, existing)
             except (OSError, json.JSONDecodeError):
-                path.write_text(
-                    json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
+                _write_json(path, template)
 
 
 def _read_templates() -> list[dict[str, Any]]:
@@ -68,29 +74,33 @@ def _read_templates() -> list[dict[str, Any]]:
     return templates
 
 
-@router.get("/templates")
+@router.get("/templates", response_model=TemplateList)
 async def list_templates() -> dict[str, Any]:
     """列出持久化模板。"""
     return {"templates": _read_templates()}
 
 
-@router.post("/templates")
+@router.post("/templates", response_model=Template)
 async def create_template(template: dict[str, Any]) -> dict[str, Any]:
     """创建模板。"""
     _ensure_templates()
     template = dict(template)
     template.setdefault("id", uuid.uuid4().hex[:8])
     template.setdefault("level", "工作目录")
-    (TEMPLATES_DIR / f"{template['id']}.json").write_text(
-        json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    path = _template_path(template["id"])
+    if path.exists():
+        raise HTTPException(
+            status_code=409, detail="模板 ID 已存在，请使用新 ID 或编辑工作目录模板"
+        )
+    template["level"] = "工作目录"
+    _write_json(path, template)
     return template
 
 
 @router.delete("/templates/{template_id}")
 async def delete_template(template_id: str) -> dict[str, str]:
     """删除模板。"""
-    path = TEMPLATES_DIR / f"{template_id}.json"
+    path = _template_path(template_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="模板不存在")
     current = json.loads(path.read_text(encoding="utf-8"))
@@ -102,10 +112,10 @@ async def delete_template(template_id: str) -> dict[str, str]:
     return {"message": "模板已删除"}
 
 
-@router.put("/templates/{template_id}")
+@router.put("/templates/{template_id}", response_model=Template)
 async def update_template(template_id: str, template: dict[str, Any]) -> dict[str, Any]:
     """更新工作目录模板。"""
-    path = TEMPLATES_DIR / f"{template_id}.json"
+    path = _template_path(template_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="模板不存在")
     current = json.loads(path.read_text(encoding="utf-8"))
@@ -113,5 +123,5 @@ async def update_template(template_id: str, template: dict[str, Any]) -> dict[st
         raise HTTPException(status_code=403, detail="内置模板不能直接修改，请先复制到工作目录")
     updated = dict(template)
     updated["id"] = template_id
-    path.write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_json(path, updated)
     return updated

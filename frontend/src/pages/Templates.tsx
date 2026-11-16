@@ -70,7 +70,7 @@ const TemplatesPage: React.FC = () => {
               title={
                 <Space>
                   <span>{template.name}</span>
-                  {getTypeTag(template.type)}
+                  {getTypeTag(template.type || "single")}
                   <Tag color={template.level === '内置' ? 'default' : 'blue'}>
                     {template.level || '工作目录'}
                   </Tag>
@@ -112,7 +112,7 @@ const TemplatesPage: React.FC = () => {
                 <div>{template.description}</div>
                 <div>
                   <strong>算法：</strong>
-                  {template.algorithms.map((algo, index) => (
+                  {(template.algorithms || []).map((algo, index) => (
                     <Tag key={index}>{algo}</Tag>
                   ))}
                 </div>

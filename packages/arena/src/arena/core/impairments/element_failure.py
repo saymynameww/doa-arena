@@ -8,7 +8,7 @@ from typing import ClassVar, Literal
 
 import numpy as np
 
-from arena_api import Impairment, Param, ParamsModel
+from arena_api import Impairment, Issue, Param, ParamsModel
 
 
 class ElementFailure(Impairment):
@@ -47,6 +47,18 @@ class ElementFailure(Impairment):
             label="算法已知",
             description="算法是否知道故障位置",
         )
+
+    @classmethod
+    def check(cls, params: ParamsModel, M: int) -> list[Issue]:
+        """拒绝越界索引和超过可用阵元的随机故障数。"""
+        p = cls.Params.model_validate(params)
+        if p.indices is not None and (
+            any(i < 0 or i >= M for i in p.indices) or len(set(p.indices)) != len(p.indices)
+        ):
+            return [Issue("error", f"故障索引必须是 0 到 {M - 1} 的不重复整数", "indices")]
+        if p.indices is None and p.count >= M:
+            return [Issue("error", f"随机故障数量必须小于阵元数 {M}", "count")]
+        return []
 
     @classmethod
     def stage_for(cls, params: Params) -> Literal["signal", "output"]:

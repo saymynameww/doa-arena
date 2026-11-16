@@ -20,6 +20,7 @@ import {
   getExperimentSchema,
   getTemplates,
   runExperiment,
+  validateExperiment,
 } from "@/services/api";
 import ConfigFields, {
   schemaDefault,
@@ -90,6 +91,7 @@ export default function ExperimentConfigPage() {
   const [range, setRange] = useState("-10:5:20");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [issues, setIssues] = useState<Array<{ level: string; message: string; algorithm?: string | null }>>([]);
   const [params] = useSearchParams();
   const navigate = useNavigate();
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function ExperimentConfigPage() {
         setTemplates(list);
         const template = list.find((t) => t.id === params.get("template"));
         const next = mergeDefaults(data["x-default"], template?.config);
-        if (template && !template.config?.algorithms)
+        if (template && !template.config?.algorithms?.length)
           next.algorithms = (template.algorithms || []).map((id: string) => {
             const plugin = data["x-algorithms"].find((a: any) => a.id === id);
             return {
@@ -116,6 +118,21 @@ export default function ExperimentConfigPage() {
       })
       .catch(() => setError("读取配置失败，请检查后端服务并刷新"));
   }, [params]);
+  useEffect(() => {
+    let current = true;
+    setIssues([]);
+    if (!draft?.algorithms?.some((a: any) => a.enabled !== false)) return;
+    const timer = window.setTimeout(() => {
+      try {
+        if (draft.type === 'sweep' && !draft.sweep?.path) return;
+        const config = { ...draft, trials: draft.type === 'single' ? 1 : draft.trials, sweep: draft.type === 'sweep' ? { ...draft.sweep, values: parseRange(range) } : null };
+        void validateExperiment(config).then(result => {
+          if (current) setIssues(result.issues);
+        }).catch(() => { if (current) setIssues([{ level: 'warning', message: '暂时无法预检查配置，运行时会再次校验' }]); });
+      } catch { /* 范围编辑期间使用字段自身提示。 */ }
+    }, 500);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [draft, range]);
   if (!schema || !draft)
     return (
       <Alert
@@ -145,6 +162,7 @@ export default function ExperimentConfigPage() {
     !active.length ? "至少启用一个算法" : "",
     draft.type === "sweep" && !sweep ? "请在数值字段旁选择扫描变量" : "",
     rangeError,
+    ...issues.filter(issue => issue.level === "error").map(issue => issue.message),
   ].filter(Boolean);
   const toggleSweep = (path: string, label: string) =>
     update(
@@ -187,7 +205,7 @@ export default function ExperimentConfigPage() {
       const content =
         format === "json"
           ? json
-          : `import json\nimport arena\nconfig = json.loads(${JSON.stringify(json)})\nresult = arena.run(config)\n`;
+          : `import json\nimport arena\nconfig = json.loads(${JSON.stringify(json)})\nif __name__ == "__main__":\n    result = arena.run(config)\n`;
       const url = URL.createObjectURL(
         new Blob([content], { type: "text/plain;charset=utf-8" }),
       );
@@ -670,6 +688,9 @@ export default function ExperimentConfigPage() {
                     onChange={(v) => editAlgorithm(i, { enabled: v })}
                   />
                 </div>
+                {issues.filter(issue => issue.algorithm === a.label).map((issue, index) => (
+                  <Alert key={index} type={issue.level === 'error' ? 'error' : 'warning'} showIcon message={issue.message} />
+                ))}
                 <Collapse
                   ghost
                   items={[

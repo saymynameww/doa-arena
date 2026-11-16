@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 
@@ -26,6 +26,8 @@ def read_result(directory: Path) -> ExperimentResult:
     details = {(row["point"], row["trial"]): row for row in details.get("trials", [])}
     points = []
     with np.load(directory / "results.npz", allow_pickle=False) as raw:
+        if "truth_angles" not in raw:
+            return _read_standard(config, metadata, summary, details, raw)
         labels = [key[:-11] for key in raw.files if key.endswith("__estimates")]
         shape = raw[labels[0] + "__estimates"].shape if labels else raw["truth_angles"].shape
         for pi in range(shape[0]):
@@ -74,4 +76,58 @@ def read_result(directory: Path) -> ExperimentResult:
                 )
             point = summary["points"][pi]
             points.append(SweepPointResult(pi, point.get("sweep_value"), trials))
+    return ExperimentResult(config, points, metadata, summary)
+
+
+def _read_standard(
+    config: dict[str, Any],
+    metadata: dict[str, Any],
+    summary: dict[str, Any],
+    details: dict,
+    raw: Any,
+) -> ExperimentResult:
+    """只含规范数组的外部文件和 points 恢复结果同样可以读取。"""
+    labels = [entry["label"] for entry in summary["algorithms"]]
+    points = []
+    for pi in range(raw["truth"].shape[0]):
+        trials = []
+        for ti in range(raw["truth"].shape[1]):
+            count = int(raw["K"][pi, ti])
+            if count < 1:
+                continue
+            estimates, errors, times = {}, {}, {}
+            for ai, label in enumerate(labels):
+                status = int(raw["status"][pi, ai, ti]) if "status" in raw else 7
+                if status == 7:
+                    continue
+                if status:
+                    messages = {
+                        2: "bad_output",
+                        3: "nan_output",
+                        4: "out_of_range",
+                        5: "estimation_error",
+                        6: "连续错误达到上限",
+                    }
+                    errors[label] = (
+                        details.get((pi, ti), {})
+                        .get("errors", {})
+                        .get(label, messages.get(status, "运行错误，详情见 errors.json"))
+                    )
+                    continue
+                angles = raw["estimates"][pi, ai, ti]
+                spectrum = None
+                prefix = f"spectrum__{ai}"
+                if prefix + "__values" in raw:
+                    kind = ["power", "pseudo", "probability"][int(raw[prefix + "__kind"])]
+                    spectrum = Spectrum(
+                        raw[prefix + "__grid"],
+                        raw[prefix + "__values"][pi, ti],
+                        cast(Literal["power", "pseudo", "probability"], kind),
+                    )
+                info = details.get((pi, ti), {}).get("info", {}).get(label, {})
+                estimates[label] = Estimate(angles[np.isfinite(angles)], spectrum, info)
+                times[label] = float(raw["time_ms"][pi, ai, ti])
+            trials.append(TrialResult(ti, estimates, errors, times, raw["truth"][pi, ti, :count]))
+        value = float(raw["sweep_values"][pi]) if config.get("sweep") else None
+        points.append(SweepPointResult(pi, value, trials))
     return ExperimentResult(config, points, metadata, summary)

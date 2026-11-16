@@ -78,20 +78,23 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
     selected = result.config.get("metrics", {}).get(
         "include", ["rmse", "success_rate", "resolution", "time"]
     )
-    for key, title, unit, metric_id in [
-        ("rmse_mean", "RMSE", "RMSE (°)", "rmse"),
-        ("success_rate", "成功率", "成功率", "success_rate"),
-        ("resolution_probability", "分辨概率", "分辨概率", "resolution"),
-        ("avg_time_ms", "运行时间", "毫秒", "time"),
-    ]:
-        if metric_id not in selected:
+    from ..plugins import resolve_plugin
+
+    for metric_id in selected:
+        if metric_id == "crb":
             continue
+        name = "resolution_prob" if metric_id == "resolution" else metric_id
+        cls = resolve_plugin(
+            "metric", name, result.config.get("metrics", {}).get("origins", {}).get(name)
+        )
+        title = "运行时间" if name == "time" else cls.name
+        unit = f"{cls.name} ({cls.unit})" if cls.unit else cls.name
         fig = go.Figure()
         for label in labels:
             values = []
             for point in result.points:
                 metrics = point_metrics(result, point, label)
-                values.append(cast(float | None, metrics[key]))
+                values.append(cast(float | None, metrics["metric_values"][name]["value"]))
             fig.add_trace(
                 go.Scatter(
                     x=[
@@ -103,7 +106,7 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
                     mode="lines+markers",
                 )
             )
-        if key == "rmse_mean" and "crb" in selected:
+        if metric_id == "rmse" and "crb" in selected:
             from ..config import ExperimentConfig
             from ..crb import compute_stochastic_crb
             from ..runner.core import build_scene, expand_point
@@ -148,6 +151,7 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
         sweep = result.config.get("sweep") or {}
         fig.update_layout(
             title=title,
+            meta={"metric": name},
             xaxis_title=f"{sweep.get('label') or '实验点'} {sweep.get('unit') or ''}",
             yaxis_title=unit,
         )

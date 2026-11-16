@@ -19,8 +19,19 @@ export type AnglesConfig = {
 
 export type ArrayConfig = {
   "type"?: string;
+  "origin"?: Record<string, unknown> | null;
   "carrier_hz"?: number;
   "params"?: Record<string, unknown>;
+};
+
+export type ChartData = {
+  "title": string;
+  "data": Array<Record<string, unknown>>;
+  "layout": Record<string, unknown>;
+};
+
+export type ChartList = {
+  "charts": Array<ChartData>;
 };
 
 export type CorrelationConfig = {
@@ -73,6 +84,7 @@ export type HTTPValidationError = {
 
 export type ImpairmentConfig = {
   "type": string;
+  "origin"?: Record<string, unknown> | null;
   "label"?: string | null;
   "enabled"?: boolean;
   "realization"?: "fixed" | "per_trial";
@@ -87,11 +99,51 @@ export type MetricParameters = {
 export type MetricsConfig = {
   "include"?: Array<string>;
   "params"?: MetricParameters;
+  "origins"?: Record<string, Record<string, unknown>>;
+};
+
+export type ParamSchema = {
+  "type"?: string;
+  "default"?: unknown;
+  "min"?: number | null;
+  "max"?: number | null;
+  "enum"?: Array<string> | null;
+  "description"?: string;
+};
+
+export type PluginInfo = {
+  "kind": string;
+  "id": string;
+  "name": string;
+  "version": string;
+  "type": "builtin" | "external";
+  "description": string;
+  "category": string;
+  "params": Record<string, ParamSchema>;
+  "schema": Record<string, unknown>;
+  "capabilities": Record<string, unknown>;
+  "origin": Record<string, unknown> | null;
+  "defaults": Record<string, unknown>;
+};
+
+export type PluginList = {
+  "algorithms": Array<PluginInfo>;
+  "arrays": Array<PluginInfo>;
+  "impairments": Array<PluginInfo>;
+  "metrics": Array<PluginInfo>;
+  "failures": Array<Record<string, unknown>>;
+  "sources": Array<Record<string, unknown>>;
 };
 
 export type RandomSourceCount = {
   "values"?: Array<number>;
   "weights"?: Array<number> | null;
+};
+
+export type ResultFiles = {
+  "task_id": string;
+  "result_path": string;
+  "files": Array<string>;
 };
 
 export type RmseParameters = {
@@ -128,10 +180,69 @@ export type SweepConfig = {
   "unit"?: string | null;
 };
 
+export type TaskList = {
+  "tasks": Array<TaskResponse>;
+};
+
+export type TaskProgress = {
+  "current_point"?: number;
+  "total_points"?: number;
+  "current_trial"?: number;
+  "total_trials"?: number;
+  "completed_trials"?: number;
+  "percent"?: number;
+};
+
+export type TaskResponse = {
+  "task_id": string;
+  "status": "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
+  "created_at": number;
+  "started_at"?: number | null;
+  "completed_at"?: number | null;
+  "elapsed_seconds"?: number | null;
+  "error"?: string | null;
+  "name"?: string;
+  "type"?: "single" | "monte_carlo" | "sweep";
+  "config": ExperimentConfig;
+  "progress"?: TaskProgress | null;
+  "notes"?: string;
+  "tags"?: Array<string>;
+  "starred"?: boolean;
+};
+
+export type Template = {
+  "id": string;
+  "name": string;
+  "description"?: string;
+  "type"?: string;
+  "algorithms"?: Array<string>;
+  "createdAt"?: string;
+  "level"?: string;
+  "config"?: ExperimentConfig;
+};
+
+export type TemplateList = {
+  "templates": Array<Template>;
+};
+
 export type ValidationError = {
   "loc": Array<string | number>;
   "msg": string;
   "type": string;
   "input"?: unknown;
   "ctx"?: Record<string, unknown>;
+};
+
+export type ValidationIssue = {
+  "level": "error" | "warning";
+  "message": string;
+  "algorithm"?: string | null;
+  "point"?: number | null;
+  "param"?: string | null;
+  "component"?: string | null;
+};
+
+export type ValidationResult = {
+  "valid": boolean;
+  "issues": Array<ValidationIssue>;
 };

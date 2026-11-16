@@ -1,76 +1,36 @@
-"""指标计算相关类型。"""
+"""接口规范 9.1–9.2 节：一个扫描点、一个算法的指标输入输出。"""
 
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
+from .types import Spectrum
 
-@dataclass
+
+@dataclass(frozen=True)
 class MatchedSet:
-    """匹配后的估计与真值集合。
+    """全部试验的匹配结果；未运行试验已由框架排除。"""
 
-    Attributes:
-        estimates: 估计角度，形状 (K̂,)
-        truth: 真实角度，形状 (K,)
-        matched_pairs: 匹配对，形状 (min(K, K̂), 2)，每行 [est_idx, truth_idx]
-        matched_errors: 匹配误差，形状 (min(K, K̂),)
-        time_ms: 估计耗时（毫秒）
-    """
-
-    estimates: np.ndarray
     truth: np.ndarray
-    matched_pairs: np.ndarray
-    matched_errors: np.ndarray
-    time_ms: float
-
-    @property
-    def K_hat(self) -> int:
-        """估计信源数。"""
-        return len(self.estimates)
-
-    @property
-    def K(self) -> int:
-        """真实信源数。"""
-        return len(self.truth)
-
-    @property
-    def num_matched(self) -> int:
-        """匹配数量。"""
-        return len(self.matched_pairs)
-
-    @property
-    def is_correct_count(self) -> bool:
-        """是否正确检测信源数。"""
-        return self.K_hat == self.K
-
-    def per_source_errors(self) -> dict[int, float]:
-        """按信源的误差。
-
-        Returns:
-            字典，键为真值索引，值为误差
-        """
-        result: dict[int, float] = {}
-        for est_idx, truth_idx in self.matched_pairs:
-            result[truth_idx] = self.matched_errors[len(result)]
-        return result
+    K: np.ndarray
+    estimates: np.ndarray
+    K_hat: np.ndarray
+    matched: np.ndarray
+    error: np.ndarray
+    failed: np.ndarray
+    time_ms: np.ndarray
+    spectra: Sequence[Spectrum | None] | None = None
+    extra: Mapping[str, np.ndarray] = field(default_factory=dict)
+    context: Mapping[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class MetricValue:
-    """指标值。
+    """指标汇总值、逐源值、有效次数和附加统计量。"""
 
-    Attributes:
-        value: 标量值或按信源的数组
-        count: 参与统计的试验数
-        failed: 失败的试验数
-    """
-
-    value: float | np.ndarray
-    count: int
-    failed: int = 0
-
-    @property
-    def success_rate(self) -> float:
-        """成功率。"""
-        total = self.count + self.failed
-        return self.count / total if total > 0 else 0.0
+    value: float
+    per_source: np.ndarray | None = None
+    n_used: int | None = None
+    extra: Mapping[str, float] = field(default_factory=dict)

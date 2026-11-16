@@ -85,9 +85,10 @@ export const recomputeTaskMetrics = async (taskId: string, metrics: Record<strin
   return response.data;
 };
 
-export const downloadTaskExport = async (taskId: string, format: string): Promise<Blob> => {
+export const downloadTaskExport = async (taskId: string, format: string, options?: { chart?: string; metric?: string }): Promise<Blob> => {
   const response = await api.get(`/experiments/tasks/${taskId}/export/${format}`, {
     responseType: 'blob',
+    params: options,
   });
   return response.data;
 };
@@ -204,4 +205,9 @@ export const subscribeTaskProgress = (
   };
 
   return eventSource;
+};
+
+export const validateExperiment = async (config: ExperimentConfig) => {
+  const response = await api.post('/experiments/validate', config);
+  return response.data as import('@/types/generated').ValidationResult;
 };

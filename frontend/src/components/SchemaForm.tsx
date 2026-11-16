@@ -58,8 +58,8 @@ const SchemaForm: React.FC<SchemaFormProps> = ({
           >
             <InputNumber
               value={value}
-              min={paramSchema.min}
-              max={paramSchema.max}
+              min={paramSchema.min ?? undefined}
+              max={paramSchema.max ?? undefined}
               step={paramSchema.type === 'integer' ? 1 : 0.1}
               style={{ width: '100%' }}
               onChange={(val) => handleValueChange(key, val)}

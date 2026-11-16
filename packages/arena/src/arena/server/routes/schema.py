@@ -4,9 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from ...core.arrays import ULA
 from ...core.config import ExperimentConfig
-from ...core.impairments import ElementFailure, GainPhase, MutualCoupling, PositionError
 from .algorithms import list_algorithms
 
 router = APIRouter()
@@ -16,6 +14,13 @@ router = APIRouter()
 async def experiment_schema() -> dict[str, Any]:
     """发布真实模型、插件参数及显示元数据，前端不维护参数清单。"""
     schema = ExperimentConfig.model_json_schema()
+    for definition, field in (
+        ("ArrayConfig", "origin"),
+        ("ImpairmentConfig", "origin"),
+        ("AlgorithmConfig", "origin"),
+        ("MetricsConfig", "origins"),
+    ):
+        schema["$defs"][definition]["properties"][field]["x-hidden"] = True
     for definition, labels in {
         "SourcesConfig": {
             "K": "信源数 K",
@@ -65,24 +70,10 @@ async def experiment_schema() -> dict[str, Any]:
         "gaussian": "复高斯信号"
     }
     schema["x-default"] = ExperimentConfig.model_validate({}).model_dump(mode="json")
-    schema["x-arrays"] = [
-        {
-            "id": ULA.id,
-            "name": ULA.name,
-            "schema": ULA.Params.model_json_schema(),
-            "defaults": ULA.Params().model_dump(mode="json"),
-        }
-    ]
-    schema["x-impairments"] = [
-        {
-            "id": cls.id,
-            "name": cls.name,
-            "schema": cls.Params.model_json_schema(),
-            "defaults": cls.Params().model_dump(mode="json"),
-        }
-        for cls in (GainPhase, PositionError, MutualCoupling, ElementFailure)
-    ]
-    schema["x-algorithms"] = (await list_algorithms())["algorithms"]
+    plugins = await list_algorithms()
+    schema["x-arrays"] = plugins["arrays"]
+    schema["x-impairments"] = plugins["impairments"]
+    schema["x-algorithms"] = plugins["algorithms"]
     schema["x-sweep-paths"] = [
         {"path": path, "label": label, "unit": unit}
         for path, label, unit in [
@@ -101,5 +92,23 @@ async def experiment_schema() -> dict[str, Any]:
             ("crb", "CRB 参考线"),
         ]
     ]
+    existing_metrics = {item["id"] for item in schema["x-metrics"]}
+    for plugin in plugins["metrics"]:
+        identifier = "resolution" if plugin["id"] == "resolution_prob" else plugin["id"]
+        if identifier not in existing_metrics:
+            schema["x-metrics"].append({"id": identifier, "name": plugin["name"]})
+        import json
+
+        prefix = "metric_" + plugin["id"].replace("/", "_") + "_"
+        parameters = json.loads(
+            json.dumps(plugin["schema"]).replace("#/$defs/", "#/$defs/" + prefix)
+        )
+        for key, value in parameters.pop("$defs", {}).items():
+            schema["$defs"][prefix + key] = value
+        if parameters.get("properties"):
+            schema["$defs"]["MetricParameters"]["properties"][plugin["id"]] = {
+                **parameters,
+                "x-label": plugin["name"],
+            }
     schema["$defs"]["ArrayConfig"]["properties"]["carrier_hz"]["x-label"] = "载频（Hz）"
     return schema

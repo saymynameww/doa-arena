@@ -14,7 +14,7 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
     import arena
     import arena_api
 
-    from ..plugins import provenance
+    from ..plugins import provenance, resolve_plugin
     from ..runner.core import GENERATOR_VERSION
 
     environment: dict[str, Any] = {
@@ -55,6 +55,42 @@ def capture(config: ExperimentConfig, instances: dict[str, Algorithm]) -> dict[s
                     record["git"]["patch"] = "algorithm_patches/" + filename
                     patches[filename] = source["patch"]
         plugins["algorithm/" + item.id] = record
+    entries = [("array", config.scenario.array.type, config.scenario.array.origin)]
+    entries += [
+        ("impairment", item.type, item.origin)
+        for item in config.scenario.impairments
+        if item.enabled
+    ]
+    entries += [
+        (
+            "metric",
+            "resolution_prob" if name == "resolution" else name,
+            config.metrics.origins.get("resolution_prob" if name == "resolution" else name),
+        )
+        for name in config.metrics.include
+        if name != "crb"
+    ]
+    for kind, identifier, origin in entries:
+        plugin = resolve_plugin(kind, identifier, origin)
+        record = {
+            "name": plugin.name,
+            "version": plugin.version,
+            "api_version": plugin.api_version,
+            "source": {"type": "builtin", "location": plugin.__module__},
+        }
+        if origin:
+            source = provenance(plugin)
+            record["source"] = {
+                "type": "path",
+                "location": source["file"],
+                "code_sha256": source["code_hash"],
+            }
+            record["git"] = {"commit": source.get("commit"), "dirty": source.get("dirty", False)}
+            if source.get("patch"):
+                filename = kind + "_" + plugin.id + ".diff"
+                patches[filename] = source["patch"]
+                record["git"]["patch"] = "algorithm_patches/" + filename
+        plugins[kind + "/" + identifier] = record
     return {
         "versions": {
             "arena": arena.__version__,

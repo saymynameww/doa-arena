@@ -12,6 +12,7 @@ from arena_api import (
     ArrayDescriptor,
     Capabilities,
     Estimate,
+    Issue,
     Observation,
     Param,
     ParamsModel,
@@ -62,6 +63,25 @@ class MUSIC(Algorithm):
             description="空间平滑时的子阵大小，None 表示自动选择",
         )
 
+    @classmethod
+    def check(cls, params: ParamsModel, array: ArrayDescriptor, K: int | None) -> list[Issue]:
+        """空间平滑需要完整均匀线阵，并在运行前校验孔径。"""
+        issues = super().check(params, array, K)
+        p = cls.Params.model_validate(params)
+        if p.scan_min >= p.scan_max:
+            issues.append(Issue("error", "搜索起始角度必须小于终止角度", "scan_min"))
+        if p.smoothing != "none":
+            if array.ula_spacing is None or not np.all(array.element_mask):
+                issues.append(
+                    Issue("error", "空间平滑需要完整均匀线阵，请关闭平滑或已知故障", "smoothing")
+                )
+            elif K is not None:
+                try:
+                    kit.checked_subarray(array.M, K, p.smoothing, p.subarray)
+                except ValueError as exc:
+                    issues.append(Issue("error", str(exc), "subarray"))
+        return issues
+
     def __init__(self) -> None:
         super().__init__()
         self.grid: np.ndarray | None = None
@@ -93,7 +113,8 @@ class MUSIC(Algorithm):
         )
 
         # 预计算导向矢量
-        self.A_grid = array.steering(self.grid)
+        self.element_mask = array.element_mask
+        self.A_grid = array.steering(self.grid)[self.element_mask]
 
         ctx.log.info(
             f"MUSIC 配置完成：网格 [{params.scan_min}°, {params.scan_max}°] "
@@ -117,6 +138,12 @@ class MUSIC(Algorithm):
         if obs.K is None or not 1 <= obs.K < obs.M:
             raise ValueError("该算法需要已知且小于阵元数的正整数信源数")
         params = self.params
+
+        if not np.all(self.element_mask):
+            obs = Observation(X=obs.X[self.element_mask], K=obs.K)
+
+        if obs.K is None or not 1 <= obs.K < obs.M:
+            raise ValueError("有效阵元数必须大于信源数")
 
         # 获取协方差
         R = obs.covariance()

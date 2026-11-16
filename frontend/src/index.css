@@ -357,3 +357,6 @@ body {
   margin: 12px 0 0;
   font-size: 12px;
 }
+
+/* 未选中的实验方式与原型一致，蓝色仅用于当前方式。 */
+.mode-choice:not([aria-checked="true"]) .mode-icon { color: #6b7280; }

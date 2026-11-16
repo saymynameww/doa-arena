@@ -254,8 +254,27 @@ class ResultWriter:
         from .contract import standard_arrays
 
         summary = json.loads((self.output_dir / "summary.json").read_text(encoding="utf-8"))
-        data.update(standard_arrays(result, algo_labels, summary))
+        standard = standard_arrays(result, algo_labels, summary)
+        data.update(standard)
+        checkpoint_dir = self.output_dir / "points"
+        if result.metadata.get("status") == "running":
+            checkpoint_dir.mkdir(exist_ok=True)
+            for pi, point in enumerate(result.points):
+                if counts[pi] < result.config.get("trials", 1):
+                    continue
+                sliced = {}
+                for key, value in standard.items():
+                    shared = key.startswith("impairment__") or (
+                        key.startswith("spectrum__") and not key.endswith("__values")
+                    )
+                    sliced[key] = value if shared else value[pi]
+                self._write_npz(checkpoint_dir / f"p_{point.point_idx:03d}.npz", sliced)
         self._write_npz(self.output_dir / "results.npz", data)
+        if result.metadata.get("status") in {"completed", "cancelled"} and checkpoint_dir.exists():
+            for path in checkpoint_dir.glob("p_[0-9][0-9][0-9]*.npz"):
+                path.unlink()
+            if not any(checkpoint_dir.iterdir()):
+                checkpoint_dir.rmdir()
 
     def _write_summary(self, result: ExperimentResult) -> None:
         """写入汇总统计。
@@ -348,29 +367,20 @@ class ResultWriter:
             summary["points"].append(point_summary)
 
         summary["metrics"] = {}
-        for identifier, key in (
-            ("rmse", "rmse_mean"),
-            ("success_rate", "success_rate"),
-            ("resolution_prob", "resolution_probability"),
-            ("time", "avg_time_ms"),
-        ):
-            selection = "resolution" if identifier == "resolution_prob" else identifier
-            if selection in config.metrics.include:
-                summary["metrics"][identifier] = {
-                    "value": [
-                        [p["algorithms"][label][key] for label in algo_labels]
-                        for p in summary["points"]
-                    ],
-                    "n_used": [
-                        [
-                            p["algorithms"][label][
-                                "num_valid" if identifier == "rmse" else "num_trials"
-                            ]
-                            for label in algo_labels
-                        ]
-                        for p in summary["points"]
-                    ],
-                }
+        for selection in config.metrics.include:
+            if selection == "crb":
+                continue
+            identifier = "resolution_prob" if selection == "resolution" else selection
+            summary["metrics"][identifier] = {
+                field: [
+                    [
+                        p["algorithms"][label]["metric_values"][identifier][field]
+                        for label in algo_labels
+                    ]
+                    for p in summary["points"]
+                ]
+                for field in ("value", "n_used")
+            }
         summary["crb"] = (
             {"value": [p.get("crb_deg") for p in summary["points"]]}
             if "crb" in config.metrics.include

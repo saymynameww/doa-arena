@@ -25,6 +25,9 @@ def execute_batches(
     batch_algorithms = {
         label: algo for label, algo in algorithms.items() if algo.capabilities.batch
     }
+    # 随机已知掩码要求每次重新 configure，不能共享同一批次阵列描述。
+    if any(item.enabled and item.params.get("known") for item in config.scenario.impairments):
+        return {}
     if not batch_algorithms:
         return {}
     observations = []

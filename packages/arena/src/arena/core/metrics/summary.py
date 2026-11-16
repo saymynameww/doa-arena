@@ -53,4 +53,22 @@ def point_metrics(result: ExperimentResult, point: SweepPointResult, label: str)
     )
     durations = [trial.times_ms[label] for trial in trials if label in trial.times_ms]
     metrics["avg_time_ms"] = float(np.mean(durations)) if durations else np.nan
+    from dataclasses import asdict
+
+    from .plugins import evaluate_metrics
+
+    values = evaluate_metrics(result, point, label)
+    metrics["metric_values"] = {name: asdict(value) for name, value in values.items()}
+    for value in metrics["metric_values"].values():
+        if value["per_source"] is not None:
+            value["per_source"] = value["per_source"].tolist()
+    for name, key in (
+        ("rmse", "rmse_mean"),
+        ("success_rate", "success_rate"),
+        ("resolution_prob", "resolution_probability"),
+    ):
+        if name in values:
+            metrics[key] = values[name].value
+    if "rmse" in values:
+        metrics["num_valid"] = values["rmse"].n_used
     return metrics

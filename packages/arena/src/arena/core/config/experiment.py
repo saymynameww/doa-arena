@@ -75,6 +75,7 @@ class MetricParameters(BaseModel):
         default_factory=lambda: SuccessParameters(threshold_deg=1.0)
     )
     rmse: RmseParameters = Field(default_factory=lambda: RmseParameters.model_validate({}))
+    model_config = {"extra": "allow"}
 
 
 class MetricsConfig(BaseModel):
@@ -84,6 +85,7 @@ class MetricsConfig(BaseModel):
         default_factory=lambda: ["rmse", "success_rate", "resolution", "time", "crb"]
     )
     params: MetricParameters = Field(default_factory=MetricParameters)
+    origins: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod

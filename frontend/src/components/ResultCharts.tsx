@@ -38,8 +38,8 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
     }
   };
 
-  const handleDownload = async (format: string) => {
-    const blob = await downloadTaskExport(taskId, format);
+  const handleDownload = async (format: string, title: string, metric?: string) => {
+    const blob = await downloadTaskExport(taskId, format, { chart: title, metric });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -75,11 +75,11 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
           <Space>
             <Dropdown
               menu={{
-                items: ['html', 'png', 'svg', 'pdf'].map((format) => ({
+                items: ['html', 'png', 'svg', 'pdf', ...(chart.layout.meta ? ['csv', 'tex'] : [])].map((format) => ({
                   key: format,
                   label: format.toUpperCase(),
                   onClick: () =>
-                    void handleDownload(format).catch(() => message.error('图表导出失败')),
+                    void handleDownload(format, chart.title, (chart.layout.meta as { metric?: string } | undefined)?.metric).catch(() => message.error('图表导出失败')),
                 })),
               }}
             >

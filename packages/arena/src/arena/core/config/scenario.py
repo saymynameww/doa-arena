@@ -14,6 +14,7 @@ class ArrayConfig(BaseModel):
     """阵列配置（简化版）。"""
 
     type: str = Field("ula", description="阵列类型")
+    origin: dict[str, Any] | None = None
     carrier_hz: float = Field(3e9, gt=0, description="载频（Hz，仅用于物理间距显示，不影响仿真）")
     params: dict[str, Any] = Field(
         default_factory=lambda: {"M": 16, "d": 0.5},
@@ -133,6 +134,7 @@ class ImpairmentConfig(BaseModel):
     """误差配置（简化版）。"""
 
     type: str = Field(..., description="误差插件 id")
+    origin: dict[str, Any] | None = None
     label: str | None = Field(None, description="显示名称")
     enabled: bool = Field(True, description="是否启用")
     realization: Literal["fixed", "per_trial"] = Field(

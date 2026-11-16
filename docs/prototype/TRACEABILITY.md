@@ -72,3 +72,16 @@
 | 中文摘要及紧凑布局 | ExperimentConfig、index.css | Schema 标签 | HTTP 原型与实际截图对照 | 已复验 |
 
 此前表中的“已完成”不应解释为全产品逐像素验收通过。真实空间谱、外部模型包、场景集评测等仍须按独立范围验收；详见本轮测试报告。
+
+
+## 2026-11-16 持续验收状态（优先于早期“已完成”）
+
+| 原型需求 | 组件 | API / 核心 | 自动化证据 | 视觉状态 |
+|---|---|---|---|---|
+| Schema 指标参数与卡片警告 | ConfigFields / ExperimentConfig | schema / experiments/validate / 四类插件 | remaining_contract、plugins_acceptance、web_service | 待本轮逐项复验 |
+| 当前图表与指定指标导出 | ResultCharts | export?chart=&metric= / export.service | export_truth、selected_chart_export | 待本轮复验 |
+| 中断实验整理 | ExperimentRun | finalize / points 合并 | checkpoint_point_files_and_finalize | 待本轮复验 |
+| 工作目录共享脚本结果 | Layout / Settings | Workspace / workspaces/current | web_workspace_uses_same_layout_as_script | 待本轮复验 |
+| 类型与模板真实配置 | Templates / API client | OpenAPI 生成 | 类型检查、模板 CRUD / 越界保护 | 待本轮复验 |
+
+早期“排行榜已完成”“模型包完整”的表述不成立：这两项分别归属 M7、M6。本次只验收 M1–M5，不能以占位或历史重跑代替其正式功能。

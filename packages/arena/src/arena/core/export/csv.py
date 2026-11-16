@@ -1,50 +1,28 @@
-"""CSV 导出。"""
-
-from __future__ import annotations
+"""数据格式 4.7 节：一个指标一张 UTF-8 BOM 表。"""
 
 import csv
 from pathlib import Path
-from typing import Any
 
-from ..metrics.summary import algorithm_labels, point_metrics
+import numpy as np
+
 from ..runner.results import ExperimentResult
+from .tables import metric_table
 
 
-def export_to_csv(result: ExperimentResult, output_path: Path | str) -> None:
-    """导出实验结果为 CSV。
-
-    Args:
-        result: 实验结果
-        output_path: 输出路径
-    """
+def export_to_csv(result: ExperimentResult, output_path: Path | str, metric: str = "rmse") -> None:
+    """导出指定指标，缺失值写空单元格。"""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # 收集算法标签
-    algo_labels = algorithm_labels(result)
-
-    # 准备表头
-    headers = ["point_idx", "sweep_value"]
-
-    for label in algo_labels:
-        headers.extend(
-            [
-                f"{label}_rmse",
-                f"{label}_success_rate",
-                f"{label}_avg_time_ms",
-            ]
-        )
-
-    # 写入 CSV
-    with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
+    headers, rows = metric_table(result, metric)
+    with output_path.open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream)
         writer.writerow(headers)
-
-        for point in result.points:
-            row: list[Any] = [point.point_idx, point.sweep_value]
-
-            for label in algo_labels:
-                metrics = point_metrics(result, point, label)
-                row.extend([metrics["rmse_mean"], metrics["success_rate"], metrics["avg_time_ms"]])
-
-            writer.writerow(row)
+        for row in rows:
+            writer.writerow(
+                [
+                    value
+                    if value is not None and (not isinstance(value, float) or np.isfinite(value))
+                    else ""
+                    for value in row
+                ]
+            )

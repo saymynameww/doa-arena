@@ -135,9 +135,9 @@ def test_export_csv(sweep_result):
 
             # 检查表头
             header = lines[0].strip()
-            assert "sweep_value" in header
-            assert "MUSIC_rmse" in header
-            assert "ESPRIT_rmse" in header
+            assert "SNR (dB)" in header
+            assert "MUSIC" in header
+            assert "ESPRIT" in header
 
 
 @pytest.mark.skipif(
@@ -157,9 +157,9 @@ def test_export_mat(sweep_result):
         # 验证可以读取
         from scipy.io import loadmat
 
-        data = loadmat(str(output_path))
-        assert "sweep_values" in data
-        assert "MUSIC_rmse" in data
+        data = loadmat(str(output_path), simplify_cells=True)["arena"]
+        assert "sweep" in data
+        assert "rmse" in data["metric"]
 
 
 def test_export_latex(sweep_result):
@@ -175,10 +175,10 @@ def test_export_latex(sweep_result):
         # 验证内容
         with open(output_path, encoding="utf-8") as f:
             content = f.read()
-            assert r"\begin{table}" in content
+            assert r"\begin{tabular}" in content
             assert "MUSIC" in content
             assert "ESPRIT" in content
-            assert "RMSE" in content
+            assert r"\toprule" in content
 
 
 def test_all_exports_together(sweep_result):
@@ -226,4 +226,5 @@ def test_html_report(sweep_result):
             assert "测试报告" in content
             assert "MUSIC" in content
             assert "ESPRIT" in content
-            assert "plotly" in content.lower()  # Plotly JS
+            assert "<svg" in content
+            assert "cdn.plot.ly" not in content

@@ -39,6 +39,18 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         config = ExperimentConfig.model_validate(payload["config"])
         return {"valid": True, "issues": validate_configuration(config)}
     directory = Path(payload["directory"])
+    if operation == "export":
+        from .export.service import export_result
+
+        path = export_result(
+            directory, payload["format"], payload.get("metric", "rmse"), payload.get("chart")
+        )
+        return {"path": str(path)}
+    if operation == "finalize":
+        from .storage.finalize import finalize_directory
+
+        result = finalize_directory(directory)
+        return {"metadata": result.metadata}
     if operation == "recompute":
         from .facade import recompute_metrics
 

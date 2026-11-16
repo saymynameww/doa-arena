@@ -16,7 +16,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from arena_api import Algorithm
+from arena_api import Algorithm, ArrayModel, Impairment, Metric, ParamsModel
 
 
 def load_module(path: Path, import_root: Path | None = None) -> types.ModuleType:
@@ -39,7 +39,7 @@ def load_module(path: Path, import_root: Path | None = None) -> types.ModuleType
     return module
 
 
-def provenance(cls: type[Algorithm]) -> dict[str, Any]:
+def provenance(cls: type[Any]) -> dict[str, Any]:
     """记录实际代码、Git 状态和未提交补丁，哈希包含插件目录代码。"""
     file = Path(inspect.getfile(cls)).resolve()
     digest = hashlib.sha256()
@@ -81,42 +81,102 @@ def builtin_classes() -> dict[str, type[Algorithm]]:
     return {cls.id: cls for cls in (CBF, MVDR, MUSIC, RootMUSIC, ESPRIT)}
 
 
+def plugin_kind(cls: type[Any]) -> str:
+    """按接口基类判定注册类别。"""
+    for name, base in (
+        ("algorithm", Algorithm),
+        ("array", ArrayModel),
+        ("impairment", Impairment),
+        ("metric", Metric),
+    ):
+        if issubclass(cls, base):
+            return name
+    raise ValueError("未知插件基类")
+
+
+def builtin_registry() -> dict[tuple[str, str], type[Any]]:
+    """四类内置插件共用同一类别与 ID 索引。"""
+    from .arrays import ULA
+    from .impairments import ElementFailure, GainPhase, MutualCoupling, PositionError
+    from .metrics.builtin import Bias, DetectionAccuracy, ResolutionProbability, SuccessRate, Time
+    from .metrics.rmse import RMSEMetric
+
+    classes: list[type[Any]] = [
+        *builtin_classes().values(),
+        ULA,
+        GainPhase,
+        PositionError,
+        MutualCoupling,
+        ElementFailure,
+        RMSEMetric,
+        Bias,
+        DetectionAccuracy,
+        ResolutionProbability,
+        SuccessRate,
+        Time,
+    ]
+    return {(plugin_kind(cls), cls.id): cls for cls in classes}
+
+
+def resolve_plugin(kind: str, identifier: str, origin: dict[str, Any] | None = None) -> type[Any]:
+    """按类别解析插件，外部代码仅在调用者所在核心进程加载。"""
+    if origin and origin.get("file"):
+        module = load_module(
+            Path(origin["file"]), Path(origin["import_root"]) if origin.get("import_root") else None
+        )
+        cls = getattr(module, origin["qualname"])
+        if plugin_kind(cls) != kind:
+            raise ValueError("插件类别与配置不符")
+        return cls
+    registry = builtin_registry()
+    if (kind, identifier) not in registry:
+        raise ValueError(f"未找到 {kind}/{identifier}，请刷新插件来源")
+    return registry[(kind, identifier)]
+
+
 def discover(sources: list[dict[str, Any]]) -> dict[str, Any]:
     """扫描入口并隔离单个插件错误；外部冲突双方均不注册。"""
-    classes = builtin_classes()
-    records: dict[str, dict[str, Any]] = {}
+    classes = builtin_registry()
+    records: dict[tuple[str, str], dict[str, Any]] = {}
     failures: list[dict[str, Any]] = []
-    conflicts: set[str] = set()
+    conflicts: set[tuple[str, str]] = set()
 
-    def register(cls: type[Algorithm], source: dict[str, Any] | None = None) -> None:
+    def register(cls: type[Any], source: dict[str, Any] | None = None) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_]{1,39}", cls.id):
             raise ValueError("插件 id 必须为 2–40 位小写字母、数字或下划线")
         if not cls.name or not cls.version or cls.api_version != 1:
             raise ValueError("插件缺少名称、版本，或 api_version 不兼容")
-        schema = cls.Params.model_json_schema()
-        if schema.get("required") and cls.category != "learning":
+        kind = plugin_kind(cls)
+        schema = (cls.Params or ParamsModel).model_json_schema()
+        if schema.get("required") and getattr(cls, "category", "") != "learning":
             raise ValueError("插件参数必须提供默认值：" + ", ".join(schema["required"]))
         key = cls.id
-        if source and key in classes:
+        if source and (kind, key) in classes:
             key = f"{source.get('name') or Path(source['value']).name}/{key}"
-        if key in records or key in conflicts:
-            previous = records.pop(key, None)
-            conflicts.add(key)
+        identifier = (kind, key)
+        if identifier in records or identifier in conflicts:
+            previous = records.pop(identifier, None)
+            conflicts.add(identifier)
             raise ValueError(f"外部插件 id 冲突，双方停用：{key}，原入口 {previous}")
-        origin = provenance(cls)
+        origin = provenance(cls) if source else None
         if source:
+            assert origin is not None
             origin["import_root"] = source.get("import_root") or str(Path(source["value"]).parent)
-        records[key] = {
+        records[identifier] = {
+            "kind": kind,
             "id": key,
             "name": cls.name,
             "version": cls.version,
             "type": "external" if source else "builtin",
-            "description": cls.description,
-            "category": cls.category,
+            "description": getattr(cls, "description", ""),
+            "category": getattr(cls, "category", kind),
             "schema": schema,
             "params": schema.get("properties", {}),
-            "capabilities": asdict(cls.capabilities),
+            "capabilities": asdict(cls.capabilities) if kind == "algorithm" else {},
             "origin": origin,
+            "defaults": {
+                name: item.get("default") for name, item in schema.get("properties", {}).items()
+            },
         }
 
     for cls in classes.values():
@@ -161,7 +221,9 @@ def discover(sources: list[dict[str, Any]]) -> dict[str, Any]:
                         or cls.__module__ != module.__name__
                     ):
                         continue
-                    if issubclass(cls, Algorithm) and not inspect.isabstract(cls):
+                    if issubclass(
+                        cls, Algorithm | ArrayModel | Impairment | Metric
+                    ) and not inspect.isabstract(cls):
                         try:
                             register(cls, source)
                         except Exception as exc:
@@ -180,7 +242,14 @@ def discover(sources: list[dict[str, Any]]) -> dict[str, Any]:
                     "traceback": traceback.format_exc(),
                 }
             )
-    return {"algorithms": list(records.values()), "failures": failures, "sources": sources}
+    return {
+        **{
+            kind + "s": [v for (k, _), v in records.items() if k == kind]
+            for kind in ("algorithm", "array", "impairment", "metric")
+        },
+        "failures": failures,
+        "sources": sources,
+    }
 
 
 def resolve_algorithm(identifier: str, origin: dict[str, Any] | None = None) -> type[Algorithm]:

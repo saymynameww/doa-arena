@@ -24,6 +24,22 @@ from .results import ExperimentResult, SweepPointResult, TrialResult
 logger = logging.getLogger(__name__)
 
 
+def save_spectrum(config: ExperimentConfig) -> bool:
+    """判断谱数组是否需要持久化。"""
+    return config.options.save_spectra == "all" or (
+        config.options.save_spectra == "auto" and config.type == "single"
+    )
+
+
+def needs_spectrum(config: ExperimentConfig) -> bool:
+    """谱谷判据需要瞬时谱，但不要求保存全部试验的谱数组。"""
+    return (
+        save_spectrum(config)
+        or config.metrics.params.model_dump().get("resolution_prob", {}).get("criterion")
+        == "spectrum"
+    )
+
+
 def run_trial(
     trial_idx: int,
     scenario_gen: ScenarioGenerator,
@@ -33,6 +49,7 @@ def run_trial(
     source_count: str = "true",
     save_observation: bool = False,
     batch_results: dict[str, tuple[Estimate | Exception, float]] | None = None,
+    retain_spectrum: bool = True,
 ) -> TrialResult:
     """运行单次试验。
 
@@ -45,6 +62,7 @@ def run_trial(
         source_count: 信源数提供方式
         save_observation: 是否保留接收数据
         batch_results: 已执行的批量结果及均摊耗时
+        retain_spectrum: 是否保存空间谱；谱谷判据可只保留判断结果
 
     Returns:
         试验结果
@@ -56,6 +74,7 @@ def run_trial(
 
         obs = replace(obs, K=estimate_source_count(obs, source_count))
 
+    trial_array = scenario_gen.algorithm_array(trial_rng)
     # 运行所有算法
     estimates = {}
     errors = {}
@@ -64,6 +83,17 @@ def run_trial(
 
     for label, algo in algorithms.items():
         try:
+            if not np.array_equal(
+                getattr(algo, "_current_mask", np.array([])), trial_array.element_mask
+            ):
+                params = algo.Params(**algo._loaded_parameters)
+                problems = algo.check(params, trial_array, obs.K)
+                if any(issue.level == "error" for issue in problems):
+                    raise ValueError(
+                        "；".join(issue.message for issue in problems if issue.level == "error")
+                    )
+                algo.configure(params, trial_array, ctx)
+                algo._current_mask = trial_array.element_mask
             # 计时
             algo_ctx = replace(ctx, rng=trial_rng.for_impairment("algorithm:" + label, "random"))
             if batch_results and label in batch_results:
@@ -95,6 +125,17 @@ def run_trial(
             ):
                 est = replace(est, spectrum=None, info={**est.info, "warning": "无效空间谱已丢弃"})
 
+            if est.spectrum is not None and len(scenario_gen.config.angles) == 2:
+                resolved = False
+                if len(est.angles) == 2:
+                    lower, upper = np.sort(est.angles)
+                    grid, values = est.spectrum.grid, est.spectrum.values
+                    between = values[(grid > lower) & (grid < upper)]
+                    peaks = np.interp([lower, upper], grid, values)
+                    resolved = bool(len(between) and np.min(between) < np.mean(peaks))
+                est = replace(est, info={**est.info, "resolved_by_spectrum": resolved})
+            if not retain_spectrum:
+                est = replace(est, spectrum=None)
             estimates[label] = est
             times_ms[label] = elapsed
 
@@ -138,6 +179,9 @@ def run_experiment(
 
     # 验证配置
     config.validate_experiment()
+    from ..validation import validate_configuration
+
+    validation_issues = validate_configuration(config, algorithm_classes)
 
     # 创建随机数树
     rng_tree = RNGTree(config.scenario.seed)
@@ -180,10 +224,7 @@ def run_experiment(
             ctx = RunContext(
                 device="cpu",
                 log=logger,
-                want_spectrum=(
-                    config.options.save_spectra == "all"
-                    or (config.options.save_spectra == "auto" and config.type == "single")
-                ),
+                want_spectrum=needs_spectrum(config),
                 workspace=None,
                 rng=RNGTree(config.scenario.seed).for_scenario(),
             )
@@ -194,6 +235,7 @@ def run_experiment(
                     if algo.capabilities.parallel
                     and not algo.capabilities.uses_gpu
                     and "<locals>" not in type(algo).__qualname__
+                    and type(algo).__module__ != "__main__"
                 }
                 worker_config = point_config.model_copy(deep=True)
                 worker_config.algorithms = [
@@ -275,6 +317,7 @@ def run_experiment(
                                         config.type == "single"
                                         and config.options.save_observations == "auto",
                                         local_batch.get(trial.trial_idx),
+                                        save_spectrum(config),
                                     )
                                     trial.estimates.update(local.estimates)
                                     trial.errors.update(local.errors)
@@ -375,6 +418,7 @@ def run_experiment(
                     config.options.source_count,
                     config.type == "single" and config.options.save_observations == "auto",
                     batch_cache.get(trial_idx),
+                    save_spectrum(config),
                 )
                 result.errors.update(setup_errors)
                 for label in list(algorithms):
@@ -410,6 +454,18 @@ def run_experiment(
                 )
             )
 
+            if checkpoint_callback and len(trials) % config.options.chunk_size:
+                checkpoint_callback(
+                    ExperimentResult(
+                        config.model_dump(),
+                        list(points),
+                        {
+                            "status": "running",
+                            "generator_version": GENERATOR_VERSION,
+                            "start_time": start_time,
+                        },
+                    )
+                )
             if cancelled:
                 break
     finally:
@@ -424,6 +480,7 @@ def run_experiment(
     # 元信息
     metadata = {
         "status": "cancelled" if cancelled else "completed",
+        "warnings": [issue for issue in validation_issues if issue["level"] == "warning"],
         "workers": config.options.workers,
         "timing_note": "并行运行，计时仅供参考" if config.options.workers > 1 else "串行逐次计时",
         "start_time": start_time,
@@ -479,15 +536,16 @@ def build_scene(
     config: ExperimentConfig, trial_idx: int = 0
 ) -> tuple[ScenarioGenerator, ArrayDescriptor]:
     """使用配置中的真实参数创建场景和误差实例。"""
-    from ..arrays import ULA
-    from ..impairments import ElementFailure, GainPhase, MutualCoupling, PositionError
+    from ..plugins import resolve_plugin
 
     sc = config.scenario
-    if sc.array.type != ULA.id:
-        raise ValueError("未知阵列类型，请从 Schema 中选择可用阵列")
-    params = ULA.Params(**sc.array.params)
+    array_class = resolve_plugin("array", sc.array.type, sc.array.origin)
+    params = array_class.Params(**sc.array.params)
     array = ArrayDescriptor(
-        type=sc.array.type, params=params.model_dump(), positions=ULA().positions(params)
+        type=sc.array.type,
+        params=params.model_dump(),
+        positions=array_class().positions(params),
+        model=array_class(),
     )
     if isinstance(sc.sources.K, int):
         k = sc.sources.K
@@ -548,14 +606,11 @@ def build_scene(
         corr = CorrelationMatrix.coherent(powers, np.exp(1j * np.deg2rad([0, *phases])))
     else:
         corr = CorrelationMatrix.independent(powers)
-    registry = {cls.id: cls for cls in (GainPhase, PositionError, MutualCoupling, ElementFailure)}
     impairments = []
     for index, imp in enumerate(sc.impairments):
         if not imp.enabled:
             continue
-        if imp.type not in registry:
-            raise ValueError("未知误差插件，请刷新配置 Schema")
-        plugin = registry[imp.type]()
+        plugin = resolve_plugin("impairment", imp.type, imp.origin)()
         rng = np.random.default_rng(np.random.SeedSequence(sc.seed, spawn_key=(11, index)))
         impairments.append(
             ImpairmentInstance(
@@ -636,7 +691,19 @@ def _load_algorithms(
                 if instances is not None:
                     instances[label] = algo
                 algo.load(params, ctx)
+            previous = getattr(algo, "_loaded_parameters", None)
+            current = params.model_dump(mode="json")
+            if previous is not None and any(
+                field.get("x-reload") and previous.get(name) != current.get(name)
+                for name, field in AlgoClass.Params.model_json_schema()
+                .get("properties", {})
+                .items()
+            ):
+                algo.close()
+                algo.load(params, ctx)
+            algo._loaded_parameters = current
             algo.configure(params, array, ctx)
+            algo._current_mask = array.element_mask
             algorithms[label] = algo
         except Exception as exc:
             if setup_errors is None:

@@ -73,7 +73,7 @@ const ExportMenu: React.FC<ExportMenuProps> = ({ taskId }) => {
       children: [
         {
           key: 'html',
-          label: 'HTML 报告（交互式）',
+          label: 'HTML 报告（离线）',
           onClick: () => handleExport('html'),
         },
         {

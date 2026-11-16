@@ -1,74 +1,49 @@
-"""MATLAB 导出。"""
+"""数据格式 4.7 节的 MATLAB arena 结构体。"""
 
-from __future__ import annotations
-
+import logging
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
-from ..metrics.summary import algorithm_labels, point_metrics
+from ..metrics.summary import algorithm_labels
 from ..runner.results import ExperimentResult
+from ..storage.contract import standard_arrays
+from .tables import export_summary
+from .utf16_mat import write_mat
 
 
 def export_to_mat(result: ExperimentResult, output_path: Path | str) -> None:
-    """导出实验结果为 MATLAB .mat 文件。
-
-    Args:
-        result: 实验结果
-        output_path: 输出路径
-
-    Raises:
-        ImportError: scipy 未安装
-    """
-    try:
-        from scipy.io import savemat
-    except ImportError:
-        raise ImportError("MATLAB 导出需要 scipy。安装：pip install scipy")
-
+    """导出标准维度、中文 cell 标签和 NaN，不创建不安全的变量名。"""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # 收集数据
-    algo_labels = algorithm_labels(result)
-
-    # 扫描值
-    sweep_values = np.array(
-        [p.sweep_value if p.sweep_value is not None else np.nan for p in result.points]
-    )
-
-    # 每个算法的数据
-    data: dict[str, Any] = {
-        "sweep_values": sweep_values,
-        "point_indices": np.array([p.point_idx for p in result.points]),
+    labels = algorithm_labels(result)
+    summary = export_summary(result)
+    arrays = standard_arrays(result, labels, summary)
+    sweep = result.config.get("sweep") or {}
+    data = {
+        "name": result.config.get("name", ""),
+        "id": result.metadata.get("id", result.metadata.get("experiment_id", "")),
+        "sweep": {
+            "path": sweep.get("path") or "",
+            "label": sweep.get("label") or "",
+            "unit": sweep.get("unit") or "",
+            "values": arrays["sweep_values"],
+        },
+        "algorithms": np.asarray(labels, dtype=object).reshape(-1, 1),
+        "metric": {
+            key: np.asarray(value["value"], dtype=float)
+            for key, value in summary["metrics"].items()
+        },
+        "metric_n_used": {
+            key: np.asarray(value["n_used"], dtype=float)
+            for key, value in summary["metrics"].items()
+        },
+        "crb": arrays.get("crb", np.array([])),
+        "truth": arrays["truth"],
+        "estimates": arrays.get("estimates", np.array([])),
+        "status": arrays.get("status", np.array([])).astype(float),
     }
-
-    for index, label in enumerate(algo_labels):
-        # 收集该算法的所有估计
-        rmse_values = []
-        success_rates = []
-        avg_times = []
-
-        for point in result.points:
-            metrics = point_metrics(result, point, label)
-            rmse_values.append(metrics["rmse_mean"])
-            success_rates.append(metrics["success_rate"])
-            avg_times.append(metrics["avg_time_ms"])
-
-        # 存储
-        safe_label = label.replace(" ", "_").replace("-", "_")
-        if not safe_label.isascii() or not safe_label.isidentifier() or len(safe_label) > 40:
-            safe_label = f"algorithm_{index}"
-        data[f"{safe_label}_rmse"] = np.array(rmse_values)
-        data[f"{safe_label}_success_rate"] = np.array(success_rates)
-        data[f"{safe_label}_avg_time_ms"] = np.array(avg_times)
-
-    # 元信息
-    data["metadata"] = {
-        "experiment_name": result.config.get("name", "Unnamed"),
-        "num_trials": result.config.get("trials", 0),
-        "algorithms": algo_labels,
-    }
-
-    # 保存
-    savemat(str(output_path), data, oned_as="column")
+    if data["estimates"].nbytes >= 2**31:
+        logging.getLogger(__name__).warning("逐次估计超过 MAT v5 的 2 GB 限制，仅导出指标")
+        data["estimates"] = np.array([])
+    write_mat(output_path, data)

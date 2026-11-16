@@ -75,7 +75,8 @@ class CBF(Algorithm):
         )
 
         # 导向矢量
-        self.A_grid = array.steering(self.grid)
+        self.element_mask = array.element_mask
+        self.A_grid = array.steering(self.grid)[self.element_mask]
 
         ctx.log.info(f"CBF 配置完成：网格共 {len(self.grid)} 点")
 
@@ -83,6 +84,9 @@ class CBF(Algorithm):
         """估计角度。"""
         if self.params is None or self.grid is None or self.A_grid is None:
             raise RuntimeError("CBF 未配置")
+
+        if not np.all(self.element_mask):
+            obs = Observation(X=obs.X[self.element_mask], K=obs.K)
 
         # 协方差
         R = obs.covariance()

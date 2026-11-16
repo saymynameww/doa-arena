@@ -92,11 +92,40 @@ def standard_arrays(
         data.update(
             estimates=estimates, matched=matched, K_hat=inferred, status=status, time_ms=elapsed
         )
+        resolved = np.full(shape, np.nan)
+        for pi, point in enumerate(result.points):
+            for ti, trial in enumerate(point.trials):
+                for ai, label in enumerate(labels):
+                    est = trial.estimates.get(label)
+                    if est and "resolved_by_spectrum" in est.info:
+                        resolved[pi, ai, ti] = est.info["resolved_by_spectrum"]
+        if np.any(np.isfinite(resolved)):
+            data["resolved_by_spectrum"] = resolved
     for name, metric in summary.get("metrics", {}).items():
         data[f"metric__{name}__value"] = np.asarray(metric["value"], dtype=float)
         data[f"metric__{name}__n_used"] = np.asarray(metric["n_used"], dtype=np.int32)
     if summary.get("crb"):
         data["crb"] = np.asarray(summary["crb"]["value"], dtype=float)
+    from ..metrics.sourcewise import sourcewise_arrays
+
+    if "scenario" in result.config:
+        data.update(sourcewise_arrays(result, labels))
+    for name in summary.get("metrics", {}):
+        per_source = np.full((points, algorithms, truth_width), np.nan)
+        present = False
+        extras: dict[str, np.ndarray] = {}
+        for pi, point in enumerate(summary["points"]):
+            for ai, label in enumerate(labels):
+                value = point["algorithms"][label]["metric_values"][name]
+                if value["per_source"] is not None:
+                    present = True
+                    per_source[pi, ai, : len(value["per_source"])] = value["per_source"]
+                for key, number in value["extra"].items():
+                    extras.setdefault(key, np.full((points, algorithms), np.nan))[pi, ai] = number
+        if present:
+            data[f"metric__{name}__per_source"] = per_source
+        for key, numbers in extras.items():
+            data[f"metric__{name}__extra__{key}"] = numbers
     for ai, label in enumerate(labels):
         spectra = [
             (pi, ti, t.estimates[label].spectrum)
@@ -124,7 +153,7 @@ def standard_arrays(
         data["observation__X"] = np.stack(saved_observations).reshape(
             points, trials, *saved_observations[0].shape
         )
-    if points:
+    if points and "scenario" in result.config:
         scene, array = build_scene(ExperimentConfig.model_validate(result.config))
         for index, instance in enumerate(i for i in scene.impairments if i.draw is not None):
             assert instance.draw is not None

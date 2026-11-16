@@ -110,6 +110,7 @@ export default function ConfigFields({
       <>
         {Object.entries(schema.properties).map(([key, field]) => {
           const spec = resolveSchema(field as JsonSchema, root);
+          if (spec["x-hidden"]) return null;
           if (
             spec["x-visible-when"] &&
             !Object.entries(spec["x-visible-when"]).every(

@@ -39,6 +39,7 @@ class ArrayDescriptor:
     params: Mapping[str, Any]
     positions: np.ndarray
     element_mask: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
+    model: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """后处理：设置默认mask、转换数组为只读。"""
@@ -68,6 +69,12 @@ class ArrayDescriptor:
             raise ValueError(
                 f"element_mask 必须是形状 ({self.M},)，实际为 {self.element_mask.shape}"
             )
+
+    @property
+    def dims(self) -> int:
+        """当前阵列支持的角度维数。"""
+        dims = getattr(self.model, "dims", (1,))
+        return dims[0] if isinstance(dims, tuple) else dims
 
     @property
     def M(self) -> int:
@@ -107,6 +114,10 @@ class ArrayDescriptor:
         angles = np.asarray(angles, dtype=np.float64)
         if angles.ndim != 1:
             raise ValueError(f"angles 必须是一维数组，实际维度 {angles.ndim}")
+        if self.model is not None:
+            result = np.asarray(self.model.steering(angles, self.positions))
+            result.flags.writeable = False
+            return result
 
         # 角度转弧度
         theta_rad = np.deg2rad(angles)
@@ -135,6 +146,8 @@ class ArrayDescriptor:
             导数矩阵，形状 (M, K)，complex128
         """
         angles = np.asarray(angles, dtype=np.float64)
+        if self.model is not None:
+            return np.asarray(self.model.steering_derivative(angles, self.positions))
         theta_rad = np.deg2rad(angles)
 
         # d(u)/d(θ) = (cos θ, -sin θ, 0)

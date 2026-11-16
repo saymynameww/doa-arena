@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 from ..runner.results import ExperimentResult
@@ -36,15 +37,8 @@ def generate_html_report(
     gen = ChartGenerator(result)
     charts = gen.create_all_charts()
 
-    # 转换为 HTML（内嵌）
-    charts_html = {}
-    for name, fig in charts.items():
-        # 使用 div 模式（不包含完整 HTML 文档）
-        charts_html[name] = fig.to_html(
-            include_plotlyjs="cdn",  # 使用 CDN
-            div_id=name,
-            full_html=False,
-        )
+    # 内嵌 SVG 可离线查看和打印，不依赖外部脚本。
+    charts_html = {name: fig.to_image(format="svg").decode("utf-8") for name, fig in charts.items()}
 
     # 生成 HTML
     html = _build_html(result, title, charts_html)
@@ -60,7 +54,11 @@ def _build_html(
     charts_html: dict[str, str],
 ) -> str:
     """构建 HTML 内容。"""
-    config = result.config
+    title = escape(title)
+    config = {
+        key: escape(value) if isinstance(value, str) else value
+        for key, value in result.config.items()
+    }
     metadata = result.metadata
 
     # 算法列表
@@ -92,7 +90,7 @@ def _build_html(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
-    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,

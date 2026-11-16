@@ -322,3 +322,35 @@ def test_get_task_result(client):
         data = response.json()
         assert "result_path" in data
         assert "files" in data
+
+
+def test_preflight_warns_without_creating_task(client):
+    from arena.server.tasks import get_task_manager
+
+    response = client.post(
+        "/api/experiments/validate",
+        json={
+            "algorithms": [{"id": "music"}],
+            "scenario": {"sources": {"correlation": {"mode": "coherent"}}},
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["valid"]
+    assert any(issue["level"] == "warning" for issue in response.json()["issues"])
+    assert not get_task_manager().tasks
+
+
+def test_templates_cannot_overwrite_builtin_or_escape_directory(client):
+    for identifier, code in [("../escape", 400), ("standard-comparison", 409)]:
+        response = client.post("/api/templates", json={"id": identifier, "name": "测试"})
+        assert response.status_code == code
+
+
+def test_web_workspace_uses_same_layout_as_script(client, tmp_path):
+    from arena.server.tasks import get_task_manager
+
+    root = tmp_path / "课题目录"
+    response = client.put("/api/workspaces/current", json={"name": "课题", "path": str(root)})
+    assert response.status_code == 200
+    assert (root / "arena_workspace.json").exists()
+    assert get_task_manager().output_dir == root / "experiments"

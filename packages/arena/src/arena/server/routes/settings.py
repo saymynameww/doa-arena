@@ -69,10 +69,16 @@ async def select_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     path_value = workspace.get("path") or workspace.get("name")
     if not isinstance(path_value, str) or not path_value.strip():
         raise HTTPException(status_code=400, detail="工作目录必须提供 path 或 name")
-    selected = {**workspace, "path": path_value}
+    manager = get_task_manager()
+    if any(task.status.value in {"queued", "running"} for task in manager.tasks.values()):
+        raise HTTPException(status_code=409, detail="请等待当前任务完成或取消后再切换工作目录")
+    from ...core.facade import Workspace
+
+    initialized = Workspace(path_value)
+    selected = {**workspace, "path": str(initialized.path)}
     _write_json(CURRENT_WORKSPACE_PATH, selected)
     manager = get_task_manager()
-    manager.switch_output_dir(Path(path_value))
+    manager.switch_output_dir(initialized.experiments)
     return selected
 
 

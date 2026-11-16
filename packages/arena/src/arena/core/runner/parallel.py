@@ -36,7 +36,14 @@ def execute_chunk(
     classes: dict[str, type[Algorithm]] | None = None,
 ) -> list[TrialResult]:
     """使用原始试验序号派生随机数，进程调度顺序不影响结果。"""
-    from .core import _load_algorithms, _warmup_algorithms, build_scene, run_trial
+    from .core import (
+        _load_algorithms,
+        _warmup_algorithms,
+        build_scene,
+        needs_spectrum,
+        run_trial,
+        save_spectrum,
+    )
 
     global _configured, _active, _finalizer
     if _finalizer is None:
@@ -53,8 +60,7 @@ def execute_chunk(
     ctx = RunContext(
         "cpu",
         logging.getLogger(__name__),
-        config.options.save_spectra == "all"
-        or (config.type == "single" and config.options.save_spectra == "auto"),
+        needs_spectrum(config),
         None,
         RNGTree(config.scenario.seed).for_scenario(),
     )
@@ -78,6 +84,7 @@ def execute_chunk(
             config.options.source_count,
             config.type == "single" and config.options.save_observations == "auto",
             batch_cache.get(trial_index),
+            save_spectrum(config),
         )
         result.errors.update(_errors)
         results.append(result)
