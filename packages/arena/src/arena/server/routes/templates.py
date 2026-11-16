@@ -46,6 +46,18 @@ def _ensure_templates() -> None:
         path = TEMPLATES_DIR / f"{template['id']}.json"
         if not path.exists():
             path.write_text(json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8")
+        else:
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+                if existing.get("level") != "内置":
+                    existing["level"] = "内置"
+                    path.write_text(
+                        json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+            except (OSError, json.JSONDecodeError):
+                path.write_text(
+                    json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
 
 
 def _read_templates() -> list[dict[str, Any]]:
