@@ -4,14 +4,14 @@
 
 | 原型区域 / 条目 | 正式组件 | 后端 API / 数据 | 测试与验收 | 状态 |
 |---|---|---|---|---|
-| 全局：工作目录切换器 | `Layout.tsx` | `GET/POST /api/workspaces` | API 设置测试、浏览器切换验收 | 部分完成 |
+| 全局：工作目录切换器 | `Layout.tsx` | `GET/POST /api/workspaces` | API 设置测试、浏览器切换验收 | 本阶段修复（切换动作待补） |
 | 全局：分组导航、当前任务 | `Layout.tsx` | `GET /api/tasks/{id}`、SSE | 前端路由测试、浏览器验收 | 本阶段修复 |
-| 新建实验：实验名称和顶部操作 | `ExperimentConfig.tsx` | `GET /api/schema/experiment` | Schema API、提交配置测试 | 本阶段修复 |
+| 新建实验：实验名称和顶部操作 | `ExperimentConfig.tsx` | `GET /api/schema/experiment`、模板 API | Schema API、提交配置测试 | 本阶段修复 |
 | 新建实验：单次/蒙特卡洛/扫描卡片 | `ExperimentConfig.tsx` | `ExperimentConfig.type`、`sweep` | 配置类型测试 | 部分完成 |
 | 新建实验：Schema 驱动场景字段 | `SchemaForm.tsx`、`ImpairmentConfig.tsx` | `GET /api/schema/experiment` | Schema 渲染、完整配置提交测试 | 本阶段修复 |
 | 新建实验：算法卡片折叠、复制、删除 | `AlgorithmCard.tsx` | `GET /api/algorithms` | 算法列表 API、浏览器验收 | 部分完成 |
-| 新建实验：右侧预览与配置摘要 | `ScenePreview.tsx`、`ConfigSummary.tsx` | 实验草稿状态 | 前端组件测试、浏览器验收 | 部分完成 |
-| 新建实验：底部运行栏和预计工作量 | `ExperimentConfig.tsx` | 配置校验、任务提交 | 提交前校验测试 | 待实现 |
+| 新建实验：右侧预览与配置摘要 | `ScenePreview.tsx`、`ConfigSummary.tsx` | 实验草稿状态 | 前端组件测试、浏览器验收 | 本阶段修复 |
+| 新建实验：底部运行栏和预计工作量 | `ExperimentConfig.tsx` | 配置校验、任务提交 | 提交前校验测试 | 本阶段修复（预计量简化） |
 | 运行与结果：状态、进度、SSE | `ExperimentRun.tsx` | `GET /api/experiments/tasks/{id}`、SSE | Web Service/Runner 集成测试 | 已完成 |
 | 运行与结果：扫描曲线、图例、导出图 | `ResultCharts.tsx` | `/charts`、`/export/{format}` | 图表接口、导出测试 | 部分完成 |
 | 运行与结果：单次空间谱、蒙特卡洛分布 | `ResultCharts.tsx` | `summary.json`、`results.npz` | 结果模型测试、浏览器验收 | 待实现 |
