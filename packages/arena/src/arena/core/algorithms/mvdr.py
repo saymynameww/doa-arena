@@ -6,6 +6,7 @@
 from typing import ClassVar
 
 import numpy as np
+
 from arena_api import (
     Algorithm,
     ArrayDescriptor,
@@ -130,5 +131,7 @@ class MVDR(Algorithm):
                 grid=self.grid,
                 values=spectrum,
                 kind="power",
-            ) if ctx.want_spectrum else None,
+            )
+            if ctx.want_spectrum
+            else None,
         )

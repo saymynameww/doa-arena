@@ -38,9 +38,7 @@ class SignalGenerator:
             raise ValueError(f"SNR 长度必须为 {K}，实际为 {len(snr_db)}")
 
         # σ_k² = σ_n² · 10^(SNR/10)
-        self.signal_powers = np.array([
-            noise_power * (10 ** (snr / 10)) for snr in snr_db
-        ])
+        self.signal_powers = np.array([noise_power * (10 ** (snr / 10)) for snr in snr_db])
 
     def generate(
         self,

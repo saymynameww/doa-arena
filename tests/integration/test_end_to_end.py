@@ -7,13 +7,13 @@ import logging
 
 import numpy as np
 import pytest
-from arena_api import ArrayDescriptor, RunContext
 
-from arena.core.algorithms import MUSIC, CBF, ESPRIT, MVDR, RootMUSIC
+from arena.core.algorithms import CBF, ESPRIT, MUSIC, MVDR, RootMUSIC
 from arena.core.crb import compute_stochastic_crb
 from arena.core.metrics import match_and_compute
 from arena.core.rng import RNGTree
 from arena.core.scenario import generate_trial_data
+from arena_api import ArrayDescriptor, RunContext
 
 
 @pytest.fixture
@@ -21,11 +21,13 @@ def ula_array():
     """创建 ULA 阵列。"""
     M = 16
     d = 0.5
-    positions = np.column_stack([
-        np.arange(M) * d,
-        np.zeros(M),
-        np.zeros(M),
-    ])
+    positions = np.column_stack(
+        [
+            np.arange(M) * d,
+            np.zeros(M),
+            np.zeros(M),
+        ]
+    )
     return ArrayDescriptor(
         type="ula",
         params={"M": M, "d": d},
@@ -255,7 +257,7 @@ def test_coherent_sources_smoothing(ula_array, run_context):
     est_no_smooth = music_no_smooth.estimate(obs, run_context)
     result_no_smooth = match_and_compute(est_no_smooth, angles_true)
 
-    print(f"\n相干信源测试：")
+    print("\n相干信源测试：")
     print(f"不平滑 RMSE: {result_no_smooth['rmse']:.3f}deg")
 
     # 前后向平滑：应该恢复

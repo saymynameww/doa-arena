@@ -2,9 +2,9 @@
 
 import numpy as np
 import pytest
-from arena_api import ComplexValue
 
 from arena.core.impairments import ElementFailure, GainPhase, MutualCoupling, PositionError
+from arena_api import ComplexValue
 
 
 @pytest.fixture
@@ -18,11 +18,13 @@ def test_position_error(rng):
     M = 8
 
     # 标称位置（ULA）
-    positions = np.column_stack([
-        np.arange(M) * 0.5,
-        np.zeros(M),
-        np.zeros(M),
-    ])
+    positions = np.column_stack(
+        [
+            np.arange(M) * 0.5,
+            np.zeros(M),
+            np.zeros(M),
+        ]
+    )
 
     # 创建插件
     imp = PositionError()
@@ -48,8 +50,8 @@ def test_position_error(rng):
     # 其他阵元有偏移
     offsets = actual_positions - positions
     assert np.any(np.abs(offsets[1:, 0]) > 0)  # x 轴有偏移
-    assert np.allclose(offsets[:, 1], 0.0)      # y 轴无偏移
-    assert np.allclose(offsets[:, 2], 0.0)      # z 轴无偏移
+    assert np.allclose(offsets[:, 1], 0.0)  # y 轴无偏移
+    assert np.allclose(offsets[:, 2], 0.0)  # z 轴无偏移
 
     # 描述
     desc = imp.describe(draw, params, M)
@@ -62,8 +64,9 @@ def test_gain_phase(rng):
     M, K = 8, 2
 
     # 真实流形
-    angles = np.array([-10.0, 10.0])
-    A = np.random.randn(M, K) + 1j * np.random.randn(M, K)
+    A = np.random.default_rng(0).standard_normal((M, K)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, K))
 
     # 创建插件
     imp = GainPhase()
@@ -104,9 +107,7 @@ def test_gain_phase(rng):
 
 def test_gain_phase_fixed(rng):
     """测试固定幅相误差。"""
-    M, K = 8, 2
-
-    A = np.random.randn(M, K) + 1j * np.random.randn(M, K)
+    M = 8
 
     # 固定增益和相位
     fixed_gains = [1.0, 0.9, 1.1, 1.05, 0.95, 1.0, 1.0, 1.0]
@@ -120,8 +121,6 @@ def test_gain_phase_fixed(rng):
 
     draw = imp.sample(rng, M)
 
-    A_modified = imp.apply(A, draw, params)
-
     # 描述
     desc = imp.describe(draw, params, M)
 
@@ -134,7 +133,9 @@ def test_mutual_coupling(rng):
     """测试互耦误差。"""
     M, K = 8, 2
 
-    A = np.random.randn(M, K) + 1j * np.random.randn(M, K)
+    A = np.random.default_rng(0).standard_normal((M, K)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, K))
 
     # 创建插件
     imp = MutualCoupling()
@@ -176,7 +177,9 @@ def test_element_failure_zero(rng):
     """测试阵元故障（置零模式）。"""
     M, N = 8, 100
 
-    X = np.random.randn(M, N) + 1j * np.random.randn(M, N)
+    X = np.random.default_rng(0).standard_normal((M, N)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, N))
 
     # 创建插件
     imp = ElementFailure()
@@ -215,7 +218,7 @@ def test_element_failure_zero(rng):
     assert mask is not None
     assert mask.shape == (M,)
     assert not mask[failure_indices].any()  # 故障阵元为 False
-    assert mask[normal_indices].all()       # 正常阵元为 True
+    assert mask[normal_indices].all()  # 正常阵元为 True
 
 
 def test_element_failure_noise_only(rng):
@@ -223,7 +226,9 @@ def test_element_failure_noise_only(rng):
     M, N = 8, 100
 
     # 无噪数据（A·S）
-    AS = np.random.randn(M, N) + 1j * np.random.randn(M, N)
+    AS = np.random.default_rng(0).standard_normal((M, N)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, N))
 
     # 创建插件
     imp = ElementFailure()
@@ -258,7 +263,9 @@ def test_element_failure_fixed_indices(rng):
     """测试指定故障阵元。"""
     M, N = 8, 100
 
-    X = np.random.randn(M, N) + 1j * np.random.randn(M, N)
+    X = np.random.default_rng(0).standard_normal((M, N)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, N))
 
     # 固定故障阵元
     imp = ElementFailure()

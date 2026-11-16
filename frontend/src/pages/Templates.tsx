@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, List, Button, Space, Tag, Empty, Modal, message } from 'antd';
 import {
   PlusOutlined,
@@ -6,39 +7,20 @@ import {
   EditOutlined,
   CopyOutlined,
 } from '@ant-design/icons';
-
-interface Template {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  algorithms: string[];
-  createdAt: string;
-}
+import { deleteTemplate, getTemplates } from '@/services/api';
+import type { Template } from '@/types';
 
 const TemplatesPage: React.FC = () => {
-  const [templates, setTemplates] = useState<Template[]>([
-    {
-      id: '1',
-      name: '标准 DOA 对比',
-      description: 'MUSIC、ESPRIT、Root-MUSIC 三算法对比',
-      type: 'monte_carlo',
-      algorithms: ['MUSIC', 'ESPRIT', 'Root-MUSIC'],
-      createdAt: '2026-11-10',
-    },
-    {
-      id: '2',
-      name: 'SNR 扫描实验',
-      description: '扫描 SNR -10 到 20 dB，步长 5 dB',
-      type: 'sweep',
-      algorithms: ['MUSIC', 'ESPRIT'],
-      createdAt: '2026-11-12',
-    },
-  ]);
+  const navigate = useNavigate();
+  const [templates, setTemplates] = useState<Template[]>([]);
+
+  useEffect(() => {
+    void getTemplates().then(setTemplates).catch(() => message.error('加载模板失败'));
+  }, []);
 
   const handleUseTemplate = (templateId: string) => {
-    message.success('模板已加载到实验配置页');
-    // TODO: 导航到配置页并加载模板
+    message.success(`模板 ${templateId} 已加载到实验配置页`);
+    navigate(`/?template=${encodeURIComponent(templateId)}`);
   };
 
   const handleDeleteTemplate = (templateId: string) => {
@@ -49,7 +31,9 @@ const TemplatesPage: React.FC = () => {
       okType: 'danger',
       cancelText: '取消',
       onOk: () => {
-        setTemplates(templates.filter((t) => t.id !== templateId));
+        void deleteTemplate(templateId)
+          .then(() => setTemplates((current) => current.filter((t) => t.id !== templateId)))
+          .catch(() => message.error('模板删除失败'));
         message.success('模板已删除');
       },
     });

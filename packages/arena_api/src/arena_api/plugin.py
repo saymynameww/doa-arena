@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Sequence
+from collections.abc import Sequence
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -77,8 +78,7 @@ class Algorithm(ABC):
         if caps.array_types is not None:
             if array.type not in caps.array_types:
                 raise ValueError(
-                    f"{cls.name} 只支持阵列类型 {caps.array_types}，"
-                    f"当前为 {array.type}"
+                    f"{cls.name} 只支持阵列类型 {caps.array_types}，当前为 {array.type}"
                 )
 
         # 检查 ULA
@@ -297,11 +297,14 @@ class ArrayModel(ABC):
             导向矢量，形状 (M, K)
         """
         theta_rad = np.deg2rad(angles)
-        u = np.stack([
-            np.sin(theta_rad),
-            np.cos(theta_rad),
-            np.zeros_like(theta_rad),
-        ], axis=0)
+        u = np.stack(
+            [
+                np.sin(theta_rad),
+                np.cos(theta_rad),
+                np.zeros_like(theta_rad),
+            ],
+            axis=0,
+        )
         phase = -2.0 * np.pi * (positions @ u)
         return np.exp(1j * phase)
 

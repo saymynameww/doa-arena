@@ -1,8 +1,7 @@
 import React from 'react';
-import { Collapse, Checkbox, Select, InputNumber, Space, Typography, Tooltip } from 'antd';
+import { Checkbox, Select, InputNumber, Space, Typography, Tooltip } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 
-const { Panel } = Collapse;
 const { Text } = Typography;
 
 interface ImpairmentParam {

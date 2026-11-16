@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Select, Button, Space, Row, Col, Empty, Tabs } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DeleteOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
+import { getTaskCharts, getTasks } from '@/services/api';
+import type { ChartData } from '@/types';
 
 const { Option } = Select;
 
@@ -18,13 +20,33 @@ interface CompareExperiment {
  */
 const ComparePage: React.FC = () => {
   const [selectedExperiments, setSelectedExperiments] = useState<string[]>([]);
-  const [availableExperiments] = useState<CompareExperiment[]>([
-    { id: '1', name: 'MUSIC vs ESPRIT 对比', date: '2026-11-15' },
-    { id: '2', name: 'SNR 扫描实验', date: '2026-11-14' },
-    { id: '3', name: '相干信源测试', date: '2026-11-13' },
-  ]);
+  const [availableExperiments, setAvailableExperiments] = useState<CompareExperiment[]>([]);
+  const [chartsByExperiment, setChartsByExperiment] = useState<Record<string, ChartData[]>>({});
 
-  const handleAddExperiment = (id: string) => {
+  useEffect(() => {
+    void getTasks()
+      .then((tasks) => {
+        setAvailableExperiments(
+          tasks
+            .filter((task) => task.status === 'completed')
+            .map((task) => ({
+              id: task.task_id,
+              name: `实验 ${task.task_id}`,
+              date: new Date(task.created_at * 1000).toLocaleString('zh-CN'),
+            }))
+        );
+      })
+      .catch(() => setAvailableExperiments([]));
+  }, []);
+
+  useEffect(() => {
+    void Promise.all(selectedExperiments.map(async (id) => [id, await getTaskCharts(id)] as const))
+      .then((entries) => setChartsByExperiment(Object.fromEntries(entries)))
+      .catch(() => setChartsByExperiment({}));
+  }, [selectedExperiments]);
+
+  const handleAddExperiment = (id: string | undefined) => {
+    if (!id) return;
     if (!selectedExperiments.includes(id)) {
       setSelectedExperiments([...selectedExperiments, id]);
     }
@@ -34,32 +56,17 @@ const ComparePage: React.FC = () => {
     setSelectedExperiments(selectedExperiments.filter((expId) => expId !== id));
   };
 
-  // 模拟对比数据
   const generateCompareChart = () => {
-    const colors = ['#1890ff', '#52c41a', '#fa8c16', '#722ed1'];
-
-    const data = selectedExperiments.map((expId, index) => {
+    const data = selectedExperiments.flatMap((expId) => {
       const exp = availableExperiments.find((e) => e.id === expId);
-      return {
-        x: [0, 5, 10, 15, 20],
-        y: [
-          2.5 - index * 0.3,
-          1.8 - index * 0.2,
-          1.2 - index * 0.15,
-          0.8 - index * 0.1,
-          0.5 - index * 0.05,
-        ],
-        type: 'scatter' as const,
-        mode: 'lines+markers' as const,
-        name: exp?.name || `实验 ${expId}`,
-        line: { color: colors[index % colors.length] },
-      };
+      const chart = chartsByExperiment[expId]?.[0];
+      return (chart?.data || []).map((trace) => ({ ...trace, name: `${exp?.name || expId} / ${trace.name || ''}` }));
     });
 
     return {
       data,
       layout: {
-        title: 'RMSE 对比',
+        title: { text: 'RMSE 对比' },
         xaxis: { title: 'SNR (dB)' },
         yaxis: { title: 'RMSE (°)', type: 'log' as const },
         hovermode: 'closest' as const,
@@ -86,8 +93,8 @@ const ComparePage: React.FC = () => {
         label: 'RMSE',
         children: (
           <Plot
-            data={chart.data}
-            layout={chart.layout}
+            data={chart.data as never}
+            layout={chart.layout as never}
             config={{
               displayModeBar: true,
               displaylogo: false,
@@ -99,20 +106,12 @@ const ComparePage: React.FC = () => {
       {
         key: 'success',
         label: '成功率',
-        children: (
-          <div style={{ textAlign: 'center', padding: 100, color: '#8c8c8c' }}>
-            成功率对比图表（待实现）
-          </div>
-        ),
+        children: <Plot data={selectedExperiments.flatMap((id) => (chartsByExperiment[id]?.[1]?.data || [])) as never} layout={{ title: { text: '成功率对比' }, height: 500 } as never} />,
       },
       {
         key: 'time',
         label: '运行时间',
-        children: (
-          <div style={{ textAlign: 'center', padding: 100, color: '#8c8c8c' }}>
-            运行时间对比图表（待实现）
-          </div>
-        ),
+        children: <Plot data={selectedExperiments.flatMap((id) => (chartsByExperiment[id]?.[2]?.data || [])) as never} layout={{ title: { text: '运行时间对比' }, height: 500 } as never} />,
       },
     ];
 
@@ -127,7 +126,7 @@ const ComparePage: React.FC = () => {
             <Select
               placeholder="添加实验"
               style={{ width: '100%' }}
-              onSelect={handleAddExperiment}
+            onSelect={(id: string | undefined) => handleAddExperiment(id)}
               value={undefined}
             >
               {availableExperiments

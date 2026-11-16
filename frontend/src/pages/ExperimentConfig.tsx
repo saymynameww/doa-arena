@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- validation is intentionally triggered by form values. */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,7 +18,7 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { PlusOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined } from '@ant-design/icons';
 import { getAlgorithms, runExperiment } from '@/services/api';
 import AlgorithmCard from '@/components/AlgorithmCard';
 import ScenePreview from '@/components/ScenePreview';
@@ -387,7 +388,7 @@ const ExperimentConfigPage: React.FC = () => {
           <Divider />
 
           {/* 场景配置 */}
-          <Collapse defaultActiveKeys={['scene']}>
+          <Collapse defaultActiveKey="scene">
             <Panel header="场景配置" key="scene">
               <Row gutter={16}>
                 <Col span={8}>
@@ -426,7 +427,9 @@ const ExperimentConfigPage: React.FC = () => {
                 <Select
                   placeholder="添加算法"
                   style={{ width: 200 }}
-                  onSelect={handleAddAlgorithm}
+                  onSelect={(algorithmId: string | undefined) => {
+                    if (algorithmId) handleAddAlgorithm(algorithmId);
+                  }}
                   value={undefined}
                 >
                   {algorithms.map((algo) => (

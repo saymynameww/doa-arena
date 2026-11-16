@@ -1,7 +1,8 @@
+/* eslint-disable react-hooks/exhaustive-deps -- filtering follows the displayed task state. */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Card, Button, Tag, Space, message, Select, Input } from 'antd';
-import { EyeOutlined, ReloadOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
+import { EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { getTasks } from '@/services/api';
 import type { Task } from '@/types';
 import type { ColumnsType } from 'antd/es/table';

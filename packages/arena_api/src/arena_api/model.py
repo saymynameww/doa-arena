@@ -24,7 +24,9 @@ class ModelMeta(BaseModel):
 
     # 输入输出
     input: str = Field(..., description="输入格式描述")
-    output: dict[str, Any] = Field(..., description="输出格式，如 {'type': 'grid_probability', 'grid': {...}}")
+    output: dict[str, Any] = Field(
+        ..., description="输出格式，如 {'type': 'grid_probability', 'grid': {...}}"
+    )
 
     # 训练条件
     trained_on: dict[str, Any] = Field(

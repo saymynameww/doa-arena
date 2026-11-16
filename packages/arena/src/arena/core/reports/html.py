@@ -74,12 +74,8 @@ def _build_html(
     info_rows.append(f"<tr><td>实验名称</td><td>{config.get('name', 'N/A')}</td></tr>")
     info_rows.append(f"<tr><td>实验类型</td><td>{config.get('type', 'N/A')}</td></tr>")
     info_rows.append(f"<tr><td>试验次数</td><td>{config.get('trials', 'N/A')}</td></tr>")
-    info_rows.append(
-        f"<tr><td>算法数量</td><td>{len(config.get('algorithms', []))}</td></tr>"
-    )
-    info_rows.append(
-        f"<tr><td>扫描点数</td><td>{metadata.get('num_points', 'N/A')}</td></tr>"
-    )
+    info_rows.append(f"<tr><td>算法数量</td><td>{len(config.get('algorithms', []))}</td></tr>")
+    info_rows.append(f"<tr><td>扫描点数</td><td>{metadata.get('num_points', 'N/A')}</td></tr>")
 
     elapsed = metadata.get("elapsed_seconds", 0)
     info_rows.append(f"<tr><td>总耗时</td><td>{elapsed:.2f} 秒</td></tr>")
@@ -99,7 +95,8 @@ def _build_html(
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <style>
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
@@ -184,7 +181,12 @@ def _build_html(
 
         <h2>图表</h2>
 
-        {"".join(f'<div class="chart"><h3>{_chart_title(name)}</h3>{html}</div>' for name, html in charts_html.items())}
+        {
+        "".join(
+            f'<div class="chart"><h3>{_chart_title(name)}</h3>{html}</div>'
+            for name, html in charts_html.items()
+        )
+    }
 
         <div class="footer">
             <p>生成时间：{gen_time}</p>

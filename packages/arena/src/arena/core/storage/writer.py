@@ -101,12 +101,8 @@ class ResultWriter:
 
             # 存储
             data[f"{label}__estimates"] = estimates_padded
-            data[f"{label}__times_ms"] = np.array(times_list).reshape(
-                num_points, num_trials
-            )
-            data[f"{label}__failed"] = np.array(failed_list).reshape(
-                num_points, num_trials
-            )
+            data[f"{label}__times_ms"] = np.array(times_list).reshape(num_points, num_trials)
+            data[f"{label}__failed"] = np.array(failed_list).reshape(num_points, num_trials)
 
         # 写入 npz
         self._write_npz(self.output_dir / "results.npz", data)
@@ -117,8 +113,7 @@ class ResultWriter:
         Args:
             result: 实验结果
         """
-        # 获取真实角度（简化：从配置读取）
-        truth_angles = np.array([-10.0, 10.0])  # 简化版
+        truth_angles = _truth_angles_from_config(result.config)
 
         summary = {
             "algorithms": [],
@@ -131,6 +126,8 @@ class ResultWriter:
             algo_labels = list(first_trial.estimates.keys())
         else:
             algo_labels = []
+
+        summary["algorithms"] = algo_labels
 
         # 每个扫描点
         for point in result.points:
@@ -153,6 +150,12 @@ class ResultWriter:
 
                 # 计算指标
                 metrics = compute_metrics(estimates, truth_angles)
+                times = [
+                    trial.times_ms.get(label, np.nan)
+                    for trial in point.trials
+                    if label in trial.times_ms
+                ]
+                metrics["avg_time_ms"] = float(np.nanmean(times)) if times else np.nan
 
                 point_summary["algorithms"][label] = metrics
 
@@ -162,13 +165,7 @@ class ResultWriter:
         self._write_json(self.output_dir / "summary.json", summary)
 
     def _write_json(self, path: Path, data: Any) -> None:
-        """原子写入 JSON。
-
-        Args:
-            path: 文件路径
-            data: 数据
-        """
-        # 写入临时文件
+        """原子写入 JSON。"""
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -178,18 +175,10 @@ class ResultWriter:
         ) as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
             temp_path = f.name
-
-        # 原子重命名
         Path(temp_path).replace(path)
 
     def _write_npz(self, path: Path, data: dict[str, np.ndarray]) -> None:
-        """原子写入 npz。
-
-        Args:
-            path: 文件路径
-            data: 数据字典
-        """
-        # 写入临时文件
+        """原子写入 npz。"""
         with tempfile.NamedTemporaryFile(
             dir=path.parent,
             delete=False,
@@ -197,6 +186,15 @@ class ResultWriter:
         ) as f:
             np.savez(f, **data)
             temp_path = f.name
-
-        # 原子重命名
         Path(temp_path).replace(path)
+
+
+def _truth_angles_from_config(config: dict[str, Any]) -> np.ndarray:
+    """从实验配置中提取真实角度，供结果汇总和导出共用。"""
+    sources = config.get("scenario", {}).get("sources", {})
+    angles = sources.get("angles", {})
+    values = angles.get("values") if isinstance(angles, dict) else None
+    if values:
+        return np.asarray(values, dtype=float)
+    count = int(sources.get("K", 2))
+    return np.linspace(-10.0, 10.0, count, dtype=float)

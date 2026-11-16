@@ -47,9 +47,7 @@ class CorrelationMatrix:
             # 确保半正定（数值误差可能导致负特征值）
             eigvals = np.linalg.eigvalsh(P)
             if np.any(eigvals < -1e-10):
-                raise ValueError(
-                    f"相关系数矩阵不是半正定的，最小特征值为 {eigvals.min()}"
-                )
+                raise ValueError(f"相关系数矩阵不是半正定的，最小特征值为 {eigvals.min()}")
 
             return P
 
@@ -118,8 +116,7 @@ class CorrelationMatrix:
             max_rho = 1.0 / (K - 1)
             if rho_magnitude > max_rho:
                 raise ValueError(
-                    f"对于 K={K} 个信源，相关系数幅度不能超过 {max_rho:.4f}，"
-                    f"实际为 {rho_magnitude}"
+                    f"对于 K={K} 个信源，相关系数幅度不能超过 {max_rho:.4f}，实际为 {rho_magnitude}"
                 )
 
         # 相关系数矩阵

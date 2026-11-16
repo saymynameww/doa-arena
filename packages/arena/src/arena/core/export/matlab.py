@@ -52,9 +52,7 @@ def export_to_mat(result: ExperimentResult, output_path: Path | str) -> None:
             from ..metrics import compute_metrics
 
             estimates = [
-                trial.estimates[label]
-                for trial in point.trials
-                if label in trial.estimates
+                trial.estimates[label] for trial in point.trials if label in trial.estimates
             ]
 
             truth_angles = np.array([-10.0, 10.0])  # 简化

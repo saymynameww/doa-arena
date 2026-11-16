@@ -10,7 +10,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 const { Title } = Typography;
 
 const AppLayout: React.FC = () => {

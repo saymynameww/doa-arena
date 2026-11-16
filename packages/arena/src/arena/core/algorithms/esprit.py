@@ -6,6 +6,7 @@
 from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import (
     Algorithm,
     ArrayDescriptor,

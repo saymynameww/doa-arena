@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from collections.abc import Callable
 
 import numpy as np
-from arena_api import Algorithm, ArrayDescriptor, Estimate, Observation, RunContext
+
+from arena_api import Algorithm, ArrayDescriptor, RunContext
 
 from ..config import ExperimentConfig
-from ..rng import RNGTree
+from ..rng import RNGTree, TrialRNG
 from ..scenario import ImpairmentInstance, ScenarioConfig, ScenarioGenerator
 from ..signals import CorrelationMatrix
 from .results import ExperimentResult, SweepPointResult, TrialResult
@@ -67,11 +68,15 @@ def run_trial(
     )
 
 
-def run_experiment(config: ExperimentConfig) -> ExperimentResult:
+def run_experiment(
+    config: ExperimentConfig,
+    progress_callback: Callable[[int, int, int, int], None] | None = None,
+) -> ExperimentResult:
     """运行实验。
 
     Args:
         config: 实验配置
+        progress_callback: 可选进度回调，参数为已完成试验数、总试验数、当前扫描点和扫描点总数
 
     Returns:
         实验结果
@@ -164,6 +169,9 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
     # 运行所有扫描点
     points = []
 
+    total_points = len(sweep_values)
+    total_trials = total_points * config.trials
+
     for point_idx, sweep_val in enumerate(sweep_values):
         logger.info(f"运行扫描点 {point_idx + 1}/{len(sweep_values)}")
 
@@ -183,6 +191,13 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
                 ctx,
             )
             trials.append(result)
+            if progress_callback is not None:
+                progress_callback(
+                    point_idx * config.trials + trial_idx + 1,
+                    total_trials,
+                    point_idx,
+                    total_points,
+                )
 
         points.append(
             SweepPointResult(
@@ -209,11 +224,13 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
 
 def _create_ula_positions(M: int, d: float) -> np.ndarray:
     """创建 ULA 阵元位置。"""
-    return np.column_stack([
-        np.arange(M) * d,
-        np.zeros(M),
-        np.zeros(M),
-    ])
+    return np.column_stack(
+        [
+            np.arange(M) * d,
+            np.zeros(M),
+            np.zeros(M),
+        ]
+    )
 
 
 def _load_algorithms(

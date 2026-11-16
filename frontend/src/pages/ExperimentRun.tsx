@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps -- subscription lifecycle is keyed by route id. */
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -12,14 +13,12 @@ import {
   Spin,
   Descriptions,
   Tag,
-  Tabs,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   SyncOutlined,
-  DownloadOutlined,
 } from '@ant-design/icons';
 import { getTask, subscribeTaskProgress, getTaskResult } from '@/services/api';
 import ResultCharts from '@/components/ResultCharts';
@@ -135,6 +134,7 @@ const ExperimentRunPage: React.FC = () => {
   const progress = task.progress || {
     current_trial: 0,
     total_trials: 0,
+    completed_trials: 0,
     percent: 0,
   };
 

@@ -3,9 +3,11 @@
 阵元位置偏离标称位置，参考阵元（第 0 个）误差为 0。
 """
 
-from typing import Any, ClassVar, Literal, Mapping
+from collections.abc import Mapping
+from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import Impairment, Param, ParamsModel
 
 
@@ -80,17 +82,21 @@ class PositionError(Impairment):
 
         # 根据 axes 选择生效的轴
         if params.axes == "x":
-            offset = np.column_stack([
-                params.sigma * z[:, 0],
-                np.zeros(len(z)),
-                np.zeros(len(z)),
-            ])
+            offset = np.column_stack(
+                [
+                    params.sigma * z[:, 0],
+                    np.zeros(len(z)),
+                    np.zeros(len(z)),
+                ]
+            )
         elif params.axes == "xy":
-            offset = np.column_stack([
-                params.sigma * z[:, 0],
-                params.sigma * z[:, 1],
-                np.zeros(len(z)),
-            ])
+            offset = np.column_stack(
+                [
+                    params.sigma * z[:, 0],
+                    params.sigma * z[:, 1],
+                    np.zeros(len(z)),
+                ]
+            )
         else:  # xyz
             offset = params.sigma * z
 
@@ -116,17 +122,21 @@ class PositionError(Impairment):
 
         # 计算实际偏移
         if params.axes == "x":
-            offset = np.column_stack([
-                params.sigma * z[:, 0],
-                np.zeros(M),
-                np.zeros(M),
-            ])
+            offset = np.column_stack(
+                [
+                    params.sigma * z[:, 0],
+                    np.zeros(M),
+                    np.zeros(M),
+                ]
+            )
         elif params.axes == "xy":
-            offset = np.column_stack([
-                params.sigma * z[:, 0],
-                params.sigma * z[:, 1],
-                np.zeros(M),
-            ])
+            offset = np.column_stack(
+                [
+                    params.sigma * z[:, 0],
+                    params.sigma * z[:, 1],
+                    np.zeros(M),
+                ]
+            )
         else:  # xyz
             offset = params.sigma * z
 

@@ -227,4 +227,3 @@ def test_html_report(sweep_result):
             assert "MUSIC" in content
             assert "ESPRIT" in content
             assert "plotly" in content.lower()  # Plotly JS
-

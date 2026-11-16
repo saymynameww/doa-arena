@@ -30,11 +30,13 @@ def export_to_csv(result: ExperimentResult, output_path: Path | str) -> None:
     headers = ["point_idx", "sweep_value"]
 
     for label in algo_labels:
-        headers.extend([
-            f"{label}_rmse",
-            f"{label}_success_rate",
-            f"{label}_avg_time_ms",
-        ])
+        headers.extend(
+            [
+                f"{label}_rmse",
+                f"{label}_success_rate",
+                f"{label}_avg_time_ms",
+            ]
+        )
 
     # 写入 CSV
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
@@ -49,9 +51,7 @@ def export_to_csv(result: ExperimentResult, output_path: Path | str) -> None:
                 from ..metrics import compute_metrics
 
                 estimates = [
-                    trial.estimates[label]
-                    for trial in point.trials
-                    if label in trial.estimates
+                    trial.estimates[label] for trial in point.trials if label in trial.estimates
                 ]
 
                 truth_angles = np.array([-10.0, 10.0])  # 简化

@@ -6,6 +6,7 @@
 from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import (
     Algorithm,
     ArrayDescriptor,
@@ -135,7 +136,7 @@ class MUSIC(Algorithm):
         spectrum = kit.music_spectrum(A_grid_to_use, Un)
 
         # 峰值搜索
-        peak_angles, peak_values = kit.peak_search(
+        peak_angles, _ = kit.peak_search(
             spectrum,
             self.grid,
             K=obs.K,
@@ -149,7 +150,9 @@ class MUSIC(Algorithm):
                 grid=self.grid,
                 values=spectrum,
                 kind="pseudo",
-            ) if ctx.want_spectrum else None,
+            )
+            if ctx.want_spectrum
+            else None,
             info={
                 "smoothing": params.smoothing,
                 "subarray_size": self._get_subarray_size(params, obs.M, obs.K)

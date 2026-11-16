@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # ============================================================================
 # 协方差与空间平滑
 # ============================================================================
@@ -358,8 +357,6 @@ def esprit(
     Returns:
         估计角度（度），形状 (K,)
     """
-    M = R.shape[0]
-
     # 信号子空间
     Us, _, _, _ = subspace_decomposition(R, K)
 
@@ -388,8 +385,8 @@ def esprit(
     # 特征值到角度
     eigvals = np.linalg.eigvals(Phi)
 
-    # φ = 2π·d·sin(θ)，即 eigval = exp(j·φ)
-    angles_rad = np.angle(eigvals) / (2.0 * np.pi * d)
+    # ULA 导向矢量使用 -2π·d·sin(θ) 相位，因此特征值相位取负号还原角度。
+    angles_rad = -np.angle(eigvals) / (2.0 * np.pi * d)
     angles_rad = np.clip(angles_rad, -1.0, 1.0)
     angles_deg = np.rad2deg(np.arcsin(angles_rad))
 

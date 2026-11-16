@@ -36,7 +36,6 @@ def export_to_latex(
     lines = []
 
     # 表格开始
-    n_cols = 1 + len(algo_labels) * 2  # 扫描值 + 每个算法的 RMSE 和成功率
     lines.append(r"\begin{table}[htbp]")
     lines.append(r"  \centering")
     lines.append(f"  \\caption{{{caption}}}")
@@ -71,9 +70,7 @@ def export_to_latex(
             from ..metrics import compute_metrics
 
             estimates = [
-                trial.estimates[label]
-                for trial in point.trials
-                if label in trial.estimates
+                trial.estimates[label] for trial in point.trials if label in trial.estimates
             ]
 
             truth_angles = np.array([-10.0, 10.0])  # 简化

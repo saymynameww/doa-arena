@@ -26,9 +26,7 @@ class AngleGrid:
         if self.step <= 0:
             raise ValueError(f"步长必须大于 0，实际为 {self.step}")
         if self.start >= self.stop:
-            raise ValueError(
-                f"起始角度必须小于终止角度，实际为 {self.start} >= {self.stop}"
-            )
+            raise ValueError(f"起始角度必须小于终止角度，实际为 {self.start} >= {self.stop}")
 
     @property
     def num_points(self) -> int:

@@ -1,7 +1,7 @@
 """测试 arena_api.kit 工具箱。"""
 
 import numpy as np
-import pytest
+
 from arena_api import kit
 
 
@@ -53,7 +53,9 @@ def test_subspace_decomposition():
 def test_spatial_smoothing():
     """测试空间平滑。"""
     M = 16
-    R = np.random.randn(M, M) + 1j * np.random.randn(M, M)
+    R = np.random.default_rng(0).standard_normal((M, M)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, M))
     R = R @ R.conj().T  # 确保 Hermitian
 
     L = 10
@@ -115,11 +117,11 @@ def test_peak_search():
     spectrum[120] = 5.0  # 30°
 
     # 搜索前 2 峰
-    peak_angles, peak_values = kit.peak_search(spectrum, grid, K=2)
+    peak_angles, _ = kit.peak_search(spectrum, grid, K=2)
 
     assert len(peak_angles) == 2
     assert -12 < peak_angles[0] < -8  # 第一峰在 -10° 附近
-    assert 8 < peak_angles[1] < 12    # 第二峰在 10° 附近
+    assert 8 < peak_angles[1] < 12  # 第二峰在 10° 附近
 
 
 def test_root_music():
@@ -131,7 +133,7 @@ def test_root_music():
     angles_true = np.array([-15, 20])
     A = kit.ula_steering(angles_true, M, d=0.5)
     P = np.diag([10.0, 10.0])
-    sigma2 = 0.1
+    sigma2 = 0.001
     R = A @ P @ A.conj().T + sigma2 * np.eye(M)
 
     # Root-MUSIC
@@ -153,7 +155,7 @@ def test_esprit():
     angles_true = np.array([-20, 15])
     A = kit.ula_steering(angles_true, M, d=0.5)
     P = np.diag([10.0, 10.0])
-    sigma2 = 0.1
+    sigma2 = 0.001
     R = A @ P @ A.conj().T + sigma2 * np.eye(M)
 
     # LS-ESPRIT

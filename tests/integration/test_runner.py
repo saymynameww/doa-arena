@@ -137,7 +137,7 @@ def test_result_storage():
             assert config_data["name"] == "Test Storage"
 
         # 验证 npz（读取后立即关闭）
-        data = np.load(output_dir / "results.npz")
+        data = np.load(output_dir / "results.npz", allow_pickle=False)
         keys = list(data.keys())
         data.close()  # 显式关闭，避免 Windows 文件锁定
 
@@ -216,8 +216,7 @@ def test_multiple_algorithms():
     trial = result.points[0].trials[0]
     assert len(trial.estimates) == 5
     assert all(
-        label in trial.estimates
-        for label in ["CBF", "MVDR", "MUSIC", "Root-MUSIC", "ESPRIT"]
+        label in trial.estimates for label in ["CBF", "MVDR", "MUSIC", "Root-MUSIC", "ESPRIT"]
     )
 
 

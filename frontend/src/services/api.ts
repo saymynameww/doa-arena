@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Algorithm, ExperimentConfig, Task, ExperimentResult } from '@/types';
+import type { Algorithm, ChartData, ExperimentConfig, Task, ExperimentResult, Template } from '@/types';
 
 const api = axios.create({
   baseURL: '/api',
@@ -42,6 +42,27 @@ export const getTask = async (taskId: string): Promise<Task> => {
 export const getTaskResult = async (taskId: string): Promise<ExperimentResult> => {
   const response = await api.get(`/experiments/tasks/${taskId}/result`);
   return response.data;
+};
+
+export const getTaskCharts = async (taskId: string): Promise<ChartData[]> => {
+  const response = await api.get(`/experiments/tasks/${taskId}/charts`);
+  return response.data.charts;
+};
+
+export const downloadTaskExport = async (taskId: string, format: string): Promise<Blob> => {
+  const response = await api.get(`/experiments/tasks/${taskId}/export/${format}`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export const getTemplates = async (): Promise<Template[]> => {
+  const response = await api.get('/templates');
+  return response.data.templates;
+};
+
+export const deleteTemplate = async (templateId: string): Promise<void> => {
+  await api.delete(`/templates/${templateId}`);
 };
 
 export const cancelTask = async (taskId: string) => {

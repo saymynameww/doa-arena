@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import { Card, Button, Space, Switch, Input, Collapse, Tag, Tooltip } from 'antd';
+import { Card, Button, Space, Switch, Input, Tag, Tooltip } from 'antd';
 import {
   DeleteOutlined,
   CopyOutlined,
   DownOutlined,
   UpOutlined,
-  WarningOutlined,
 } from '@ant-design/icons';
 import SchemaForm from './SchemaForm';
 import type { Algorithm, AlgorithmInstance } from '@/types';
-
-const { Panel } = Collapse;
 
 interface AlgorithmCardProps {
   algorithm: Algorithm;

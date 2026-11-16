@@ -1,7 +1,10 @@
+/* eslint-disable react-hooks/exhaustive-deps -- callbacks are local UI actions and dependencies are keyed by task id. */
 import React, { useState, useEffect } from 'react';
 import { Card, Tabs, Spin, Empty, Button, Space } from 'antd';
 import { DownloadOutlined, FullscreenOutlined } from '@ant-design/icons';
 import Plot from 'react-plotly.js';
+import { downloadTaskExport, getTaskCharts } from '@/services/api';
+import type { ChartData } from '@/types';
 
 interface ResultChartsProps {
   taskId: string;
@@ -15,7 +18,7 @@ interface ResultChartsProps {
  */
 const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
   const [loading, setLoading] = useState(false);
-  const [charts, setCharts] = useState<any[]>([]);
+  const [charts, setCharts] = useState<ChartData[]>([]);
 
   useEffect(() => {
     if (resultPath) {
@@ -26,99 +29,7 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
   const loadCharts = async () => {
     setLoading(true);
     try {
-      // TODO: 从后端加载图表数据
-      // 这里使用模拟数据
-      const mockCharts = [
-        {
-          title: 'RMSE vs SNR',
-          data: [
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [2.5, 1.8, 1.2, 0.8, 0.5],
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'MUSIC',
-              line: { color: '#1890ff' },
-            },
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [2.8, 2.0, 1.4, 0.9, 0.6],
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'ESPRIT',
-              line: { color: '#52c41a' },
-            },
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [1.5, 1.0, 0.7, 0.5, 0.3],
-              type: 'scatter',
-              mode: 'lines',
-              name: 'CRB',
-              line: { color: '#000', dash: 'dash' },
-            },
-          ],
-          layout: {
-            title: 'RMSE vs SNR',
-            xaxis: { title: 'SNR (dB)' },
-            yaxis: { title: 'RMSE (°)', type: 'log' },
-            hovermode: 'closest',
-          },
-        },
-        {
-          title: '成功率 vs SNR',
-          data: [
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [0.3, 0.5, 0.7, 0.9, 0.95],
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'MUSIC',
-              line: { color: '#1890ff' },
-            },
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [0.2, 0.4, 0.6, 0.85, 0.92],
-              type: 'scatter',
-              mode: 'lines+markers',
-              name: 'ESPRIT',
-              line: { color: '#52c41a' },
-            },
-          ],
-          layout: {
-            title: '成功率 vs SNR',
-            xaxis: { title: 'SNR (dB)' },
-            yaxis: { title: '成功率', range: [0, 1] },
-            hovermode: 'closest',
-          },
-        },
-        {
-          title: '运行时间 vs SNR',
-          data: [
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [12, 13, 14, 15, 16],
-              type: 'bar',
-              name: 'MUSIC',
-              marker: { color: '#1890ff' },
-            },
-            {
-              x: [0, 5, 10, 15, 20],
-              y: [8, 9, 9, 10, 11],
-              type: 'bar',
-              name: 'ESPRIT',
-              marker: { color: '#52c41a' },
-            },
-          ],
-          layout: {
-            title: '运行时间 vs SNR',
-            xaxis: { title: 'SNR (dB)' },
-            yaxis: { title: '时间 (ms)' },
-            barmode: 'group',
-          },
-        },
-      ];
-
-      setCharts(mockCharts);
+      setCharts(await getTaskCharts(taskId));
     } catch (error) {
       console.error('加载图表失败:', error);
     } finally {
@@ -126,9 +37,14 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
     }
   };
 
-  const handleDownload = (chart: any) => {
-    // TODO: 实现图表下载
-    console.log('下载图表:', chart.title);
+  const handleDownload = async () => {
+    const blob = await downloadTaskExport(taskId, 'html');
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `experiment_${taskId}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   if (loading) {
@@ -158,7 +74,7 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
           <Space>
             <Button
               icon={<DownloadOutlined />}
-              onClick={() => handleDownload(chart)}
+              onClick={() => void handleDownload()}
             >
               下载
             </Button>
@@ -166,12 +82,12 @@ const ResultCharts: React.FC<ResultChartsProps> = ({ taskId, resultPath }) => {
           </Space>
         </div>
         <Plot
-          data={chart.data}
+          data={chart.data as never}
           layout={{
-            ...chart.layout,
+            ...(chart.layout as Record<string, unknown>),
             autosize: true,
             height: 500,
-          }}
+          } as never}
           config={{
             displayModeBar: true,
             displaylogo: false,

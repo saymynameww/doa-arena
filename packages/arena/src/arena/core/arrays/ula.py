@@ -3,6 +3,7 @@
 from typing import ClassVar
 
 import numpy as np
+
 from arena_api import ArrayModel, Param, ParamsModel
 
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Dropdown, message } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
+import { downloadTaskExport } from '@/services/api';
 
 interface ExportMenuProps {
   taskId: string;
@@ -13,21 +14,21 @@ interface ExportMenuProps {
  *
  * 提供多种格式的数据和报告导出
  */
-const ExportMenu: React.FC<ExportMenuProps> = ({ taskId, resultPath }) => {
+const ExportMenu: React.FC<ExportMenuProps> = ({ taskId }) => {
   const handleExport = async (format: string) => {
     try {
       message.loading({ content: `正在导出 ${format.toUpperCase()}...`, key: 'export' });
 
-      // TODO: 调用后端导出 API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const blob = await downloadTaskExport(taskId, format);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `experiment_${taskId}.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
 
       message.success({ content: `${format.toUpperCase()} 已导出`, key: 'export' });
 
-      // 触发下载
-      // const link = document.createElement('a');
-      // link.href = exportUrl;
-      // link.download = `experiment_${taskId}.${format}`;
-      // link.click();
     } catch (error) {
       message.error({ content: '导出失败', key: 'export' });
     }

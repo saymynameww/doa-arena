@@ -3,9 +3,11 @@
 阵元间的互耦效应，使用对称 Toeplitz 矩阵建模。
 """
 
-from typing import Any, ClassVar, Literal, Mapping
+from collections.abc import Mapping
+from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import ComplexValue, Impairment, Param, ParamsModel
 
 
@@ -73,7 +75,7 @@ class MutualCoupling(Impairment):
         Returns:
             修改后的流形 C·A，形状 (M, K)
         """
-        M, K = data.shape
+        M, _K = data.shape
 
         # 构造对称 Toeplitz 互耦矩阵
         C = self._build_coupling_matrix(M, params)

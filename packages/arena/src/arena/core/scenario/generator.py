@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
 from arena_api import ArrayDescriptor, Impairment, Observation
 
 from ..rng import TrialRNG
@@ -72,9 +73,7 @@ class ScenarioGenerator:
 
         # 验证
         if len(config.angles) != config.K:
-            raise ValueError(
-                f"角度数量 {len(config.angles)} 与信源数 {config.K} 不匹配"
-            )
+            raise ValueError(f"角度数量 {len(config.angles)} 与信源数 {config.K} 不匹配")
 
         # 预计算导向矢量（标称）
         self.A_nominal = config.array.steering(config.angles)  # (M, K)

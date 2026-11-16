@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -34,10 +35,7 @@ class ArrayDescriptor:
         """后处理：设置默认mask、转换数组为只读。"""
         # 设置默认 mask（全部有效）
         if self.element_mask is None:
-            object.__setattr__(
-                self, "element_mask",
-                np.ones(self.M, dtype=bool)
-            )
+            object.__setattr__(self, "element_mask", np.ones(self.M, dtype=bool))
 
         # 确保数组只读
         if not self.positions.flags.writeable:
@@ -56,9 +54,7 @@ class ArrayDescriptor:
 
         # 形状检查
         if self.positions.ndim != 2 or self.positions.shape[1] != 3:
-            raise ValueError(
-                f"positions 必须是形状 (M, 3)，实际为 {self.positions.shape}"
-            )
+            raise ValueError(f"positions 必须是形状 (M, 3)，实际为 {self.positions.shape}")
         if self.element_mask.shape != (self.M,):
             raise ValueError(
                 f"element_mask 必须是形状 ({self.M},)，实际为 {self.element_mask.shape}"
@@ -108,11 +104,9 @@ class ArrayDescriptor:
 
         # 方向单位矢量：一维 DOA 在 x-y 平面
         # u(θ) = (sin θ, cos θ, 0)
-        u = np.stack([
-            np.sin(theta_rad),
-            np.cos(theta_rad),
-            np.zeros_like(theta_rad)
-        ], axis=0)  # (3, K)
+        u = np.stack(
+            [np.sin(theta_rad), np.cos(theta_rad), np.zeros_like(theta_rad)], axis=0
+        )  # (3, K)
 
         # 导向矢量：a(θ) = exp(-j·2π·p·u)
         # positions: (M, 3), u: (3, K) -> inner: (M, K)
@@ -135,11 +129,9 @@ class ArrayDescriptor:
         theta_rad = np.deg2rad(angles)
 
         # d(u)/d(θ) = (cos θ, -sin θ, 0)
-        du_dtheta = np.stack([
-            np.cos(theta_rad),
-            -np.sin(theta_rad),
-            np.zeros_like(theta_rad)
-        ], axis=0)  # (3, K)
+        du_dtheta = np.stack(
+            [np.cos(theta_rad), -np.sin(theta_rad), np.zeros_like(theta_rad)], axis=0
+        )  # (3, K)
 
         # d(a)/d(θ) = -j·2π·p·(du/dθ)·a(θ)
         a = self.steering(angles)
@@ -237,8 +229,7 @@ class Spectrum:
             raise ValueError("grid 和 values 必须是一维数组")
         if self.grid.shape != self.values.shape:
             raise ValueError(
-                f"grid 和 values 形状必须相同，"
-                f"实际为 {self.grid.shape} vs {self.values.shape}"
+                f"grid 和 values 形状必须相同，实际为 {self.grid.shape} vs {self.values.shape}"
             )
 
 
@@ -322,7 +313,6 @@ class RunContext:
         # 从当前 rng 派生子生成器
         # 使用固定方式派生，保证可复现
         seed_sequence = np.random.SeedSequence(
-            entropy=self.rng.bit_generator.seed_sequence.entropy,
-            spawn_key=(i,)
+            entropy=self.rng.bit_generator.seed_sequence.entropy, spawn_key=(i,)
         )
         return np.random.Generator(np.random.PCG64(seed_sequence))

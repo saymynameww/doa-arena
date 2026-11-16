@@ -3,9 +3,11 @@
 部分阵元故障（输出置零或仅含噪声）。
 """
 
-from typing import Any, ClassVar, Literal, Mapping
+from collections.abc import Mapping
+from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import Impairment, Param, ParamsModel
 
 
@@ -101,7 +103,7 @@ class ElementFailure(Impairment):
         Returns:
             修改后的数据，形状 (M, N)
         """
-        M, N = data.shape
+        _M, _N = data.shape
         result = data.copy()
 
         # 确定故障阵元

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Descriptions, Tag } from 'antd';
+import { Card, Descriptions, Space, Tag } from 'antd';
 
 interface ConfigSummaryProps {
   config?: {

@@ -68,3 +68,18 @@ export interface ExperimentResult {
   result_path: string;
   files: string[];
 }
+
+export interface ChartData {
+  title: string;
+  data: Array<Record<string, unknown>>;
+  layout: Record<string, unknown>;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  algorithms: string[];
+  createdAt: string;
+}

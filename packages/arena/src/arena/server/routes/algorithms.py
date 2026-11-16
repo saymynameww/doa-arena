@@ -1,6 +1,6 @@
 """算法相关路由。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 
@@ -122,4 +122,4 @@ async def get_algorithm(algorithm_id: str):
         if algo["id"] == algorithm_id:
             return algo
 
-    return {"error": "算法不存在"}, 404
+    raise HTTPException(status_code=404, detail="算法不存在")

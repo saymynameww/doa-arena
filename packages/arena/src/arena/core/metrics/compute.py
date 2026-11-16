@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+
 from arena_api import Estimate, kit
 
 
@@ -26,8 +27,8 @@ def match_and_compute(
         - max_error: 最大误差（度）
         - success: 是否成功（K̂ == K）
     """
-    K = len(truth)
     K_hat = estimate.K_hat
+    K = len(truth)
 
     # 匹配
     matched_pairs, matched_errors = kit.hungarian_matching(
@@ -75,8 +76,6 @@ def compute_metrics(
         - avg_K_hat: 平均估计信源数
     """
     num_trials = len(estimates)
-    K = len(truth)
-
     rmses = []
     successes = []
     K_hats = []

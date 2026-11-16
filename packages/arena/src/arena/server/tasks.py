@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.config import ExperimentConfig
+from ..core.runner.results import ExperimentResult
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class Task:
     progress: dict[str, Any] = field(default_factory=dict)
     result_path: Path | None = None
     process: mp.Process | None = None
+    result: ExperimentResult | None = None
 
 
 class TaskManager:
@@ -108,9 +110,13 @@ class TaskManager:
         logger.info(f"任务开始: {task_id}")
 
         # 初始化进度
+        total_points = 1
+        if task.config.type == "sweep" and task.config.sweep:
+            total_points = len(task.config.sweep.values)
+        total_trials = total_points * task.config.trials
         task.progress = {
             "current_point": 0,
-            "total_points": 1,
+            "total_points": total_points,
             "current_trial": 0,
             "total_trials": task.config.trials,
             "completed_trials": 0,
@@ -123,25 +129,20 @@ class TaskManager:
             # 在线程池中运行（避免阻塞事件循环）
             loop = asyncio.get_event_loop()
 
-            # 创建进度回调
-            async def progress_callback(current_trial: int, total_trials: int):
-                task.progress["current_trial"] = current_trial
-                task.progress["completed_trials"] = current_trial
-                task.progress["percent"] = int(
-                    (current_trial / total_trials) * 100
-                )
-                await self._notify_progress(task_id)
-
             # 运行实验
             result = await loop.run_in_executor(
                 None,
                 self._run_experiment_sync,
                 task,
+                loop,
             )
+            task.result = result
 
             # 完成
             task.status = TaskStatus.COMPLETED
             task.completed_at = time.time()
+            task.progress["current_trial"] = task.config.trials
+            task.progress["completed_trials"] = total_trials
             task.progress["percent"] = 100
             await self._notify_progress(task_id)
 
@@ -154,19 +155,61 @@ class TaskManager:
             task.completed_at = time.time()
             await self._notify_progress(task_id)
 
-    def _run_experiment_sync(self, task: Task):
+    def _run_experiment_sync(self, task: Task, loop: asyncio.AbstractEventLoop) -> ExperimentResult:
         """同步运行实验（在线程池中）。"""
         from ..core.runner import run_experiment
         from ..core.storage import ResultWriter
 
         # 运行实验
-        result = run_experiment(task.config)
+        def progress_callback(
+            completed_trials: int,
+            total_trials: int,
+            current_point: int,
+            total_points: int,
+        ) -> None:
+            asyncio.run_coroutine_threadsafe(
+                self._update_progress(
+                    task.task_id,
+                    completed_trials,
+                    total_trials,
+                    current_point,
+                    total_points,
+                ),
+                loop,
+            )
+
+        result = run_experiment(task.config, progress_callback=progress_callback)
 
         # 保存结果
         writer = ResultWriter(task.result_path)
         writer.write_experiment(result)
 
         return result
+
+    async def _update_progress(
+        self,
+        task_id: str,
+        completed_trials: int,
+        total_trials: int,
+        current_point: int,
+        total_points: int,
+    ) -> None:
+        """更新任务进度并通知订阅者。"""
+        task = self.tasks.get(task_id)
+        if task is None:
+            return
+        point_trials = task.config.trials
+        task.progress.update(
+            {
+                "current_point": current_point,
+                "total_points": total_points,
+                "current_trial": completed_trials - current_point * point_trials,
+                "total_trials": point_trials,
+                "completed_trials": completed_trials,
+                "percent": int(completed_trials * 100 / total_trials) if total_trials else 100,
+            }
+        )
+        await self._notify_progress(task_id)
 
     async def subscribe_progress(self, task_id: str) -> asyncio.Queue:
         """订阅任务进度。
@@ -227,9 +270,7 @@ class TaskManager:
             "task_id": task.task_id,
             "status": task.status.value,
             "progress": task.progress,
-            "elapsed_seconds": (
-                time.time() - task.started_at if task.started_at else 0
-            ),
+            "elapsed_seconds": (time.time() - task.started_at if task.started_at else 0),
         }
 
     def get_task_status(self, task_id: str) -> dict[str, Any] | None:

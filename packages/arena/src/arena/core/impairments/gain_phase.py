@@ -3,9 +3,11 @@
 阵元增益和相位误差，参考阵元 g=1、φ=0。
 """
 
-from typing import Any, ClassVar, Literal, Mapping
+from collections.abc import Mapping
+from typing import ClassVar, Literal
 
 import numpy as np
+
 from arena_api import Impairment, Param, ParamsModel
 
 
@@ -91,16 +93,14 @@ class GainPhase(Impairment):
         Returns:
             修改后的流形，形状 (M, K)
         """
-        M, K = data.shape
+        M, _K = data.shape
 
         # 计算实际增益和相位
         if params.fixed_gains is not None:
             # 使用固定增益
             gains = np.array(params.fixed_gains[:M])
             if len(gains) < M:
-                raise ValueError(
-                    f"fixed_gains 长度 {len(gains)} 小于阵元数 {M}"
-                )
+                raise ValueError(f"fixed_gains 长度 {len(gains)} 小于阵元数 {M}")
         else:
             # 随机增益：g = 1 + σ_g · z_g
             gains = 1.0 + params.sigma_g * draw["z_g"]
@@ -109,9 +109,7 @@ class GainPhase(Impairment):
             # 使用固定相位（度）
             phases_deg = np.array(params.fixed_phases_deg[:M])
             if len(phases_deg) < M:
-                raise ValueError(
-                    f"fixed_phases_deg 长度 {len(phases_deg)} 小于阵元数 {M}"
-                )
+                raise ValueError(f"fixed_phases_deg 长度 {len(phases_deg)} 小于阵元数 {M}")
             phases_rad = np.deg2rad(phases_deg)
         else:
             # 随机相位：φ = σ_φ · z_φ

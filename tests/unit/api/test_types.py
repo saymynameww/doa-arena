@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from arena_api import ArrayDescriptor, Estimate, Observation, Spectrum
 
 
@@ -11,11 +12,13 @@ def test_array_descriptor_ula():
     d = 0.5
 
     # ULA 位置
-    positions = np.column_stack([
-        np.arange(M) * d,
-        np.zeros(M),
-        np.zeros(M),
-    ])
+    positions = np.column_stack(
+        [
+            np.arange(M) * d,
+            np.zeros(M),
+            np.zeros(M),
+        ]
+    )
 
     array = ArrayDescriptor(
         type="ula",
@@ -44,7 +47,9 @@ def test_observation():
     K = 2
 
     # 生成测试数据
-    X = np.random.randn(M, N) + 1j * np.random.randn(M, N)
+    X = np.random.default_rng(0).standard_normal((M, N)) + 1j * np.random.default_rng(
+        0
+    ).standard_normal((M, N))
 
     obs = Observation(X=X, K=K)
 
@@ -72,7 +77,7 @@ def test_estimate():
 def test_spectrum():
     """测试空间谱。"""
     grid = np.linspace(-90, 90, 181)
-    values = np.random.rand(181)
+    values = np.random.default_rng(0).random(181)
 
     spec = Spectrum(grid=grid, values=values, kind="pseudo")
 
@@ -83,7 +88,7 @@ def test_spectrum():
 def test_readonly_arrays():
     """测试数组只读约束。"""
     M = 8
-    positions = np.random.randn(M, 3)
+    positions = np.random.default_rng(0).standard_normal((M, 3))
 
     array = ArrayDescriptor(
         type="test",
