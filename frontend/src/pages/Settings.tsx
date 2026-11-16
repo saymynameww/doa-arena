@@ -1,15 +1,19 @@
 import React, { useEffect } from 'react';
 import { Card, Form, Input, InputNumber, Select, Switch, Button, message, Divider } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
-import { getSettings, updateSettings } from '@/services/api';
+import { getSettings, getWorkspaces, rebuildWorkspaceIndex, updateSettings } from '@/services/api';
 
 const { Option } = Select;
 
 const SettingsPage: React.FC = () => {
   const [form] = Form.useForm();
+  const [workspaces, setWorkspaces] = React.useState<Array<Record<string, any>>>([]);
 
   useEffect(() => {
-    void getSettings().then((settings) => form.setFieldsValue(settings));
+    void Promise.all([getSettings(), getWorkspaces()]).then(([settings, loadedWorkspaces]) => {
+      form.setFieldsValue(settings);
+      setWorkspaces(loadedWorkspaces);
+    });
   }, [form]);
 
   const handleSave = async () => {
@@ -42,6 +46,18 @@ const SettingsPage: React.FC = () => {
         >
           <Input addonAfter={<Button size="small">浏览</Button>} />
         </Form.Item>
+        <div style={{ marginBottom: 16 }}>
+          <Button
+            onClick={() =>
+              void rebuildWorkspaceIndex().then(() => message.success('工作目录索引已重建'))
+            }
+          >
+            重建索引
+          </Button>
+          <span style={{ marginLeft: 12, color: '#8c8c8c' }}>
+            已配置工作目录：{workspaces.length} 个
+          </span>
+        </div>
 
         {/* 默认参数 */}
         <Divider orientation="left">默认参数</Divider>

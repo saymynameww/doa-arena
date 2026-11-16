@@ -101,6 +101,16 @@ export const updateSettings = async (settings: Record<string, any>) => {
   return response.data;
 };
 
+export const getWorkspaces = async (): Promise<Array<Record<string, any>>> => {
+  const response = await api.get('/workspaces');
+  return response.data.workspaces;
+};
+
+export const rebuildWorkspaceIndex = async (): Promise<Record<string, any>> => {
+  const response = await api.post('/workspaces/rebuild-index');
+  return response.data;
+};
+
 export const copyTask = async (taskId: string) => {
   const response = await api.post(`/experiments/tasks/${taskId}/copy`);
   return response.data;

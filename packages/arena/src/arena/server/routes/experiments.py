@@ -284,8 +284,21 @@ async def export_task(task_id: str, fmt: str) -> FileResponse:
     fmt = fmt.lower()
     output = exports_dir / f"experiment_{task_id}.{fmt}"
     if fmt == "json":
+        summary_path = task.result_path / "summary.json"
+        summary = (
+            json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+        )
         output.write_text(
-            json.dumps(task.result.config, ensure_ascii=False, indent=2), encoding="utf-8"
+            json.dumps(
+                {
+                    "config": task.result.config,
+                    "metadata": task.result.metadata,
+                    "summary": summary,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
         )
     elif fmt == "npz":
         source = task.result_path / "results.npz"
