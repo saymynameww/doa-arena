@@ -1,8 +1,8 @@
 /* eslint-disable react-hooks/exhaustive-deps -- filtering follows the displayed task state. */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Card, Button, Tag, Space, message, Select, Input, Alert } from 'antd';
-import { EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Tag, Space, message, Select, Input, Alert, Modal } from 'antd';
+import { EyeOutlined, ReloadOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import { cancelTask, copyTask, getTasks, rerunTask } from '@/services/api';
 import type { Task } from '@/types';
 import type { ColumnsType } from 'antd/es/table';
@@ -37,7 +37,7 @@ const HistoryPage: React.FC = () => {
     // 搜索筛选
     if (searchText) {
       filtered = filtered.filter((task) =>
-        task.task_id.toLowerCase().includes(searchText.toLowerCase())
+        `${task.task_id} ${task.name || ''}`.toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
@@ -165,6 +165,9 @@ const HistoryPage: React.FC = () => {
       title="历史实验"
       extra={
         <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/')}>
+            新建实验
+          </Button>
           <Input
             placeholder="搜索任务 ID"
             prefix={<SearchOutlined />}
@@ -241,9 +244,18 @@ const HistoryPage: React.FC = () => {
   }
 
   async function handleDelete(taskId: string) {
-    await cancelTask(taskId);
-    message.success('实验已移入回收站');
-    await loadTasks();
+    Modal.confirm({
+      title: '确认删除实验？',
+      content: '实验文件夹将移入当前工作目录的 .trash/ 目录，可手动恢复。',
+      okText: '移入回收站',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await cancelTask(taskId);
+        message.success('实验已移入回收站');
+        await loadTasks();
+      },
+    });
   }
 };
 

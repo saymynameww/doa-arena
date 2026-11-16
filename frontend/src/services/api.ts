@@ -116,6 +116,16 @@ export const getCurrentWorkspace = async (): Promise<Record<string, any>> => {
   return response.data;
 };
 
+export const addWorkspace = async (workspace: Record<string, any>) => {
+  const response = await api.post('/workspaces', workspace);
+  return response.data;
+};
+
+export const getAlgorithmSources = async (): Promise<{ sources: any[]; failures: any[] }> => {
+  const response = await api.get('/algorithms/sources');
+  return response.data;
+};
+
 export const selectWorkspace = async (workspace: Record<string, any>) => {
   const response = await api.put('/workspaces/current', workspace);
   return response.data;

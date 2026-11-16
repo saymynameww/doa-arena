@@ -53,7 +53,7 @@ const TemplatesPage: React.FC = () => {
     <Card
       title="实验模板"
       extra={
-        <Button type="primary" icon={<PlusOutlined />}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/?saveTemplate=1')}>
           新建模板
         </Button>
       }
