@@ -50,6 +50,7 @@ Thumbs.db
 *.pt
 runs/
 arena_ws/
+experiments/
 .arena_index.sqlite
 
 # Claude
