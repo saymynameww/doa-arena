@@ -1,10 +1,12 @@
 """配置与插件参数 Schema 路由。"""
 
+import asyncio
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ...core.config import ExperimentConfig
+from ..contracts import ScenarioPreview
 from .algorithms import list_algorithms
 
 router = APIRouter()
@@ -69,6 +71,10 @@ async def experiment_schema() -> dict[str, Any]:
     schema["$defs"]["SourcesConfig"]["properties"]["signal"]["x-enum-labels"] = {
         "gaussian": "复高斯信号"
     }
+    for key, label in (("angles", "角度"), ("correlation", "相关性")):
+        schema["$defs"]["SourcesConfig"]["properties"][key]["x-flatten"] = True
+        definition = "AnglesConfig" if key == "angles" else "CorrelationConfig"
+        schema["$defs"][definition]["properties"]["mode"]["x-label"] = label
     schema["x-default"] = ExperimentConfig.model_validate({}).model_dump(mode="json")
     plugins = await list_algorithms()
     schema["x-arrays"] = plugins["arrays"]
@@ -112,3 +118,26 @@ async def experiment_schema() -> dict[str, Any]:
             }
     schema["$defs"]["ArrayConfig"]["properties"]["carrier_hz"]["x-label"] = "载频（Hz）"
     return schema
+
+
+@router.post("/schema/preview", response_model=ScenarioPreview)
+async def scenario_preview(config: dict[str, Any]) -> dict[str, Any]:
+    """参数编辑时的核心预览，不执行算法或创建实验。"""
+    from ...core.operations import invoke
+
+    parsed = ExperimentConfig.model_validate(config)
+    plugins = await list_algorithms()
+    array = next(
+        (item for item in plugins["arrays"] if item["id"] == parsed.scenario.array.type), None
+    )
+    if array is None:
+        raise HTTPException(status_code=400, detail="阵列插件未注册，请刷新插件来源")
+    parsed.scenario.array.origin = array["origin"]
+    # 预览只表示标称阵列，无需抽取或加载误差插件。
+    parsed.scenario.impairments = []
+    try:
+        return await asyncio.to_thread(
+            invoke, "preview", {"config": parsed.model_dump(mode="json")}
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

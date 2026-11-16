@@ -119,6 +119,7 @@ export default function ConfigFields({
           )
             return null;
           const child = `${path}.${key}`;
+          if (spec["x-flatten"]) return <ConfigFields key={key} root={root} schema={spec} value={value?.[key]} path={child} onChange={(next) => onChange({ ...value, [key]: next })} sweep={sweep} sweepRange={sweepRange} onRange={onRange} onSweep={onSweep} />;
           const label =
             spec["x-label"] ||
             spec.label ||

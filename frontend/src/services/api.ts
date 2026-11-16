@@ -211,3 +211,8 @@ export const validateExperiment = async (config: ExperimentConfig) => {
   const response = await api.post('/experiments/validate', config);
   return response.data as import('@/types/generated').ValidationResult;
 };
+
+export const getScenarioPreview = async (scenario: import('@/types/generated').ScenarioConfig) => {
+  const response = await api.post<import('@/types/generated').ScenarioPreview>('/schema/preview', { scenario });
+  return response.data;
+};

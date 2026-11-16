@@ -40,6 +40,27 @@ def test_health_check(client):
     assert response.json()["status"] == "ok"
 
 
+def test_schema_preview_uses_core_geometry(client):
+    """预览通过核心计算阵列规模和物理间距，不在前端推断参数。"""
+    response = client.post(
+        "/api/schema/preview",
+        json={
+            "scenario": {
+                "array": {
+                    "type": "ula",
+                    "params": {"M": 8, "d": 0.5},
+                    "carrier_hz": 3e9,
+                }
+            }
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["elements"] == 8
+    assert data["angles"] == [-10.0, 10.0]
+    assert data["physical_spacing_cm"] == pytest.approx(4.9965409667)
+
+
 def test_notes_do_not_mutate_experiment_config(client):
     """用户备注与计算配置分开存储，支持历史筛选和重建。"""
     from arena.server.tasks import get_task_manager

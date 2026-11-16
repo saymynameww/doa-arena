@@ -161,6 +161,12 @@ export type ScenarioConfig = {
   "impairments"?: Array<ImpairmentConfig>;
 };
 
+export type ScenarioPreview = {
+  "elements": number;
+  "angles": Array<number>;
+  "physical_spacing_cm": number | null;
+};
+
 export type SourcesConfig = {
   "K"?: number | RandomSourceCount;
   "signal"?: "gaussian";

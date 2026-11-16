@@ -18,6 +18,7 @@ import {
 import {
   createTemplate,
   getExperimentSchema,
+  getScenarioPreview,
   getTemplates,
   runExperiment,
   validateExperiment,
@@ -89,6 +90,7 @@ export default function ExperimentConfigPage() {
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
   const [range, setRange] = useState("-10:5:20");
+  const [preview, setPreview] = useState<import("@/types/generated").ScenarioPreview>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [issues, setIssues] = useState<Array<{ level: string; message: string; algorithm?: string | null }>>([]);
@@ -133,6 +135,14 @@ export default function ExperimentConfigPage() {
     }, 500);
     return () => { current = false; window.clearTimeout(timer); };
   }, [draft, range]);
+  useEffect(() => {
+    let current = true;
+    if (!draft?.scenario) return;
+    const timer = window.setTimeout(() => {
+      void getScenarioPreview(draft.scenario).then(value => { if (current) setPreview(value); }).catch(() => { if (current) setPreview(undefined); });
+    }, 350);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [draft?.scenario]);
   if (!schema || !draft)
     return (
       <Alert
@@ -267,6 +277,9 @@ export default function ExperimentConfigPage() {
             path="scenario.array"
             onChange={(v) => setScenario("array", v)}
           />
+          <Typography.Text className="physical-spacing-note" type="secondary">
+            只用来显示物理间距{preview?.physical_spacing_cm != null ? `（当前 ${preview.physical_spacing_cm.toFixed(1)} cm）` : ""}，不影响仿真
+          </Typography.Text>
         </>
       ),
     },
@@ -730,12 +743,8 @@ export default function ExperimentConfigPage() {
         </Card>
         <aside className="experiment-rail">
           <ScenePreview
-            arraySize={scenario.array.params.M}
-            sourceAngles={
-              scenario.sources.angles.mode === "fixed"
-                ? scenario.sources.angles.values || []
-                : []
-            }
+            arraySize={preview?.elements || 0}
+            sourceAngles={preview?.angles || []}
           />
           <Card title="配置摘要" size="small">
             <dl className="summary-list">

@@ -152,3 +152,11 @@ class PluginList(BaseModel):
     metrics: list[PluginInfo]
     failures: list[dict[str, Any]]
     sources: list[dict[str, Any]]
+
+
+class ScenarioPreview(BaseModel):
+    """核心计算的可视化摘要。"""
+
+    elements: int
+    angles: list[float]
+    physical_spacing_cm: float | None

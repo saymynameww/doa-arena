@@ -33,6 +33,10 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
     """执行子进程收到的白名单操作。"""
     from .config import ExperimentConfig
 
+    if operation == "preview":
+        from .exploration import preview_scenario
+
+        return preview_scenario(ExperimentConfig.model_validate(payload["config"]).scenario)
     if operation == "validate":
         from .validation import validate_configuration
 

@@ -90,3 +90,16 @@ def crb(scenario: Scenario) -> np.ndarray:
         signal_covariance=scene.config.correlation.to_matrix(),
         noise_power=scene.config.noise_power,
     )
+
+
+def preview_scenario(config: ScenarioConfig) -> dict[str, Any]:
+    """为所有前端提供阵列规模、信源方向和物理间距显示数据。"""
+    scene, array = build_scene(ExperimentConfig.model_validate({"scenario": config}))
+    spacing = array.ula_spacing
+    return {
+        "elements": array.M,
+        "angles": scene.config.angles.tolist() if config.sources.angles.mode != "random" else [],
+        "physical_spacing_cm": spacing * 299792458 / config.array.carrier_hz * 100
+        if spacing is not None
+        else None,
+    }
