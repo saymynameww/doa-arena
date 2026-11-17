@@ -4,7 +4,7 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from ..storage.reader import read_result
 from ..storage.writer import ResultWriter
@@ -20,6 +20,7 @@ def export_result(
     chart: str | None = None,
     style: str = "web",
     log: bool = False,
+    style_options: dict[str, Any] | None = None,
 ) -> Path:
     """输出带时间戳的文件，图表按用户当前选择导出。"""
     if fmt not in {"json", "npz", "csv", "mat", "tex", "html", "png", "svg", "pdf", "py"}:
@@ -57,6 +58,10 @@ def export_result(
         figure.update_layout(
             font={"size": 12 if style == "web" else 16}, height=360 if style == "single" else 500
         )
+        from ..figures.identity import apply_styles
+        from ..metrics.summary import algorithm_labels
+
+        apply_styles(figure, algorithm_labels(result), style_options)
         if log:
             figure.update_yaxes(type="log")
         export_figure(figure, output, format=cast(Literal["png", "svg", "pdf", "html"], fmt))

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -32,10 +33,9 @@ def generate_html_report(
         title = result.config.get("name", "实验报告")
 
     # 生成图表
-    from ..figures import ChartGenerator
+    from ..figures.presentation import build_figures
 
-    gen = ChartGenerator(result)
-    charts = gen.create_all_charts()
+    charts = build_figures(result)
 
     # 内嵌 SVG 可离线查看和打印，不依赖外部脚本。
     charts_html = {name: fig.to_image(format="svg").decode("utf-8") for name, fig in charts.items()}
@@ -61,11 +61,34 @@ def _build_html(
     }
     metadata = result.metadata
 
+    from ..figures.details import result_details
+
+    details = result_details(result)
+    columns = details["columns"]
+    headings = "".join(f"<th>{escape(c['label'])} {escape(c['unit'])}</th>" for c in columns)
+    metric_rows = []
+    for row in details["rows"]:
+        cells = "".join(f"<td>{_format_metric(row['metrics'].get(c['key']))}</td>" for c in columns)
+        metric_rows.append(
+            f"<tr><td>{row['point'] + 1}</td><td>{escape(str(row['x']))}</td>"
+            f"<td>{escape(str(row['algorithm']))}</td>{cells}"
+            f"<td>{row['n_used']}/{row['n_total']}</td><td>{len(row['errors'])}</td></tr>"
+        )
+
+    # 代码差异留在原始存档中；报告显示实验参数，避免补丁占据数十页。
+    def without_patch(value: object) -> object:
+        if isinstance(value, dict):
+            return {k: without_patch(v) for k, v in value.items() if k != "patch"}
+        if isinstance(value, list):
+            return [without_patch(v) for v in value]
+        return value
+
+    configuration = escape(json.dumps(without_patch(result.config), ensure_ascii=False, indent=2))
+
     # 算法列表
-    algo_labels = []
-    if result.points and result.points[0].trials:
-        first_trial = result.points[0].trials[0]
-        algo_labels = list(first_trial.estimates.keys())
+    from ..metrics.summary import algorithm_labels
+
+    algo_labels = algorithm_labels(result)
 
     # 实验信息表格
     info_rows = []
@@ -92,6 +115,20 @@ def _build_html(
     <title>{title}</title>
 
     <style>
+        @page {{ size: A4 landscape; margin: 12mm; }}
+        @media print {{
+            body {{ background: white !important; margin: 0 !important; }}
+            .container {{ max-width: none !important; padding: 0 !important;
+                          box-shadow: none !important; }}
+            .print-button {{ display: none; }}
+            .chart {{ break-inside: avoid; }}
+            thead {{ display: table-header-group; }}
+            th {{ color: black !important; background: white !important; }}
+            h2, h3 {{ break-after: avoid; }}
+            tr {{ break-inside: avoid; }}
+        }}
+        pre {{ white-space: pre-wrap; overflow-wrap: anywhere; }}
+        svg {{ max-width: 100%; height: auto; }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                 "Helvetica Neue", Arial, sans-serif;
@@ -166,6 +203,7 @@ def _build_html(
 <body>
     <div class="container">
         <h1>📊 {title}</h1>
+        <button class="print-button" onclick="window.print()">打印 / 保存为 PDF</button>
 
         <h2>实验信息</h2>
         <table>
@@ -174,7 +212,9 @@ def _build_html(
 
         <h2>算法列表</h2>
         <div class="algorithms">
-            {"".join(f'<span class="algorithm-tag">{label}</span>' for label in algo_labels)}
+            {
+        "".join(f'<span class="algorithm-tag">{escape(label)}</span>' for label in algo_labels)
+    }
         </div>
 
         <h2>图表</h2>
@@ -186,6 +226,15 @@ def _build_html(
         )
     }
 
+        <h2>指标汇总</h2>
+        <p>— 表示无可用值；纳入统计次数按所选指标口径解释。</p>
+        <table><thead><tr><th>扫描点</th><th>扫描值</th><th>算法</th>{headings}
+        <th>RMSE 纳入/总次数</th><th>错误次数</th></tr></thead>
+        <tbody>{"".join(metric_rows)}</tbody></table>
+        <h2>配置摘要与完整参数</h2>
+        <p>未提交的代码补丁保留在原始实验存档中，此处省略补丁正文。</p>
+        <pre>{configuration}</pre>
+
         <div class="footer">
             <p>生成时间：{gen_time}</p>
             <p>DOA 估计算法竞技场 Arena v0.3.0</p>
@@ -195,6 +244,15 @@ def _build_html(
 </html>"""
 
     return html
+
+
+def _format_metric(value: object) -> str:
+    """保持可读精度，原始精度仍保存在结果文件中。"""
+    if value is None:
+        return "—"
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    return escape(str(value))
 
 
 def _chart_title(name: str) -> str:

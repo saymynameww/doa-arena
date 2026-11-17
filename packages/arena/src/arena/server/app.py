@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from .routes import (
     algorithms,
@@ -21,6 +23,7 @@ from .routes import (
 )
 
 logger = logging.getLogger(__name__)
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -74,5 +77,21 @@ def create_app() -> FastAPI:
     document["paths"]["/api/experiments/run"]["post"]["requestBody"]["content"]["application/json"][
         "schema"
     ] = {"$ref": "#/components/schemas/ExperimentConfig"}
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def frontend(path: str) -> FileResponse:
+        """提供安装包内的前端及 SPA 路由，缺失 API 和资源保持 404。"""
+        root = STATIC_DIR.resolve()
+        target = (root / path).resolve()
+        if not target.is_relative_to(root) or path == "api" or path.startswith("api/"):
+            raise HTTPException(404, "路径不存在")
+        if target.is_file():
+            return FileResponse(target)
+        if Path(path).suffix or path.startswith("assets/"):
+            raise HTTPException(404, "资源不存在，请刷新页面")
+        index = root / "index.html"
+        if not index.is_file():
+            raise HTTPException(503, "尚未构建前端，请运行 python scripts/build_release.py")
+        return FileResponse(index)
 
     return app

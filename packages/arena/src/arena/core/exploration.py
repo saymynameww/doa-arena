@@ -113,6 +113,6 @@ def preview_scenario(config: ScenarioConfig) -> dict[str, Any]:
         "faulty_elements": np.flatnonzero(~mask).tolist(),
         "positions": positions.tolist(),
         "physical_spacing_cm": spacing * 299792458 / config.array.carrier_hz * 100
-        if spacing is not None
+        if spacing is not None and config.array.carrier_hz is not None
         else None,
     }

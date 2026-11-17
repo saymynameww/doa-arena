@@ -26,7 +26,7 @@ def test_standard_result_arrays_and_metadata(tmp_path):
         np.testing.assert_array_equal(raw["status"], np.zeros((1, 2, 1)))
         assert raw["metric__rmse__value"].shape == (1, 2)
         assert raw["spectrum__0__values"].shape[:2] == (1, 1)
-        assert raw["observation__X"].shape == (1, 1, 16, 100)
+        assert raw["observation__X"].shape == (1, 1, 16, 200)
     summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
     assert summary["schema_version"] == 1 and summary["complete"]
     assert [a["id"] for a in summary["algorithms"]] == ["music", "esprit"]

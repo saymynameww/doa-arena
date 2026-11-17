@@ -15,10 +15,12 @@ import {
   Switch,
   Typography,
   message,
+  Upload,
 } from "antd";
 import {
   createTemplate,
   getExperimentSchema,
+  getEnvironment,
   getScenarioPreview,
   getTemplates,
   runExperiment,
@@ -29,6 +31,7 @@ import ConfigFields, {
   type JsonSchema,
 } from "@/components/ConfigFields";
 import ScenePreview from "@/components/ScenePreview";
+import AlgorithmSwatch from "@/components/AlgorithmSwatch";
 
 function mergeDefaults(defaults: any, value: any): any {
   if (value === undefined) return structuredClone(defaults);
@@ -106,9 +109,16 @@ export default function ExperimentConfigPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   useEffect(() => {
-    void Promise.all([getExperimentSchema(), getTemplates()])
-      .then(([raw, list]) => {
+    void Promise.all([getExperimentSchema(), getTemplates(), getEnvironment().catch(() => ({ cuda_available: false }))])
+      .then(([raw, list, environment]) => {
         const data = raw as JsonSchema;
+        for (const plugin of data["x-algorithms"] || []) {
+          const device = plugin.schema?.properties?.device;
+          if (device?.enum?.includes("cuda") && environment.cuda_available !== true) {
+            device["x-disabled-options"] = { cuda: "当前 Python 环境无法使用 CUDA，请切换 GPU 环境后重启服务" };
+            device["x-enum-labels"] = { ...device["x-enum-labels"], cuda: "CUDA（当前环境不可用）" };
+          }
+        }
         setSchema(data);
         setTemplates(list);
         const template = list.find((t) => t.id === params.get("template"));
@@ -525,6 +535,19 @@ export default function ExperimentConfigPage() {
           />
         </div>
         <Space wrap>
+          <Upload accept=".json,application/json" showUploadList={false} beforeUpload={(file) => {
+            void act(async () => {
+              const imported = JSON.parse(await file.text());
+              const result = await validateExperiment(imported);
+              if (!result.valid || result.issues.some((x) => x.level === "error")) throw Error(result.issues.map((x) => x.message).join("；"));
+              const next = result.config;
+              if (!next) throw Error("服务未返回有效配置，请检查后端版本");
+              setDraft(next);
+              setRange((next.sweep as any)?.values?.join(", ") || "");
+              message.success("配置已导入，请核对后运行");
+            });
+            return false;
+          }}><Button>导入 JSON</Button></Upload>
           <Dropdown
             menu={{
               items: templates.map((t) => ({
@@ -793,16 +816,7 @@ export default function ExperimentConfigPage() {
                 style={{ opacity: a.enabled === false ? 0.5 : 1 }}
               >
                 <div className="algorithm-toolbar">
-                  <span
-                    className="algorithm-swatch"
-                    style={{
-                      color: ["#1677ff", "#fa6432", "#00ad7c", "#e5a000"][
-                        i % 4
-                      ],
-                    }}
-                  >
-                    ━●━
-                  </span>
+                  <AlgorithmSwatch visual={schema["x-chart-styles"] ? Object.fromEntries([["color", "colors"], ["dash", "dashes"], ["symbol", "symbols"]].map(([key, list]) => [key, schema["x-chart-styles"][list][draft.algorithms.slice(0, i).filter((x: any) => x.enabled).length % schema["x-chart-styles"][list].length]])) : undefined} />
                   <Input
                     aria-label="算法显示名"
                     value={a.label}
@@ -961,6 +975,7 @@ export default function ExperimentConfigPage() {
         </aside>
       </div>
       {error && <Alert type="error" showIcon message={error} />}
+      {(draft.type === "sweep" ? values.length : 1) * (draft.type === "single" ? 1 : draft.trials) * active.length > 10000 && <Alert type="warning" showIcon message="本实验超过 10,000 次算法估计，可能需要较长时间；请核对扫描范围与试验次数。仍可继续运行。" />}
       <div className="experiment-runbar">
         <div>
           {draft.type === "sweep" ? `${values.length} 个扫描点 × ` : ""}

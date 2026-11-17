@@ -17,7 +17,7 @@ def algorithm_labels(result: ExperimentResult) -> list[str]:
             item["label"] if isinstance(item, dict) else item
             for item in result.saved_summary["algorithms"]
         ]
-    return list(
+    observed = list(
         dict.fromkeys(
             label
             for point in result.points
@@ -25,6 +25,9 @@ def algorithm_labels(result: ExperimentResult) -> list[str]:
             for label in [*trial.estimates, *trial.errors]
         )
     )
+    # 失败与成功分别存储，仍按配置顺序分配颜色和存储算法轴。
+    configured = [item.get("label") or item["id"] for item in result.config.get("algorithms", [])]
+    return list(dict.fromkeys([label for label in configured if label in observed] + observed))
 
 
 def point_metrics(result: ExperimentResult, point: SweepPointResult, label: str) -> dict[str, Any]:

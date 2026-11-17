@@ -112,9 +112,13 @@ def test_export_png(sweep_result):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = Path(tmpdir) / "rmse.png"
-        export_figure(fig, output_path, format="png")
+        export_figure(fig, output_path, format="png", width=640, height=480)
 
         assert output_path.exists()
+        import struct
+
+        # PNG IHDR 像素尺寸：640×480 的逻辑尺寸按 300/96 倍导出。
+        assert struct.unpack(">II", output_path.read_bytes()[16:24]) == (2000, 1500)
 
 
 def test_export_csv(sweep_result):

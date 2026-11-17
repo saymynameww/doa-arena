@@ -33,9 +33,25 @@ def main() -> None:
     benchmark_parser.add_argument("--version")
     benchmark_parser.add_argument("--algorithms", type=Path, help="算法实例列表 JSON 文件")
     benchmark_parser.add_argument("--column", type=int, default=0)
+    plugin_parser = commands.add_parser("plugin", help="检查算法插件的一致性")
+    plugin_parser.add_argument("action", choices=["check"])
+    plugin_parser.add_argument("identifier")
+    plugin_parser.add_argument("--workspace", type=Path, default=Path("arena_workspace"))
+    plugin_parser.add_argument("--params", type=Path, help="参数 JSON（学习模型需提供模型包）")
+    plugin_parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     args = parser.parse_args()
     try:
-        if args.command == "run":
+        if args.command == "plugin":
+            from .core.plugin_check import check_registered
+
+            parameters = json.loads(args.params.read_text(encoding="utf-8")) if args.params else {}
+            check_result = check_registered(
+                args.identifier, args.workspace, parameters, args.device
+            )
+            print(json.dumps(check_result, ensure_ascii=False, indent=2))
+            if not check_result["passed"]:
+                parser.exit(1, "插件检查未通过，请按逐项结论修复后重试。\n")
+        elif args.command == "run":
             if args.config.is_dir():
                 from .core.runner.job import run_job
 

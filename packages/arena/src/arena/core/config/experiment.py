@@ -124,7 +124,7 @@ class ExperimentConfig(BaseModel):
 
     # 实验类型
     type: ExperimentType = Field(ExperimentType.MONTE_CARLO)
-    trials: int = Field(100, ge=1, le=1000000, description="试验次数")
+    trials: int = Field(500, ge=1, le=1000000, description="试验次数")
     sweep: SweepConfig | None = Field(None, description="扫描配置")
 
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
@@ -156,6 +156,8 @@ class ExperimentConfig(BaseModel):
                 data["seed"] = secrets.randbits(63)
         if "seed" in data:
             data["scenario"] = {**data.get("scenario", {}), "seed": data.pop("seed")}
+        if data.get("type") == "single":
+            data.setdefault("trials", 1)
         return data
 
     def to_document(self) -> dict[str, Any]:

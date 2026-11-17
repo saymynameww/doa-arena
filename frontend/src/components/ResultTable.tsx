@@ -11,6 +11,7 @@ import {
   message,
 } from "antd";
 import type { ResultDetails } from "@/types/generated";
+import AlgorithmSwatch from "./AlgorithmSwatch";
 
 export default function ResultTable({
   data,
@@ -103,7 +104,7 @@ export default function ResultTable({
           pagination={false}
           dataSource={rows}
           columns={[
-            { title: "算法", dataIndex: "algorithm" },
+            { title: "算法", dataIndex: "algorithm", render: (v, r) => <><AlgorithmSwatch visual={r.style} /> {v}</> },
             ...(rows.some((r) => r.angles)
               ? [
                   {

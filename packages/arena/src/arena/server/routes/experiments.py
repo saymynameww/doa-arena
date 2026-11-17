@@ -114,8 +114,8 @@ async def _prepare_config(config: dict[str, Any]) -> tuple[ExperimentConfig, lis
 async def validate_experiment(config: dict[str, Any]) -> dict[str, Any]:
     """草稿静态检查，不创建任务或写入实验。"""
     try:
-        _, issues = await _prepare_config(config)
-        return {"valid": True, "issues": issues}
+        parsed, issues = await _prepare_config(config)
+        return {"valid": True, "issues": issues, "config": parsed.model_dump(mode="json")}
     except ValueError as exc:
         return {"valid": False, "issues": [{"level": "error", "message": str(exc)}]}
 
@@ -424,8 +424,10 @@ async def export_task(
     chart: str | None = None,
     style: str = "web",
     log: bool = False,
+    style_options: str | None = None,
 ) -> FileResponse:
     """隔离执行导出，按指标和当前图表选择生成文件。"""
+    import json
     from pathlib import Path
 
     from ...core.operations import invoke
@@ -444,9 +446,17 @@ async def export_task(
                 "chart": chart,
                 "style": style,
                 "log": log,
+                "style_options": json.loads(style_options) if style_options else None,
             },
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     output = Path(exported["path"])
     return FileResponse(output, filename=output.name)
+
+
+@router.get("/experiments/tasks/{task_id}/report")
+async def view_report(task_id: str) -> FileResponse:
+    """在浏览器中打开自包含报告，支持打印为 PDF。"""
+    exported = await export_task(task_id, "html")
+    return FileResponse(exported.path, media_type="text/html")

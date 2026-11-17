@@ -16,6 +16,9 @@ router = APIRouter()
 async def experiment_schema() -> dict[str, Any]:
     """发布真实模型、插件参数及显示元数据，前端不维护参数清单。"""
     schema = ExperimentConfig.model_json_schema()
+    from ...core.figures.identity import style_catalog
+
+    schema["x-chart-styles"] = style_catalog()
     for definition, field in (
         ("ArrayConfig", "origin"),
         ("ImpairmentConfig", "origin"),

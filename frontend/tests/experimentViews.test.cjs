@@ -33,6 +33,13 @@ test("配置差异保留 0、false 和嵌套路径", () => {
   assert.equal(flat["scene.angles"], "[-10,10]");
 });
 
+test("对象数组按字段比较，代码补丁不吞没整组算法参数", () => {
+  const flat = flattenConfig({ algorithms: [{ id: "a", params: { step: 1 }, origin: { patch: "diff" } }] });
+  assert.equal(flat["algorithms.0.params.step"], "1");
+  assert.equal(flat["algorithms.0.origin.patch"], '"diff"');
+  assert.equal(flat.algorithms, undefined);
+});
+
 test("当前任务优先运行中；排队的同参数场景不能重复补跑", () => {
   const { currentTask, activeBenchmarkScene } = exportsObject;
   const queued = { task_id: "q", status: "queued" };

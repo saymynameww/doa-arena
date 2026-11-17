@@ -210,11 +210,15 @@ const ComparePage: React.FC = () => {
         scroll={{ x: 900 }}
         pagination={false}
         dataSource={rows}
+        tableLayout="fixed"
         columns={[
-          { title: "配置字段", dataIndex: "field" },
+          { title: "配置字段", dataIndex: "field", width: 260, render: (v: string) => <span style={{ overflowWrap: "anywhere" }}>{v}</span> },
           ...selected.map((t, i) => ({
             title: t.name || t.task_id,
             dataIndex: `e${i}`,
+            render: (value: string) => value.length > 240
+              ? <details><summary>查看完整内容（{value.length} 字符）</summary><pre style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{value}</pre></details>
+              : <span style={{ overflowWrap: "anywhere" }}>{value}</span>,
           })),
         ]}
       />

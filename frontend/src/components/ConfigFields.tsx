@@ -189,6 +189,8 @@ export default function ConfigFields({
         options={schema.enum.map((v: any) => ({
           value: v,
           label: schema["x-enum-labels"]?.[v] || String(v),
+          disabled: !!schema["x-disabled-options"]?.[v],
+          title: schema["x-disabled-options"]?.[v],
         }))}
         onChange={onChange}
       />

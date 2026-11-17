@@ -15,7 +15,9 @@ class ArrayConfig(BaseModel):
 
     type: str = Field("ula", description="阵列类型")
     origin: dict[str, Any] | None = None
-    carrier_hz: float = Field(3e9, gt=0, description="载频（Hz，仅用于物理间距显示，不影响仿真）")
+    carrier_hz: float | None = Field(
+        None, gt=0, description="载频（Hz，仅用于物理间距显示，不影响仿真）"
+    )
     params: dict[str, Any] = Field(
         default_factory=lambda: {"M": 16, "d": 0.5},
         description="阵列参数",
@@ -40,7 +42,7 @@ class AnglesConfig(BaseModel):
     center: float = Field(0, gt=-90, lt=90, description="角度中心（度）")
     min_separation: float = Field(0, ge=0, description="最小角度间隔（度）")
     delta: float | None = Field(
-        None,
+        10,
         description="角度间隔（mode=separation）",
     )
 
@@ -162,7 +164,7 @@ class ScenarioConfig(BaseModel):
     seed: int = Field(42, ge=0, lt=2**63, description="随机种子")
     array: ArrayConfig = Field(default_factory=lambda: ArrayConfig.model_validate({}))
     sources: SourcesConfig = Field(default_factory=lambda: SourcesConfig.model_validate({}))
-    snapshots: int = Field(100, ge=1, le=10000, description="快拍数")
+    snapshots: int = Field(200, ge=1, description="快拍数")
     noise_power: float = Field(1.0, gt=0, description="噪声功率")
     noise: Literal["white_gaussian"] = "white_gaussian"
     impairments: list[ImpairmentConfig] = Field(
@@ -181,6 +183,5 @@ class ScenarioConfig(BaseModel):
         if isinstance(data, dict) and "carrier_hz" in data:
             data = dict(data)
             carrier = data.pop("carrier_hz")
-            if carrier is not None:
-                data["array"] = {**data.get("array", {}), "carrier_hz": carrier}
+            data["array"] = {**data.get("array", {}), "carrier_hz": carrier}
         return data

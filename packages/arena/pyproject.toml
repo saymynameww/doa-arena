@@ -55,7 +55,7 @@ arena = "arena.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-arena = ["py.typed", "templates/**/*", "benchmarks/**/*"]
+arena = ["py.typed", "templates/**/*", "benchmarks/**/*", "server/static/**/*", "server/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

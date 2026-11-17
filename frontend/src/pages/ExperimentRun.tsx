@@ -177,6 +177,9 @@ const ExperimentRunPage: React.FC = () => {
   }
 
   const progress = task.progress || {
+    current_point: 0,
+    total_points: 1,
+    eta_seconds: null,
     current_trial: 0,
     total_trials: 0,
     completed_trials: 0,
@@ -319,6 +322,8 @@ const ExperimentRunPage: React.FC = () => {
             />
             <div style={{ marginTop: 16, color: "#8c8c8c" }}>
               {progress.completed_trials} / {progress.total_trials} 次试验已完成
+              {" · "}扫描点 {Math.min((progress.current_point || 0) + 1, progress.total_points || 1)} / {progress.total_points || 1}
+              {" · "}预计剩余 {progress.eta_seconds == null ? "计算中" : `${Math.ceil(progress.eta_seconds)} 秒`}
             </div>
           </Card>
         )}

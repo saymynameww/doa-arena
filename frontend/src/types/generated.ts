@@ -20,7 +20,7 @@ export type AnglesConfig = {
 export type ArrayConfig = {
   "type"?: string;
   "origin"?: Record<string, unknown> | null;
-  "carrier_hz"?: number;
+  "carrier_hz"?: number | null;
   "params"?: Record<string, unknown>;
 };
 
@@ -195,6 +195,7 @@ export type ResultDetails = {
   "rows": Array<Record<string, unknown>>;
   "columns": Array<Record<string, string>>;
   "metadata": Record<string, unknown>;
+  "error_groups"?: Array<Record<string, unknown>>;
 };
 
 export type ResultFiles = {
@@ -261,6 +262,7 @@ export type TaskProgress = {
   "total_trials"?: number;
   "completed_trials"?: number;
   "percent"?: number;
+  "eta_seconds"?: number | null;
 };
 
 export type TaskResponse = {
@@ -318,4 +320,5 @@ export type ValidationIssue = {
 export type ValidationResult = {
   "valid": boolean;
   "issues": Array<ValidationIssue>;
+  "config"?: Record<string, unknown> | null;
 };

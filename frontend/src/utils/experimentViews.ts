@@ -27,7 +27,8 @@ export function flattenConfig(
   value: unknown,
   prefix = "",
 ): Record<string, string> {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
+  if (value && typeof value === "object" &&
+      (!Array.isArray(value) || value.some(item => item !== null && typeof item === "object"))) {
     return Object.fromEntries(
       Object.entries(value).flatMap(([key, item]) =>
         Object.entries(flattenConfig(item, prefix ? `${prefix}.${key}` : key)),

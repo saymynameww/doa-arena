@@ -181,6 +181,7 @@ export default function SettingsPage() {
               ),
             },
             { title: "已加载算法", dataIndex: "count" },
+            { title: "操作", render: (_, source) => source.scope === "全局" && <Button danger onClick={() => Modal.confirm({ title: "移除此算法来源？", content: "只取消登记，不删除算法文件。", onOk: () => act(async () => { await updateSettings({ ...settings, algorithm_sources: (settings.algorithm_sources || []).filter((s: any) => s.value !== source.value || s.type !== source.type) }); await load(); }) })}>移除来源</Button> },
             {
               title: "状态",
               render: (_, s) => (
@@ -215,7 +216,7 @@ export default function SettingsPage() {
             options={[
               { value: "auto", label: "自动选择" },
               { value: "cpu", label: "CPU" },
-              { value: "cuda", label: "CUDA" },
+              { value: "cuda", label: environment.cuda_available === true ? "CUDA" : "CUDA（当前环境不可用）", disabled: environment.cuda_available !== true },
             ]}
           />
           <Button

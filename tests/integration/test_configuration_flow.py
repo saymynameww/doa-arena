@@ -34,7 +34,7 @@ def test_sweep_changes_scene_and_preserves_source():
     second = expand_point(config, 60)
     assert build_scene(first)[0].config.N == 20
     assert build_scene(second)[0].config.N == 60
-    assert config.scenario.snapshots == 100
+    assert config.scenario.snapshots == 200  # 数据格式 3.2 的默认快拍数。
     result = run_experiment(config)
     assert len(result.points) == 2
     assert result.metadata["generator_version"] == 3
@@ -130,7 +130,7 @@ def test_each_exposed_impairment_generates_observation(impairment):
     )
     scene, _ = build_scene(config)
     observation = scene.generate(RNGTree(42).for_trial(0))
-    assert observation.X.shape == (16, 100)
+    assert observation.X.shape == (16, 200)
     assert np.all(np.isfinite(observation.X))
 
 

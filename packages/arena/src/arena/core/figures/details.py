@@ -49,6 +49,9 @@ def result_details(result: ExperimentResult) -> dict[str, Any]:
                 if rmse is not None and bound and np.isfinite(bound)
                 else None,
             }
+            from .identity import algorithm_style
+
+            row["style"] = algorithm_style(algorithm_labels(result).index(label))
             if result.config.get("type") == "single" and point.trials:
                 trial = point.trials[0]
                 estimate = trial.estimates.get(label)

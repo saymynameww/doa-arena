@@ -219,5 +219,8 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
         )
         figures[title] = fig
     for fig in figures.values():
+        from .identity import apply_styles
+
+        apply_styles(fig, labels)
         fig.update_layout(template="plotly_white", hovermode="x unified")
     return figures

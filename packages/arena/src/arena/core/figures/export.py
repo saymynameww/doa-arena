@@ -57,7 +57,8 @@ def export_figure(
 
     # 导出静态图
     if format == "png":
-        fig.write_image(str(path), format="png", width=width, height=height)
+        # FR-RES-07：以网页 96 dpi 的逻辑尺寸输出 300 dpi 等效像素。
+        fig.write_image(str(path), format="png", width=width, height=height, scale=300 / 96)
     elif format == "pdf":
         fig.write_image(str(path), format="pdf", width=width, height=height)
     elif format == "svg":

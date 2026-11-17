@@ -52,6 +52,7 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
             "API": arena_api.__version__,
             "数据生成器": GENERATOR_VERSION,
             "Python": platform.python_version(),
+            "cuda_available": False,
         }
         for name in ("numpy", "scipy", "torch"):
             try:
@@ -74,6 +75,7 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
                 import torch
 
                 info["CUDA"] = torch.version.cuda or "CPU 构建"
+                info["cuda_available"] = torch.cuda.is_available()
                 info["GPU"] = (
                     torch.cuda.get_device_name(0) if torch.cuda.is_available() else "不可用"
                 )
@@ -142,7 +144,14 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         from .figures.details import result_details
         from .storage.reader import read_result
 
-        return result_details(read_result(directory))
+        details = result_details(read_result(directory))
+        errors_path = directory / "errors.json"
+        details["error_groups"] = (
+            json.loads(errors_path.read_text(encoding="utf-8")).get("algorithms", [])
+            if errors_path.exists()
+            else []
+        )
+        return details
     if operation == "export":
         from .export.service import export_result
 
@@ -153,6 +162,7 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
             payload.get("chart"),
             payload.get("style", "web"),
             payload.get("log", False),
+            payload.get("style_options"),
         )
         return {"path": str(path)}
     if operation == "finalize":

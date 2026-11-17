@@ -12,6 +12,9 @@ import {
   Alert,
   Checkbox,
   Select,
+  Collapse,
+  Input,
+  InputNumber,
 } from "antd";
 import { DownloadOutlined, FullscreenOutlined } from "@ant-design/icons";
 import Plot from "react-plotly.js";
@@ -49,6 +52,14 @@ const ResultCharts: React.FC<ResultChartsProps> = ({
     useState<import("@/types/generated").ResultDetails>();
   const [logScale, setLogScale] = useState(false);
   const [style, setStyle] = useState("web");
+  const [styleOptions, setStyleOptions] = useState<Record<string, any>>({});
+  useEffect(() => {
+    try { setStyleOptions(JSON.parse(localStorage.getItem(`arena.chartStyle.${taskId}`) || "{}")); } catch { setStyleOptions({}); }
+  }, [taskId]);
+  const updateStyle = (next: Record<string, any>) => {
+    setStyleOptions(next);
+    localStorage.setItem(`arena.chartStyle.${taskId}`, JSON.stringify(next));
+  };
 
   useEffect(() => {
     if (resultPath) {
@@ -82,6 +93,7 @@ const ResultCharts: React.FC<ResultChartsProps> = ({
       metric,
       style,
       log: logScale,
+      style_options: JSON.stringify(styleOptions),
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -172,13 +184,19 @@ const ResultCharts: React.FC<ResultChartsProps> = ({
             </Space>
           </div>
           <Plot
-            data={chart.data as never}
+            data={chart.data.map((trace: any) => {
+              const custom = styleOptions.algorithms?.[trace.legendgroup || trace.name];
+              if (!custom) return trace;
+              const previous = trace.marker?.symbol;
+              const symbol = custom.symbol;
+              return { ...trace, line: { ...trace.line, ...(custom.color ? { color: custom.color } : {}), ...(custom.dash ? { dash: custom.dash } : {}) }, marker: { ...trace.marker, ...(custom.color ? { color: custom.color } : {}), ...(symbol ? { symbol: Array.isArray(previous) ? previous.map((s: string) => s.endsWith("-open") ? `${symbol}-open` : symbol) : symbol } : {}) } };
+            }) as never}
             layout={
               {
                 ...(chart.layout as Record<string, unknown>),
                 autosize: true,
                 height: style === "single" ? 360 : 500,
-                font: { size: style === "web" ? 12 : 16 },
+                font: { size: styleOptions.font_size || (style === "web" ? 12 : 16) },
                 yaxis: {
                   ...(chart.layout.yaxis as object),
                   type: logScale ? "log" : "linear",
@@ -206,6 +224,18 @@ const ResultCharts: React.FC<ResultChartsProps> = ({
 
   return (
     <>
+      {!!details?.error_groups?.length && (
+        <Card title="运行错误与完整堆栈" style={{ marginBottom: 16 }}>
+          <p>失败试验会降低成功率；RMSE 是否纳入取决于配置中的失败处理口径。</p>
+          <Collapse items={details.error_groups.flatMap((group: any, gi: number) =>
+            group.errors.map((error: any, ei: number) => ({
+              key: `${gi}-${ei}`,
+              label: `${group.label} · ${error.type} · ${error.count} 次：${error.message}`,
+              children: <><p>阶段：{group.stage}；首次出现在第 {Number(error.first_at.point) + 1} 个扫描点、第 {Number(error.first_at.trial) + 1} 次试验。</p>
+                <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{error.traceback || "此错误由输出校验产生，无异常堆栈。"}</pre></>,
+            })))}/>
+        </Card>
+      )}
       {(
         (details?.metadata.warnings || []) as Array<Record<string, unknown>>
       ).map((w, i) => (
@@ -239,10 +269,22 @@ const ResultCharts: React.FC<ResultChartsProps> = ({
           )
         }
       >
+        <Collapse style={{ marginBottom: 12 }} items={[{ key: "style", label: "自定义线型、标记、配色与字号", children: <Space direction="vertical" style={{ width: "100%" }}>
+          <Space>字号 <InputNumber aria-label="图表字号" min={8} max={32} value={styleOptions.font_size || (style === "web" ? 12 : 16)} onChange={(v) => updateStyle({ ...styleOptions, font_size: v })} /><Button onClick={() => updateStyle({})}>恢复默认样式</Button></Space>
+          {Array.from(new Map((details?.rows || []).map((r: any) => [r.algorithm, r])).values()).map((row: any) => {
+            const value = { ...row.style, ...styleOptions.algorithms?.[row.algorithm] };
+            const edit = (key: string, v: any) => updateStyle({ ...styleOptions, algorithms: { ...styleOptions.algorithms, [row.algorithm]: { ...styleOptions.algorithms?.[row.algorithm], [key]: v } } });
+            return <Space wrap key={row.algorithm}><span>{row.algorithm}</span>
+              <Input type="color" aria-label={`${row.algorithm}颜色`} style={{ width: 60 }} value={value.color} onChange={(e) => edit("color", e.target.value)} />
+              <Select aria-label={`${row.algorithm}线型`} value={value.dash} onChange={(v) => edit("dash", v)} options={["solid", "dash", "dot", "dashdot"].map((v, i) => ({ value: v, label: ["实线", "虚线", "点线", "点划线"][i] }))} />
+              <Select aria-label={`${row.algorithm}标记`} value={value.symbol} onChange={(v) => edit("symbol", v)} options={["circle", "square", "diamond", "triangle-up", "cross", "x"].map((v, i) => ({ value: v, label: ["圆", "方", "菱形", "三角", "十字", "叉"][i] }))} />
+            </Space>;
+          })}
+        </Space> }]} />
         <Tabs items={tabs} />
       </Card>
       {details && (
-        <ResultTable data={details} point={point} onPoint={setPoint} />
+        <ResultTable data={{ ...details, rows: details.rows.map((r: any) => ({ ...r, style: { ...r.style, ...styleOptions.algorithms?.[r.algorithm] } })) }} point={point} onPoint={setPoint} />
       )}
     </>
   );

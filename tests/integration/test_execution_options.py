@@ -37,7 +37,7 @@ def test_save_options_and_roundtrip(tmp_path):
     result = run_experiment(config)
     trial = result.points[0].trials[0]
     assert trial.estimates["music"].spectrum is None
-    assert trial.observation.shape == (16, 100)
+    assert trial.observation.shape == (16, 200)
     ResultWriter(tmp_path).write_experiment(result)
     recovered = read_result(tmp_path)
     np.testing.assert_array_equal(recovered.points[0].trials[0].observation, trial.observation)

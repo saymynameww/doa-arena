@@ -77,6 +77,11 @@ const ExportMenu: React.FC<ExportMenuProps> = ({ taskId }) => {
           onClick: () => handleExport('html'),
         },
         {
+          key: 'report',
+          label: '查看完整报告 / 打印 PDF',
+          onClick: () => window.open(`/api/experiments/tasks/${taskId}/report`, '_blank', 'noopener,noreferrer'),
+        },
+        {
           key: 'png',
           label: 'PNG 图像',
           onClick: () => handleExport('png'),

@@ -28,6 +28,7 @@ class TaskProgress(BaseModel):
     total_trials: int = 0
     completed_trials: int = 0
     percent: float = 0
+    eta_seconds: float | None = None
 
 
 class TaskResponse(BaseModel):
@@ -85,6 +86,7 @@ class ResultDetails(BaseModel):
     rows: list[dict[str, Any]]
     columns: list[dict[str, str]]
     metadata: dict[str, Any]
+    error_groups: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Template(BaseModel):
@@ -123,6 +125,7 @@ class ValidationResult(BaseModel):
 
     valid: bool
     issues: list[ValidationIssue]
+    config: dict[str, Any] | None = None
 
 
 class ParamSchema(BaseModel):

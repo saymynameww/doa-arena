@@ -125,7 +125,7 @@ class MVDR(Algorithm):
 
         return Estimate(
             angles=peak_angles,
-            info={"used_pinv": singular, "n_peaks_found": len(peak_angles)},
+            info={"used_pinv": bool(singular), "n_peaks_found": len(peak_angles)},
             spectrum=Spectrum(
                 grid=self.grid,
                 values=spectrum,
