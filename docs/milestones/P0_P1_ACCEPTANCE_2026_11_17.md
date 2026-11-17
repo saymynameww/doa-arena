@@ -104,3 +104,5 @@ HTML 报告打印 PDF 符合架构 ADR-08；Word 暂缓符合本轮用户指令�
 - 提交前全部适用钩子通过，`git diff --cached --check` 通过；mypy 99 文件、OpenAPI 一致性再次通过。
 - 最终前端重新生产构建；wheel 安装至独立的 `arena_ws/p01_release_final`，确认导入来自该目录，首页/历史/设置/健康检查均 200、两个实际静态资源 200、未知 API 404。没有改动基础或 CPU 环境的安装包。
 - 比较页修复后通过内置浏览器截图复核：字段差异独立成行，长补丁默认折叠，结果图保持可见。证据：`arena_ws/p01_acceptance/comparison-acceptance.jpg`。
+- 代码提交 `fc6dfceb26ea86eb43fcd9c33a356b25615500ee` 已推送；[Linux CI #44081849935](https://github.com/saymynameww/doa-arena/actions/runs/44081849935) 的 `linux-python310`（全套 pytest、mypy、生成类型）和 `linux-learning` 均为 success。随后报告提交仅补录证据，不修改代码。
+- 钩子要求的 `isinstance` 类型联合写法调整后，额外回归：图表 15 passed（139.95 s）、产品补齐 8 passed（5.81 s）；不替代上面的 CPU/GPU 全套结果。
