@@ -99,6 +99,8 @@ def test_benchmark_run_version_isolation_and_missing_scenes(tmp_path):
     old = benchmark.leaderboard(tmp_path, "test-suite", "1.0", revision=partial["run_id"])
     assert old["rows"][0]["missing"] == ["single"]
     assert board["columns"][1]["higher_is_better"] is True
+    assert board["columns"][0]["unit"] == "°"
+    assert board["columns"][1]["unit"] == "%"
 
 
 def test_changed_experiment_cannot_enter_fixed_benchmark(tmp_path):

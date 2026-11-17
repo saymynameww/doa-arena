@@ -100,3 +100,5 @@
 | 最新/历史记录、缺失补跑 | Leaderboard | revision / scenarios 选择 | test_benchmark_run_version_isolation_and_missing_scenes | 自动化通过，视觉待验 |
 
 完整验收状态以 `docs/milestones/M6.md`、`M7.md` 为准；上述功能通过不代表逐项视觉验收完成。
+
+2026-11-17 更新：官方内置浏览器已实际复验算法库表格、搜索/详情、模型检查弹窗、排行榜切换/单位/排名与结果跳转，并修复重启进度显示。上述相关项的“视觉待验”更新为“主要路径已复验”；范围和截图见 `docs/milestones/VISUAL_ACCEPTANCE_2026_11_17.md`，其他条目不据此自动通过。

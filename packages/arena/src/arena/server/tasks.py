@@ -201,6 +201,7 @@ class TaskManager:
                         completed_at=started + metadata.get("elapsed_seconds", 0),
                         error=state.get("error"),
                         result_path=directory,
+                        progress=state,
                     )
                     self._file_versions[str(directory)] = fingerprint
                     count += 1

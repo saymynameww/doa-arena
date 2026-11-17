@@ -1,123 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { Alert, Button, Card, List, Tag, Space, Spin, message, Descriptions } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
-import { getAlgorithms, refreshAlgorithms } from '@/services/api';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Descriptions, Input, Select, Space, Table, Tag, message } from 'antd';
+import { getAlgorithmCatalog, refreshAlgorithms } from '@/services/api';
 import type { Algorithm } from '@/types';
 import ModelsPanel from '@/components/ModelsPanel';
 
-const AlgorithmsPage: React.FC = () => {
+export default function AlgorithmsPage() {
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
-  const [loading, setLoading] = useState(false);
   const [failures, setFailures] = useState<any[]>([]);
-
-  useEffect(() => {
-    loadAlgorithms();
-  }, []);
-
-  const loadAlgorithms = async () => {
-    try {
-      setLoading(true);
-      const data = await getAlgorithms();
-      console.log('Loaded algorithms:', data);
-      setAlgorithms(data);
-    } catch (error: any) {
-      console.error('Failed to load algorithms:', error);
-      message.error('加载算法列表失败: ' + (error.message || '未知错误'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState('');
+  const [source, setSource] = useState('all');
+  const load = async (refresh = false) => {
     setLoading(true);
     try {
-      const data = await refreshAlgorithms();
-      setAlgorithms(data.algorithms);
-      setFailures(data.failures || []);
-      message.success('算法库已刷新');
-    } catch {
-      message.error('刷新算法库失败');
-    } finally {
-      setLoading(false);
-    }
+      const data = await (refresh ? refreshAlgorithms() : getAlgorithmCatalog());
+      setAlgorithms(data.algorithms); setFailures(data.failures);
+    } catch { message.error('算法库加载失败，请检查算法来源后刷新'); }
+    finally { setLoading(false); }
   };
-
-  const renderParams = (params: Record<string, any>) => {
-    if (!params || Object.keys(params).length === 0) {
-      return <span style={{ color: '#8c8c8c' }}>无参数</span>;
-    }
-    return Object.entries(params).map(([key, schema]) => (
-      <Descriptions.Item key={key} label={key}>
-        <Space>
-          <Tag>{schema.type}</Tag>
-          {schema.default !== undefined && schema.default !== null && (
-            <span>默认值: {String(schema.default)}</span>
-          )}
-          {schema.description && (
-            <span style={{ color: '#8c8c8c' }}>({schema.description})</span>
-          )}
-        </Space>
-      </Descriptions.Item>
-    ));
-  };
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '100px 0' }}>
-        <Spin size="large" tip="加载中..." />
-      </div>
-    );
-  }
-
-  return (
-    <>
-    <Card title="算法库" extra={<Space><Tag color="blue">{algorithms.length} 个算法</Tag><Button icon={<ReloadOutlined />} onClick={() => void handleRefresh()}>刷新</Button></Space>}>
-      {failures.length > 0 && <Alert type="warning" showIcon message="部分算法来源加载失败" description={failures.map((failure) => failure.message || String(failure)).join('；')} style={{ marginBottom: 16 }} />}
-      {algorithms.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#8c8c8c' }}>
-          暂无算法数据
-        </div>
-      ) : (
-        <List
-          itemLayout="vertical"
-          dataSource={algorithms}
-          renderItem={(algo) => (
-            <Card
-              type="inner"
-              title={
-                <Space>
-                  <span>{algo.name}</span>
-                  <Tag color="blue">{algo.type}</Tag>
-                </Space>
-              }
-              style={{ marginBottom: 16 }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div>
-                  <strong>描述：</strong>
-                  {algo.description || '暂无描述'}
-                </div>
-                <div>
-                  <strong>ID：</strong>
-                  <Tag>{algo.id}</Tag>
-                </div>
-                {algo.params && Object.keys(algo.params).length > 0 && (
-                  <div>
-                    <strong>参数：</strong>
-                    <Descriptions column={1} size="small" style={{ marginTop: 8 }}>
-                      {renderParams(algo.params)}
-                    </Descriptions>
-                  </div>
-                )}
-              </Space>
-            </Card>
-          )}
-        />
-      )}
+  useEffect(() => { void load(); }, []);
+  const filtered = algorithms.filter(item => (source === 'all' || item.type === source) && `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase()));
+  return <>
+    <Card title={<Space>算法库 <small>{algorithms.length} 个可用，{failures.length} 个加载失败</small></Space>} extra={<Button onClick={() => void load(true)}>刷新</Button>}>
+      <p>内置基线和已登记来源里的算法。修改课题仓库代码后点“刷新”，不需要重启。</p>
+      {failures.map((failure, index) => <Alert key={index} type="error" showIcon message={String(failure.message || failure.error || '算法加载失败')} description={<details><summary>查看堆栈</summary><pre style={{whiteSpace:'pre-wrap'}}>{String(failure.traceback || JSON.stringify(failure, null, 2))}</pre></details>} style={{marginBottom:12}} />)}
+      <Space style={{marginBottom:16}}><Input.Search aria-label="搜索算法" placeholder="搜索名称或 id" value={query} onChange={e => setQuery(e.target.value)} allowClear /><Select aria-label="来源" value={source} onChange={setSource} options={[{value:'all',label:'全部来源'},{value:'builtin',label:'内置'},{value:'external',label:'外部'}]} /></Space>
+      <Table<Algorithm> rowKey="id" size="small" loading={loading} dataSource={filtered} pagination={false} scroll={{x:900}} columns={[
+        {title:'名称',dataIndex:'name',render:value => <strong>{value}</strong>},
+        {title:'id',dataIndex:'id'},
+        {title:'类别',dataIndex:'category',render:value => value === 'learning' ? '学习型' : '传统'},
+        {title:'来源',render:(_, item) => item.type === 'builtin' ? <Tag>内置</Tag> : <span style={{overflowWrap:'anywhere'}}>{String(item.origin?.file || '外部')}</span>,width:220},
+        {title:'版本',dataIndex:'version'},
+        {title:'代码',render:(_,item) => item.type === 'builtin' ? '随竞技场' : <>{String(item.origin?.commit || '未记录 commit').slice(0,12)}{item.origin?.dirty ? <Tag color="gold">有未提交修改</Tag> : null}</>},
+        {title:'适用条件',render:(_,item) => <>{item.category === 'learning' ? '阵列与模型一致；' : ''}{item.capabilities.needs_K ? '需要信源数 K；' : ''}{item.capabilities.supports_masked_elements === false ? '全部阵元可用' : '支持阵元掩码'}</>},
+      ]} expandable={{expandedRowRender:item => <><p>{item.description || '暂无说明'}</p><Descriptions size="small" column={2}>{Object.entries(item.params).map(([key,schema]) => <Descriptions.Item key={key} label={key}>{schema.default == null ? '未设置默认值' : `默认值：${JSON.stringify(schema.default)}`} {schema.description}</Descriptions.Item>)}</Descriptions></>}} />
     </Card>
     <ModelsPanel />
-    </>
-  );
-};
-
-export default AlgorithmsPage;
+  </>;
+}

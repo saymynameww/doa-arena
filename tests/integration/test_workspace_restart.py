@@ -23,7 +23,13 @@ def test_restart_preserves_workspace_root(tmp_path, monkeypatch):
         ExperimentConfig.model_validate({"algorithms": [{"id": "music"}]})
     )
     assert manager.tasks[identifier].result_path == workspace.experiments / identifier
+    ResultWriter(workspace.experiments / identifier)._write_json(
+        workspace.experiments / identifier / "status.json",
+        {"status": "completed", "completed_trials": 3500, "total_trials": 3500},
+    )
     monkeypatch.setattr(tasks, "_task_manager", None)
     restored = tasks.get_task_manager()
     assert identifier in restored.tasks
     assert restored.tasks[identifier].result_path == workspace.experiments / identifier
+    assert restored.tasks[identifier].progress["completed_trials"] == 3500
+    assert restored.tasks[identifier].progress["total_trials"] == 3500

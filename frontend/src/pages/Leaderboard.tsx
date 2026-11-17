@@ -62,11 +62,11 @@ export default function LeaderboardPage() {
     ...((board?.columns || []) as Array<Record<string, any>>).map((spec, index) => {
       const values = rows.map(row => row.values[index]?.value).filter(value => typeof value === 'number');
       const best = values.length ? (spec.higher_is_better ? Math.max(...values) : Math.min(...values)) : undefined;
-      return {key: String(index), title: <Button type="link" onClick={() => setColumn(index)} style={{height: 'auto', whiteSpace: 'normal'}}>{spec.label}{index === column ? ' ↓' : ''}<br/><small>{spec.higher_is_better ? '越大越好' : '越小越好'}</small></Button>, width: 170,
+      return {key: String(index), title: <Button type="link" onClick={() => setColumn(index)} style={{height: 'auto', whiteSpace: 'normal', display:'block', padding:0, width:'100%', textAlign:'left'}}><span style={{display:'block'}}>{spec.metric_name || spec.metric} · {spec.label}{index === column ? ' ↓' : ''}</span><small>{spec.higher_is_better ? '越大越好' : '越小越好'}</small></Button>, width: 170,
         render: (_: unknown, row: any) => {
           const cell = row.values[index];
           if (!cell) return <Button type="link" size="small" disabled={busy} onClick={() => void run([row.algorithm], [spec.scenario])}>未运行，补跑</Button>;
-          return <Tooltip title={`评测 ${cell.run_id}；commit ${cell.commit || '随竞技场'}`}><Link to={`/runs/${cell.experiment_id}`} style={{fontWeight: cell.value === best ? 700 : 400}}>{cell.value == null ? '无有效值，查看结果' : Number(cell.value).toPrecision(4)}</Link></Tooltip>;
+          return <Tooltip title={`评测 ${cell.run_id}；commit ${cell.commit || '随竞技场'}`}><Link to={`/runs/${cell.experiment_id}`} style={{fontWeight: cell.value === best ? 700 : 400}}>{cell.value == null ? '无有效值，查看结果' : `${(Number(cell.value) * (spec.unit === '%' ? 100 : 1)).toPrecision(4)}${spec.unit || ''}`}</Link></Tooltip>;
         }};
     }),
   ];

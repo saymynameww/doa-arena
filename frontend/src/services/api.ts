@@ -26,6 +26,7 @@ export const checkHealth = async () => {
 };
 
 // 算法相关
+export const getAlgorithmCatalog = async (): Promise<import('@/types/generated').PluginList> => (await api.get('/algorithms')).data;
 export const getAlgorithms = async (): Promise<Algorithm[]> => {
   const response = await api.get('/algorithms');
   return response.data.algorithms;

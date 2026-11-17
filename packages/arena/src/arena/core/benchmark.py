@@ -249,7 +249,12 @@ def leaderboard(
     if not 0 <= column < len(suite.leaderboard):
         raise ValueError("请选择有效排行榜列")
     columns = [
-        {**c.model_dump(), "higher_is_better": resolve_plugin("metric", c.metric).higher_is_better}
+        {
+            **c.model_dump(),
+            "higher_is_better": resolve_plugin("metric", c.metric).higher_is_better,
+            "metric_name": resolve_plugin("metric", c.metric).name,
+            "unit": resolve_plugin("metric", c.metric).unit,
+        }
         for c in suite.leaderboard
     ]
     rows: dict[str, dict[str, Any]] = {}

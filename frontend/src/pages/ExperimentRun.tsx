@@ -171,8 +171,8 @@ const ExperimentRunPage: React.FC = () => {
             </Col>
             <Col span={6}>
               <Statistic
-                title="当前试验"
-                value={`${progress.current_trial} / ${progress.total_trials}`}
+                title="已完成试验"
+                value={progress.total_trials ? `${progress.completed_trials} / ${progress.total_trials}` : '暂无进度记录'}
               />
             </Col>
           </Row>
