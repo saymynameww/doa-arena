@@ -322,7 +322,19 @@ class TaskManager:
         await self._notify_progress(task_id)
 
         from ..core.runner.job import run_job
+        from ..core.storage import ResultWriter
         from ..core.storage.reader import read_result
+
+        async def read_status(path: Path) -> dict[str, Any]:
+            # Windows 原子替换可能短暂拒绝读句柄；进度读取不能直接杀死实验。
+            for attempt in range(8):
+                try:
+                    return json.loads(path.read_text(encoding="utf-8"))
+                except PermissionError:
+                    if attempt == 7:
+                        raise
+                    await asyncio.sleep(0.05)
+            return {}
 
         assert task.result_path is not None
         task.process = mp.get_context("spawn").Process(
@@ -335,7 +347,7 @@ class TaskManager:
             while task.process.is_alive():
                 status_path = task.result_path / "status.json"
                 if status_path.exists():
-                    status = json.loads(status_path.read_text(encoding="utf-8"))
+                    status = await read_status(status_path)
                     task.progress.update(status)
                     task.progress["current_trial"] = (
                         status.get("completed_trials", 0) % task.config.trials
@@ -349,9 +361,7 @@ class TaskManager:
                 await asyncio.sleep(0.1)
             task.process.join(timeout=2)
             status_path = task.result_path / "status.json"
-            status = (
-                json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
-            )
+            status = await read_status(status_path) if status_path.exists() else {}
             if task.status != TaskStatus.CANCELLED:
                 task.status = (
                     TaskStatus.COMPLETED
@@ -359,6 +369,12 @@ class TaskManager:
                     else TaskStatus.FAILED
                 )
             task.error = status.get("error")
+            if task.status == TaskStatus.FAILED and not task.error:
+                task.error = f"实验进程异常退出（退出码 {task.process.exitcode}），请查看日志或重跑"
+            if task.status == TaskStatus.FAILED:
+                ResultWriter(task.result_path)._write_json(
+                    status_path, {**status, "status": "failed", "error": task.error}
+                )
             if (task.result_path / "results.npz").exists():
                 task.result = read_result(task.result_path)
             task.completed_at = time.time()
@@ -381,6 +397,12 @@ class TaskManager:
             if task.process.is_alive():
                 task.process.terminate()
                 task.process.join(timeout=2)
+            if task.status == TaskStatus.FAILED:
+                # 持久化父进程异常，防止重建索引把失败误认成陈旧 running。
+                ResultWriter(task.result_path)._write_json(
+                    task.result_path / "status.json",
+                    {**task.progress, "status": "failed", "error": task.error},
+                )
 
     async def _update_progress(
         self,

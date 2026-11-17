@@ -474,3 +474,42 @@ def test_cancelled_history_accepts_legacy_null_percent(client):
     response = client.get(f"/api/experiments/tasks/{identifier}")
     assert response.status_code == 200
     assert response.json()["progress"]["percent"] == 25
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+def test_transient_status_read_does_not_kill_worker(tmp_path, monkeypatch, persistent):
+    import asyncio
+    from pathlib import Path
+
+    from arena.core.config import ExperimentConfig
+    from arena.server.tasks import TaskManager, TaskStatus
+
+    manager = TaskManager(tmp_path)
+    identifier = manager.create_task(
+        ExperimentConfig.model_validate(
+            {
+                "trials": 2,
+                "algorithms": [{"id": "music"}],
+            }
+        )
+    )
+    target = manager.tasks[identifier].result_path / "status.json"
+    original = Path.read_text
+    blocked = []
+
+    def read(path, *args, **kwargs):
+        if path == target and (persistent or not blocked):
+            blocked.append(True)
+            raise PermissionError("模拟 Windows 原子替换时短暂读锁")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read)
+    asyncio.run(manager.run_task(identifier))
+    assert blocked
+    expected = TaskStatus.FAILED if persistent else TaskStatus.COMPLETED
+    assert manager.tasks[identifier].status == expected
+    monkeypatch.setattr(Path, "read_text", original)
+    restored = TaskManager(tmp_path)
+    assert restored.tasks[identifier].status == expected
+    if persistent:
+        assert "读锁" in restored.tasks[identifier].error

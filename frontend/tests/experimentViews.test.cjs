@@ -32,3 +32,17 @@ test("配置差异保留 0、false 和嵌套路径", () => {
   assert.equal(flat["scene.flag"], "false");
   assert.equal(flat["scene.angles"], "[-10,10]");
 });
+
+test("当前任务优先运行中；排队的同参数场景不能重复补跑", () => {
+  const { currentTask, activeBenchmarkScene } = exportsObject;
+  const queued = { task_id: "q", status: "queued" };
+  const running = { task_id: "r", status: "running" };
+  assert.equal(currentTask([queued, running]), running);
+  const algorithm = { id: "a", params: { x: 1, y: 2 } };
+  const record = { run_id: "new", algorithms: [algorithm], states: { failure: { status: "queued", experiment_id: "q" } } };
+  assert.equal(activeBenchmarkScene([record], {id:"a",params:{y:2,x:1}}, "failure").experiment_id, "q");
+  assert.equal(activeBenchmarkScene([record], {id:"a",params:{x:2}}, "failure"), undefined);
+  assert.equal(activeBenchmarkScene([record], algorithm, "failure", "old"), undefined);
+  record.states.failure.status = "completed";
+  assert.equal(activeBenchmarkScene([record], algorithm, "failure"), undefined);
+});

@@ -15,6 +15,7 @@ import {
   getWorkspaces,
   selectWorkspace,
 } from "@/services/api";
+import { currentTask as selectCurrentTask } from "@/utils/experimentViews";
 import type { Task } from "@/types";
 
 const { Sider, Content } = Layout;
@@ -45,10 +46,7 @@ const AppLayout: React.FC = () => {
   }, [location.pathname]);
 
   const currentTask = useMemo(
-    () =>
-      tasks.find(
-        (task) => task.status === "running" || task.status === "queued",
-      ) || tasks[0],
+    () => selectCurrentTask(tasks),
     [tasks],
   );
   const selectedKey =

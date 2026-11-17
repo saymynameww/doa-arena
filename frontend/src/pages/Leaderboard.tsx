@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Checkbox, Empty, Input, Modal, Select, Space, Table, Tag, Tooltip, message } from 'antd';
 import { Link } from 'react-router-dom';
 import { getLeaderboard, getLeaderboardScenarios, runBenchmark, importBenchmarkSuite, getBenchmarkRuns } from '@/services/api';
+import { activeBenchmarkScene } from '@/utils/experimentViews';
 import type { AlgorithmConfig, LeaderboardResponse } from '@/types/generated';
 
 export default function LeaderboardPage() {
@@ -65,6 +66,8 @@ export default function LeaderboardPage() {
       return {key: String(index), title: <Button type="link" onClick={() => setColumn(index)} style={{height: 'auto', whiteSpace: 'normal', display:'block', padding:0, width:'100%', textAlign:'left'}}><span style={{display:'block'}}>{spec.metric_name || spec.metric} · {spec.label}{index === column ? ' ↓' : ''}</span><small>{spec.higher_is_better ? '越大越好' : '越小越好'}</small></Button>, width: 170,
         render: (_: unknown, row: any) => {
           const cell = row.values[index];
+          const active = activeBenchmarkScene(runs, row.algorithm, spec.scenario, revision);
+          if (!cell && active) return <Link to={`/runs/${active.experiment_id}`}>{active.status === 'running' ? '运行中，查看进度' : '已排队，查看进度'}</Link>;
           if (!cell) return <Button type="link" size="small" disabled={busy} onClick={() => void run([row.algorithm], [spec.scenario])}>未运行，补跑</Button>;
           return <Tooltip title={`评测 ${cell.run_id}；commit ${cell.commit || '随竞技场'}`}><Link to={`/runs/${cell.experiment_id}`} style={{fontWeight: cell.value === best ? 700 : 400}}>{cell.value == null ? '无有效值，查看结果' : `${(Number(cell.value) * (spec.unit === '%' ? 100 : 1)).toPrecision(4)}${spec.unit || ''}`}</Link></Tooltip>;
         }};

@@ -36,3 +36,23 @@ export function flattenConfig(
   }
   return { [prefix]: JSON.stringify(value) ?? "—" };
 }
+
+
+export function currentTask(tasks: Task[]): Task | undefined {
+  return tasks.find(t => t.status === "running") || tasks.find(t => t.status === "queued") || tasks[0];
+}
+
+export function activeBenchmarkScene(
+  runs: Array<Record<string, any>>, algorithm: Record<string, any>, scene: string, revision?: string,
+): {status: string; experiment_id: string} | undefined {
+  const identity = (a: Record<string, any>) => JSON.stringify([
+    a.id, a.label || a.id, a.origin || null,
+    Object.entries(flattenConfig(a.params || {})).sort(([a], [b]) => a.localeCompare(b)),
+  ]);
+  for (const record of runs) {
+    if (revision && record.run_id !== revision) continue;
+    const state = record.states[scene];
+    if (state && ["queued", "running"].includes(state.status) && record.algorithms.some((a: Record<string, any>) => identity(a) === identity(algorithm))) return state;
+  }
+  return undefined;
+}
