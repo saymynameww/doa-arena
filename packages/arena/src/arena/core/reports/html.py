@@ -54,6 +54,8 @@ def _build_html(
     charts_html: dict[str, str],
 ) -> str:
     """构建 HTML 内容。"""
+    from arena import __version__
+
     title = escape(title)
     config = {
         key: escape(value) if isinstance(value, str) else value
@@ -237,7 +239,7 @@ def _build_html(
 
         <div class="footer">
             <p>生成时间：{gen_time}</p>
-            <p>DOA 估计算法竞技场 Arena v0.3.0</p>
+            <p>DOA 估计算法竞技场 Arena v{__version__}</p>
         </div>
     </div>
 </body>

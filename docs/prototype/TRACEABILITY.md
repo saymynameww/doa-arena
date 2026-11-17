@@ -1,3 +1,5 @@
+> 2026-11-17 六项闭环结果见 [最新报告](../milestones/P0_P1_CLOSURE_2026_11_17.md)；P0/P1 当前状态见 [逐项表](P0_P1_TRACEABILITY.md)。
+
 > 2026-11-17：本轮最新状态以 [P0/P1 逐项追踪表](P0_P1_TRACEABILITY.md) 和 [验收报告](../milestones/P0_P1_ACCEPTANCE_2026_11_17.md) 为准；下文保留历史记录。
 
 > 2026-11-16：当前重新验收证据见 [M1–M5 重新验收记录](../milestones/M1_M5_ACCEPTANCE_AUDIT.md)。新增真实谱、逐源误差分布、插件发现、脚本与历史恢复测试；下表旧有“已完成”仍须逐项浏览器复核，不代表完整验收。

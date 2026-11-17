@@ -22,6 +22,8 @@ def result_details(result: ExperimentResult) -> dict[str, Any]:
             if str(trace.name).startswith("CRB"):
                 bounds = list(trace.y)
     rows = []
+    definitions: dict[str, dict[str, Any]] = {}
+    directions: dict[str, bool] = {}
     for i, point in enumerate(result.points):
         for label in algorithm_labels(result):
             summary = point_metrics(result, point, label)
@@ -32,7 +34,28 @@ def result_details(result: ExperimentResult) -> dict[str, Any]:
                 cls = resolve_plugin(
                     "metric", key, result.config.get("metrics", {}).get("origins", {}).get(key)
                 )
-                metrics[key] = value * 100 if cls.unit == "%" and value is not None else value
+                # FR-RES-02：表格同时列出两个统计量；耗时曲线仍遵循配置 stat。
+                variants = (
+                    [
+                        ("time_mean", "平均耗时", (item.get("extra") or {}).get("mean")),
+                        ("time_median", "中位耗时", (item.get("extra") or {}).get("median")),
+                    ]
+                    if key == "time"
+                    else [(key, cls.name, value)]
+                )
+                for column_key, column_label, column_value in variants:
+                    metrics[column_key] = (
+                        column_value * 100
+                        if cls.unit == "%" and column_value is not None
+                        else column_value
+                    )
+                    definitions[column_key] = {
+                        "key": column_key,
+                        "label": column_label,
+                        "unit": cls.unit,
+                        "metric": key,
+                    }
+                    directions[column_key] = cls.higher_is_better
             rmse = values.get("rmse", {}).get("value")
             bound = bounds[i] if i < len(bounds) else None
             errors = [t.errors[label] for t in point.trials if label in t.errors]
@@ -65,16 +88,13 @@ def result_details(result: ExperimentResult) -> dict[str, Any]:
             rows.append(row)
     columns = []
     for name in dict.fromkeys(k for row in rows for k in row["metrics"]):
-        cls = resolve_plugin(
-            "metric", name, result.config.get("metrics", {}).get("origins", {}).get(name)
-        )
-        columns.append({"key": name, "label": cls.name, "unit": cls.unit})
+        columns.append(definitions[name])
         for point in result.points:
             candidates = [r for r in rows if r["point"] == point.point_idx]
             finite = [r["metrics"].get(name) for r in candidates]
             finite = [v for v in finite if v is not None and np.isfinite(v)]
             if finite:
-                best = max(finite) if cls.higher_is_better else min(finite)
+                best = max(finite) if directions[name] else min(finite)
                 for row in candidates:
                     if row["metrics"].get(name) == best:
                         row.setdefault("best", []).append(name)

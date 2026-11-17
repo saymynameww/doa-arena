@@ -1,6 +1,8 @@
 # P0/P1 需求—组件—API—测试追踪表
 
-日期：2026-11-17。范围为需求规格第 3 章全部 **57 条 P0、28 条 P1**。Word 是 FR-DAT-07 内的 P1 子项，不能重复计为独立需求；4 条 P2 不在本轮范围。
+日期：2026-11-17（六项收尾更新）。范围为需求规格第 3 章全部 **57 条 P0、28 条 P1**。Word 是 FR-DAT-07 内的 P1 子项，不能重复计为独立需求；4 条 P2 不在本轮范围。
+
+本轮六项剩余问题均按 [闭环报告](../milestones/P0_P1_CLOSURE_2026_11_17.md) 的子条件、精确测试入口和人工产物完成。该报告覆盖早期“仅页签性能采样”“耗时口径待定”“最终 PDF 待复核”“参考硬件不一致”的说明。真实 AutoDL、Edge、Word 仍暂缓。
 
 本表取代旧原型追踪表中同名项的历史状态。完成结论有明确范围：源码与自动化验证、已执行页面验收；不代表 AutoDL 实机、Edge 专项或无限第三方插件组合均已通过。正式设计文档未修改。
 
@@ -44,7 +46,7 @@
 | FR-EXP-08 | P1 | 同一时间只运行一个实验，其余排队 | ExperimentConfig / ExperimentRun / Sidebar | experiments/tasks；core.runner/job/tasks | test_runner、test_execution_options、test_parallel_runner、test_script_facade、test_runner_lifecycle | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-EXP-10 | P1 | 可利用多核 CPU 并行执行蒙特卡罗试验，且不破坏可复现性 | ExperimentConfig / ExperimentRun / Sidebar | experiments/tasks；core.runner/job/tasks | test_runner、test_execution_options、test_parallel_runner、test_script_facade、test_runner_lifecycle | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-RES-01 | P0 | 单次实验：多算法空间谱叠加图（可选 dB / 线性、归一化），真值以竖线标出 | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
-| FR-RES-02 | P0 | 蒙特卡罗：指标汇总表（每算法一行：RMSE、成功率、分辨概率、偏差、平均/中位耗时、纳入统计试验数） | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
+| FR-RES-02 | P0 | 蒙特卡罗：指标汇总表（每算法一行：RMSE、成功率、分辨概率、偏差、平均耗时和中位耗时、纳入统计试验数） | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 双列、排序与复制已实测；test_product_completion.py::test_result_table_and_report_show_both_time_statistics 四组参数均通过；7a226f34 与 timing-columns.jpg |
 | FR-RES-03 | P1 | 蒙特卡罗：估计值散点图或直方图 | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-RES-04 | P0 | 参数扫描：RMSE vs 扫描变量曲线，叠加 CRB；纵轴可选线性/对数 | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-RES-05 | P0 | 参数扫描：成功率 / 分辨概率 vs 扫描变量曲线；耗时 vs 扫描变量曲线 | ResultCharts / ResultTable / Compare / ExportMenu | tasks/{id}/charts、details、export；core.figures/export | test_figures、test_export_truth、test_remaining_contract、前端 experimentViews | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
@@ -63,7 +65,7 @@
 | FR-DAT-04 | P1 | 从历史实验“重新运行”，并把新结果与原结果比较，给出三档结论：逐位一致、容差内一致、不一致（4.2 节） | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-DAT-05 | P0 | 删除实验（需二次确认；删除的是实验文件夹，默认移入工作目录内的回收区而不是直接删除） | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-DAT-06 | P0 | 原始逐次估计值（每次试验每个算法的估计角度）随实验保存，可关闭以节省空间 | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
-| FR-DAT-07 | P0 | 报告导出：生成包含配置摘要、指标表、图表的报告（HTML 和 PDF；Word 为 P1） | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | HTML/PDF 已验证；Word 已批准暂缓；HTML 配置/指标/内嵌 SVG；Chrome 实际保存 A4 横向 9 页 PDF。Word 子项按用户要求暂缓 |
+| FR-DAT-07 | P0 | 报告导出：生成包含配置摘要、指标表、图表的报告（HTML 和 PDF；Word 为 P1） | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | HTML/PDF 通过；最终版 9 页 A4 横向 PDF 逐页检查，双耗时/四张图/完整配置齐全；需求方批准内置浏览器核对 HTML + 离线 PDF 排版验收；Word 暂缓 |
 | FR-DAT-08 | P0 | 实验配置导出/导入为 JSON 文件 | History / ExperimentNotes / Templates / Settings | tasks、templates、workspaces；core.storage | test_result_contract、test_execution_options、test_script_facade、test_web_service | 本机实现及对应证据通过；内置浏览器实际选择 import.json，名称、扫描值、算法及试验数还原，任务 7a226f34 完成 |
 | FR-API-01 | P0 | 核心库可在任意 Python 脚本 / Jupyter 中 import，无需启动 Web 服务 | Python API / CLI / 配置导出 | arena.run/load/figures；arena.cli | test_script_facade、test_remaining_contract、test_configuration_flow | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
 | FR-API-02 | P0 | 用配置（JSON 文件或等价的 Python 字典 / 对象）运行一次完整实验，返回结果对象，并按 FR-DAT-01 写入工作目录 | Python API / CLI / 配置导出 | arena.run/load/figures；arena.cli | test_script_facade、test_remaining_contract、test_configuration_flow | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
@@ -99,11 +101,12 @@
 - NFR-01–07：插件四类扩展、外部算法与学习模型、依赖方向/隔离和脚本入口由 plugins_acceptance、learning_workflow、script_facade、models 测试覆盖；没有增加 P2 运行能力。
 - NFR-10–14：固定派生 RNG、经典算法和 CRB 数值验收、误差模型及元数据由 unit/core、parallel_runner、result_contract 覆盖。TLS 门限沿用已批准的限定场景 <2.0，未更改公式。
 - NFR-20：专门执行 M16/N200/K2/1000 次/五基线/0.1° 网格，记录 junit 的 nfr20_seconds；门限仍为 60 秒。
-- NFR-21：内置浏览器四个指标切换（包括工具往返）307–322 ms；运行期间实际查看并取消。此采样不能证明任意插件、冷启动或所有操作的最坏耗时均 <0.5 秒。
+- NFR-21：已补六页×三轮、四类参数×三次、运行中六页与三次参数修改；共 47 次页面内事件到绘制后测量，最大 128.2 ms <500 ms。任务 7ae335be 取消保留 8320 次。计时方法、异步加载边界和原始工具 579 ms 记录见闭环报告，不以工具往返替代页面延迟。
 - NFR-22/44/46：保存开关、开放结果格式、中文 MATLAB、模型安全加载测试通过。
-- NFR-23：实际 RTX 5060 Laptop 8GB（并非设计中写的 4060）；CNN 256 样本测得峰值 allocated 39,269,376 B，reserved 56,623,104 B，低于 8GiB。参考硬件不同如实记录，不冒充 4060 实测。
+- NFR-23：当前已批准参考机器 RTX 5060 Laptop 8GB；CNN 256 样本测得峰值 allocated 39,269,376 B，reserved 56,623,104 B，低于 8GiB。00/01/02 已递增版本并同步；历史 4060 记录保留。
 - NFR-30–32：中文参数及单位、非法配置提示、默认 N200/500 次/null 载频等已校正和验收；算法/阵列/误差字段仍由 Schema 提供。
-- NFR-40/42/43/45：Python3.10 Linux CI、可选 torch、类型检查、SQLite 重建与 Windows 测试；真实 AutoDL 保留待验。
+- NFR-40：包 README 已重写，包含独立环境、CUDA 13.0 安装、开发及 wheel 启动与真实 API 示例。中文路径示例、CLI run/schema/plugin、最终 wheel 隔离安装通过；具体测试入口见闭环报告。
+- NFR-42/43/45：Python3.10 Linux CI、可选 torch、类型检查、SQLite 重建与 Windows 测试；真实 AutoDL 保留待验。
 - NFR-41：Chrome 已实际渲染与打印，官方内置浏览器完成本轮对照；桌面 Edge 在 URL 安全策略识别失败后终止，按用户确认不再作为本轮执行阻塞，仍保留专项待验。不能写成“两浏览器均已通过”。
 
 ## 明确排除

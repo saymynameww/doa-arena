@@ -34,7 +34,7 @@ export default function ResultTable({
   const number = (v: unknown) =>
     typeof v === "number" ? v.toPrecision(5) : "—";
   const visibleColumns = data.columns.filter(
-    (c) => !single || ["time", "success_rate"].includes(c.key),
+    (c) => !single || ["time", "success_rate"].includes(c.metric || c.key),
   );
   const copyRows = [
     [

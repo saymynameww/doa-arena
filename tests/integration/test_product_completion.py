@@ -40,6 +40,9 @@ def test_report_contains_configuration_metrics_and_print_layout():
 
     result = run_experiment(ExperimentConfig(algorithms=[{"id": "music"}], trials=2))
     html = _build_html(result, "报告 <script>", {})
+    from arena import __version__
+
+    assert f"Arena v{__version__}" in html
     assert "指标汇总" in html and "RMSE" in html
     assert "配置摘要" in html and "snapshots" in html
     assert "@media print" in html and "@page" in html
@@ -137,3 +140,41 @@ def test_nfr20_reference_workload(record_property):
     assert sum(len(p.trials) for p in result.points) == 1000
     assert all(not t.errors for p in result.points for t in p.trials)
     assert elapsed < 60, f"NFR-20 目标 60 秒，实测 {elapsed:.3f} 秒"
+
+
+@pytest.mark.parametrize("stat", ["mean", "median"])
+@pytest.mark.parametrize("save_estimates", [True, False])
+def test_result_table_and_report_show_both_time_statistics(tmp_path, stat, save_estimates):
+    """偏斜耗时使均值/中位数不同；重读存档仍展示两者，曲线口径不变。"""
+    import numpy as np
+
+    from arena.core.figures.details import result_details
+    from arena.core.reports.html import _build_html
+    from arena.core.storage import ResultWriter
+    from arena.core.storage.reader import read_result
+
+    config = ExperimentConfig.model_validate(
+        {
+            "algorithms": [{"id": "music"}],
+            "trials": 3,
+            "metrics": {"include": ["time"], "params": {"time": {"stat": stat}}},
+            "options": {"save_estimates": save_estimates},
+        }
+    )
+    result = run_experiment(config)
+    for trial, duration in zip(result.points[0].trials, [1.0, 2.0, 9.0]):
+        trial.times_ms["music"] = duration
+    ResultWriter(tmp_path).write_experiment(result)
+    restored = read_result(tmp_path)
+    details = result_details(restored)
+    columns = {column["key"]: column for column in details["columns"]}
+    assert columns["time_mean"]["label"] == "平均耗时"
+    assert columns["time_median"]["label"] == "中位耗时"
+    # 精确可表示的人工耗时，允许浮点序列化舍入。
+    np.testing.assert_allclose(
+        [details["rows"][0]["metrics"]["time_mean"], details["rows"][0]["metrics"]["time_median"]],
+        [4.0, 2.0],
+        atol=1e-12,
+    )
+    html = _build_html(restored, "耗时验收", {})
+    assert "平均耗时" in html and "中位耗时" in html
