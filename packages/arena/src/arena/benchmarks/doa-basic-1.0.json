@@ -542,6 +542,79 @@
           }
         }
       }
+    },
+    {
+      "name": "failure",
+      "description": "未知故障阵元数（总数 16；保留第 0 个参考阵元；输出置零；实际比例 0%、6.25%、12.5%、18.75%、31.25%）",
+      "config": {
+        "seed": 20261116,
+        "scenario": {
+          "array": {
+            "type": "ula",
+            "params": {
+              "M": 16,
+              "d": 0.5
+            }
+          },
+          "sources": {
+            "K": 2,
+            "angles": {
+              "mode": "fixed",
+              "values": [
+                -10,
+                10
+              ]
+            },
+            "snr_db": 10,
+            "correlation": {
+              "mode": "none"
+            }
+          },
+          "snapshots": 200,
+          "impairments": [
+            {
+              "type": "element_failure",
+              "realization": "per_trial",
+              "params": {
+                "indices": null,
+                "count": 0,
+                "mode": "zero",
+                "known": false
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "type": "sweep",
+          "trials": 500,
+          "options": {
+            "common_random_numbers": true
+          },
+          "sweep": {
+            "path": "scenario.impairments[0].params.count",
+            "values": [
+              0,
+              1,
+              2,
+              3,
+              5
+            ]
+          }
+        },
+        "metrics": {
+          "include": [
+            "rmse",
+            "success_rate",
+            "resolution_prob",
+            "time"
+          ],
+          "params": {
+            "success_rate": {
+              "threshold_deg": 1
+            }
+          }
+        }
+      }
     }
   ],
   "leaderboard": [
@@ -592,6 +665,12 @@
       "metric": "rmse",
       "at": 3,
       "label": "第一邻元互耦幅度 @ 0.2"
+    },
+    {
+      "scenario": "failure",
+      "metric": "rmse",
+      "at": 2,
+      "label": "未知故障阵元 @ 2/16（12.5%）"
     }
   ]
 }

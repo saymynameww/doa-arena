@@ -107,9 +107,24 @@ def test_explicit_cuda_model(tmp_path):
     try:
         instance.load(params, ctx)
         assert instance.device_str == "cuda"
-        assert len(instance.estimate(trial.observation, ctx).angles) == 2
+        assert next(instance.model.parameters()).is_cuda
+        instance.configure(params, trial.array, ctx)
+        gpu_outputs = instance.estimate_batch([trial.observation] * 5, ctx)
+        assert len(gpu_outputs) == 5
+        cpu = TinyModel()
+        cpu_params = TinyModel.Params(model=str(package), device="cpu", batch_size=2)
+        try:
+            cpu.load(cpu_params, ctx)
+            cpu.configure(cpu_params, trial.array, ctx)
+            cpu_outputs = cpu.estimate_batch([trial.observation] * 5, ctx)
+            for actual, expected in zip(gpu_outputs, cpu_outputs, strict=True):
+                # float32 CPU/CUDA 运算舍入差异允许 1e-6 度；不比较不稳定耗时。
+                np.testing.assert_allclose(actual.angles, expected.angles, rtol=1e-6, atol=1e-6)
+        finally:
+            cpu.close()
     finally:
         instance.close()
+    assert instance.model is None
 
 
 def test_metadata_checks_do_not_import_torch(tmp_path):

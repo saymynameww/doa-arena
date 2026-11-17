@@ -137,3 +137,38 @@ def test_all_builtin_scene_shapes(tmp_path):
     board = benchmark.leaderboard(tmp_path, "smoke-only", "1.0")
     assert not board["failures"]
     assert board["rows"][0]["missing"] == []
+
+
+def test_published_nine_scene_contract(tmp_path):
+    import numpy as np
+
+    from arena.core.benchmark import load_suite
+    from arena.core.impairments.element_failure import ElementFailure
+
+    suite = load_suite(tmp_path, "doa-basic", "1.0")
+    assert len(suite.scenarios) == len(suite.leaderboard) == 9
+    assert sum(len(s.config["experiment"]["sweep"]["values"]) for s in suite.scenarios) == 53
+    assert all(s.config["experiment"]["trials"] == 500 for s in suite.scenarios)
+    scene = next(s for s in suite.scenarios if s.name == "failure")
+    impairment = scene.config["scenario"]["impairments"][0]
+    assert impairment == {
+        "type": "element_failure",
+        "realization": "per_trial",
+        "params": {"indices": None, "count": 0, "mode": "zero", "known": False},
+    }
+    assert scene.config["experiment"]["sweep"] == {
+        "path": "scenario.impairments[0].params.count",
+        "values": [0, 1, 2, 3, 5],
+    }
+    column = next(c for c in suite.leaderboard if c.scenario == "failure")
+    assert column.metric == "rmse" and column.at == 2
+    assert "12.5%" in column.label
+    # 已批准规则：第 0 个参考阵元保留；故障位置由实验种子派生。
+    plugin = ElementFailure()
+    draw = plugin.sample(np.random.default_rng(20261116), 16)
+    assert sorted(draw["permutation"].tolist()) == list(range(1, 16))
+    data = np.ones((16, 4), dtype=complex)
+    for count in [0, 1, 2, 3, 5]:
+        output = plugin.apply(data, draw, ElementFailure.Params(count=count, known=False))
+        assert np.count_nonzero(np.all(output == 0, axis=1)) == count
+        np.testing.assert_array_equal(output[0], data[0])
