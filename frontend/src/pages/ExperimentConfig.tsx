@@ -9,6 +9,7 @@ import {
   Dropdown,
   Input,
   InputNumber,
+  Modal,
   Select,
   Space,
   Switch,
@@ -90,10 +91,18 @@ export default function ExperimentConfigPage() {
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
   const [range, setRange] = useState("-10:5:20");
-  const [preview, setPreview] = useState<import("@/types/generated").ScenarioPreview>();
+  const [preview, setPreview] =
+    useState<import("@/types/generated").ScenarioPreview>();
   const [busy, setBusy] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateKind, setTemplateKind] = useState<"scenario" | "experiment">(
+    "experiment",
+  );
   const [error, setError] = useState("");
-  const [issues, setIssues] = useState<Array<{ level: string; message: string; algorithm?: string | null }>>([]);
+  const [issues, setIssues] = useState<
+    Array<{ level: string; message: string; algorithm?: string | null }>
+  >([]);
   const [params] = useSearchParams();
   const navigate = useNavigate();
   useEffect(() => {
@@ -104,9 +113,28 @@ export default function ExperimentConfigPage() {
         setTemplates(list);
         const template = list.find((t) => t.id === params.get("template"));
         let saved: any;
-        try { saved = JSON.parse(sessionStorage.getItem('arena.experimentDraft') || 'null'); } catch { saved = null; }
-        const next = mergeDefaults(data["x-default"], template?.config || saved?.draft);
-        if (template && !template.config?.algorithms?.length)
+        try {
+          saved = JSON.parse(
+            sessionStorage.getItem("arena.experimentDraft") || "null",
+          );
+        } catch {
+          saved = null;
+        }
+        const next =
+          template?.kind === "scenario"
+            ? {
+                ...mergeDefaults(data["x-default"], saved?.draft),
+                scenario: template.config?.scenario,
+              }
+            : mergeDefaults(
+                data["x-default"],
+                template?.config || saved?.draft,
+              );
+        if (
+          template &&
+          template.kind !== "scenario" &&
+          !template.config?.algorithms?.length
+        )
           next.algorithms = (template.algorithms || []).map((id: string) => {
             const plugin = data["x-algorithms"].find((a: any) => a.id === id);
             return {
@@ -116,7 +144,35 @@ export default function ExperimentConfigPage() {
               params: plugin ? schemaDefault(plugin.schema, plugin.schema) : {},
             };
           });
+        if (
+          template &&
+          template.kind !== "scenario" &&
+          next.name === data["x-default"].name
+        )
+          next.name = template.name;
         next.metrics ||= data["x-default"].metrics;
+        if (next.sweep && !next.sweep.label) {
+          const spec = data["x-sweep-paths"].find(
+            (s: any) => s.path === next.sweep.path,
+          );
+          next.sweep.label = spec?.label || next.sweep.path;
+          next.sweep.unit = next.sweep.unit || spec?.unit || "";
+        }
+        const addition = sessionStorage.getItem("arena.addAlgorithm");
+        const added = data["x-algorithms"].find((a: any) => a.id === addition);
+        if (added) {
+          next.algorithms.push({
+            id: added.id,
+            label: `${added.name} ${next.algorithms.length + 1}`,
+            enabled: true,
+            params: schemaDefault(added.schema, added.schema),
+          });
+          sessionStorage.removeItem("arena.addAlgorithm");
+        }
+        if (params.get("saveTemplate")) {
+          setTemplateName(next.name);
+          setTemplateOpen(true);
+        }
         if (next.sweep) setRange(next.sweep.values.join(", "));
         if (!template && saved?.range) setRange(saved.range);
         setDraft(next);
@@ -124,7 +180,11 @@ export default function ExperimentConfigPage() {
       .catch(() => setError("读取配置失败，请检查后端服务并刷新"));
   }, [params]);
   useEffect(() => {
-    if (draft) sessionStorage.setItem('arena.experimentDraft', JSON.stringify({draft, range}));
+    if (draft)
+      sessionStorage.setItem(
+        "arena.experimentDraft",
+        JSON.stringify({ draft, range }),
+      );
   }, [draft, range]);
   useEffect(() => {
     let current = true;
@@ -132,22 +192,53 @@ export default function ExperimentConfigPage() {
     if (!draft?.algorithms?.some((a: any) => a.enabled !== false)) return;
     const timer = window.setTimeout(() => {
       try {
-        if (draft.type === 'sweep' && !draft.sweep?.path) return;
-        const config = { ...draft, trials: draft.type === 'single' ? 1 : draft.trials, sweep: draft.type === 'sweep' ? { ...draft.sweep, values: parseRange(range) } : null };
-        void validateExperiment(config).then(result => {
-          if (current) setIssues(result.issues);
-        }).catch(() => { if (current) setIssues([{ level: 'warning', message: '暂时无法预检查配置，运行时会再次校验' }]); });
-      } catch { /* 范围编辑期间使用字段自身提示。 */ }
+        if (draft.type === "sweep" && !draft.sweep?.path) return;
+        const config = {
+          ...draft,
+          trials: draft.type === "single" ? 1 : draft.trials,
+          sweep:
+            draft.type === "sweep"
+              ? { ...draft.sweep, values: parseRange(range) }
+              : null,
+        };
+        void validateExperiment(config)
+          .then((result) => {
+            if (current) setIssues(result.issues);
+          })
+          .catch(() => {
+            if (current)
+              setIssues([
+                {
+                  level: "warning",
+                  message: "暂时无法预检查配置，运行时会再次校验",
+                },
+              ]);
+          });
+      } catch {
+        /* 范围编辑期间使用字段自身提示。 */
+      }
     }, 500);
-    return () => { current = false; window.clearTimeout(timer); };
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
   }, [draft, range]);
   useEffect(() => {
     let current = true;
     if (!draft?.scenario) return;
     const timer = window.setTimeout(() => {
-      void getScenarioPreview(draft.scenario).then(value => { if (current) setPreview(value); }).catch(() => { if (current) setPreview(undefined); });
+      void getScenarioPreview(draft.scenario)
+        .then((value) => {
+          if (current) setPreview(value);
+        })
+        .catch(() => {
+          if (current) setPreview(undefined);
+        });
     }, 350);
-    return () => { current = false; window.clearTimeout(timer); };
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
   }, [draft?.scenario]);
   if (!schema || !draft)
     return (
@@ -178,7 +269,9 @@ export default function ExperimentConfigPage() {
     !active.length ? "至少启用一个算法" : "",
     draft.type === "sweep" && !sweep ? "请在数值字段旁选择扫描变量" : "",
     rangeError,
-    ...issues.filter(issue => issue.level === "error").map(issue => issue.message),
+    ...issues
+      .filter((issue) => issue.level === "error")
+      .map((issue) => issue.message),
   ].filter(Boolean);
   const toggleSweep = (path: string, label: string) =>
     update(
@@ -250,6 +343,7 @@ export default function ExperimentConfigPage() {
           <div className="schema-field">
             <label>阵列类型</label>
             <Select
+              style={{ width: 200, maxWidth: "100%" }}
               value={scenario.array.type}
               options={arrays.map((a: any) => ({ value: a.id, label: a.name }))}
               onChange={(id) =>
@@ -284,7 +378,11 @@ export default function ExperimentConfigPage() {
             onChange={(v) => setScenario("array", v)}
           />
           <Typography.Text className="physical-spacing-note" type="secondary">
-            只用来显示物理间距{preview?.physical_spacing_cm != null ? `（当前 ${preview.physical_spacing_cm.toFixed(1)} cm）` : ""}，不影响仿真
+            只用来显示物理间距
+            {preview?.physical_spacing_cm != null
+              ? `（当前 ${preview.physical_spacing_cm.toFixed(1)} cm）`
+              : ""}
+            ，不影响仿真
           </Typography.Text>
         </>
       ),
@@ -441,22 +539,58 @@ export default function ExperimentConfigPage() {
           </Dropdown>
           <Button
             onClick={() => {
-              const name = window.prompt("模板名称", draft.name);
-              if (name)
-                void act(async () => {
-                  await createTemplate({
-                    name,
-                    type: draft.type,
-                    algorithms: active.map((a: any) => a.id),
-                    config: build(),
-                  });
-                  message.success("模板已保存");
-                  setTemplates(await getTemplates());
-                });
+              setTemplateName(draft.name);
+              setTemplateOpen(true);
             }}
           >
             保存为模板
           </Button>
+          <Modal
+            title="保存为模板"
+            open={templateOpen}
+            onCancel={() => setTemplateOpen(false)}
+            okText="保存"
+            cancelText="取消"
+            onOk={() =>
+              void act(async () => {
+                if (!templateName.trim()) throw Error("请输入模板名称");
+                await createTemplate({
+                  name: templateName,
+                  kind: templateKind,
+                  type: draft.type,
+                  algorithms: active.map((a: any) => a.id),
+                  config: build(),
+                });
+                setTemplates(await getTemplates());
+                setTemplateOpen(false);
+                message.success("模板已保存");
+              })
+            }
+          >
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Input
+                aria-label="模板名称"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+              <Select
+                aria-label="模板类型"
+                value={templateKind}
+                onChange={setTemplateKind}
+                style={{ width: "100%" }}
+                options={[
+                  {
+                    value: "experiment",
+                    label: "完整实验：场景、算法和运行设置",
+                  },
+                  {
+                    value: "scenario",
+                    label: "场景模板：加载时保留算法和运行设置",
+                  },
+                ]}
+              />
+            </Space>
+          </Modal>
           <Dropdown
             menu={{
               items: ["json", "py"].map((format) => ({
@@ -584,22 +718,24 @@ export default function ExperimentConfigPage() {
                   {m.name}
                 </Checkbox>
               ))}
-              <span>成功门限</span>
-              <InputNumber
-                aria-label="成功门限"
-                min={0.001}
-                value={draft.metrics.params.success_rate.threshold_deg}
-                onChange={(v) =>
-                  update("metrics", {
-                    ...draft.metrics,
-                    params: {
-                      ...draft.metrics.params,
-                      success_rate: { threshold_deg: v },
-                    },
-                  })
-                }
-              />
-              <span>°</span>
+              <Space>
+                <span>成功门限</span>
+                <InputNumber
+                  aria-label="成功门限"
+                  min={0.001}
+                  value={draft.metrics.params.success_rate.threshold_deg}
+                  onChange={(v) =>
+                    update("metrics", {
+                      ...draft.metrics,
+                      params: {
+                        ...draft.metrics.params,
+                        success_rate: { threshold_deg: v },
+                      },
+                    })
+                  }
+                />
+                <span>°</span>
+              </Space>
             </>
           )}
         </div>
@@ -707,16 +843,36 @@ export default function ExperimentConfigPage() {
                     onChange={(v) => editAlgorithm(i, { enabled: v })}
                   />
                 </div>
-                {issues.filter(issue => issue.algorithm === a.label).map((issue, index) => (
-                  <Alert key={index} type={issue.level === 'error' ? 'error' : 'warning'} showIcon message={issue.message} />
-                ))}
+                {issues
+                  .filter((issue) => issue.algorithm === a.label)
+                  .map((issue, index) => (
+                    <Alert
+                      key={index}
+                      type={issue.level === "error" ? "error" : "warning"}
+                      showIcon
+                      message={issue.message}
+                    />
+                  ))}
                 <Collapse
                   ghost
                   items={[
                     {
                       key: "params",
-                      label: Object.keys(a.params).length
+                      label: Object.entries(a.params).some(
+                        ([k, v]) =>
+                          JSON.stringify(v) !==
+                          JSON.stringify(
+                            plugin?.schema?.properties?.[k]?.default,
+                          ),
+                      )
                         ? Object.entries(a.params)
+                            .filter(
+                              ([k, v]) =>
+                                JSON.stringify(v) !==
+                                JSON.stringify(
+                                  plugin?.schema?.properties?.[k]?.default,
+                                ),
+                            )
                             .map(
                               ([k, v]) =>
                                 `${plugin?.schema?.properties?.[k]?.label || plugin?.schema?.properties?.[k]?.title || k}: ${v === null ? "自动" : String(v)}`,
@@ -751,6 +907,12 @@ export default function ExperimentConfigPage() {
           <ScenePreview
             arraySize={preview?.elements || 0}
             sourceAngles={preview?.angles || []}
+            sourceRanges={(preview?.ranges || []).map((r) => ({
+              min: r.min,
+              max: r.max,
+            }))}
+            faultyElements={preview?.faulty_elements || []}
+            positions={preview?.positions || []}
           />
           <Card title="配置摘要" size="small">
             <dl className="summary-list">

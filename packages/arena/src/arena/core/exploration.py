@@ -96,9 +96,22 @@ def preview_scenario(config: ScenarioConfig) -> dict[str, Any]:
     """为所有前端提供阵列规模、信源方向和物理间距显示数据。"""
     scene, array = build_scene(ExperimentConfig.model_validate({"scenario": config}))
     spacing = array.ula_spacing
+    rng = RNGTree(config.seed).for_trial(0)
+    positions = array.positions.copy()
+    for item in scene.impairments_by_stage["positions"]:
+        positions = item.impairment.apply(
+            positions, scene._get_draw(item, rng, array.M), item.params
+        )
+    mask = scene.algorithm_array(rng).element_mask
+    angle_range = config.sources.angles.range_deg
     return {
         "elements": array.M,
         "angles": scene.config.angles.tolist() if config.sources.angles.mode != "random" else [],
+        "ranges": [{"min": angle_range[0], "max": angle_range[1]}]
+        if config.sources.angles.mode == "random" and angle_range is not None
+        else [],
+        "faulty_elements": np.flatnonzero(~mask).tolist(),
+        "positions": positions.tolist(),
         "physical_spacing_cm": spacing * 299792458 / config.array.carrier_hz * 100
         if spacing is not None
         else None,

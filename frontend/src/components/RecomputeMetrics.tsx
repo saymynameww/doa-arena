@@ -1,9 +1,16 @@
-import { useState } from 'react';
-import { Button, Modal, message } from 'antd';
-import ConfigFields, { type JsonSchema } from './ConfigFields';
-import { getExperimentSchema, getTask, recomputeTaskMetrics } from '@/services/api';
+import { useState } from "react";
+import { Button, Checkbox, Modal, Space, message } from "antd";
+import ConfigFields, { type JsonSchema } from "./ConfigFields";
+import {
+  getExperimentSchema,
+  getTask,
+  recomputeTaskMetrics,
+} from "@/services/api";
 
-export default function RecomputeMetrics({ taskId, onComplete }: {
+export default function RecomputeMetrics({
+  taskId,
+  onComplete,
+}: {
   taskId: string;
   onComplete: () => void;
 }) {
@@ -14,32 +21,79 @@ export default function RecomputeMetrics({ taskId, onComplete }: {
   const load = async () => {
     setBusy(true);
     try {
-      const [root, task] = await Promise.all([getExperimentSchema(), getTask(taskId)]);
+      const [root, task] = await Promise.all([
+        getExperimentSchema(),
+        getTask(taskId),
+      ]);
       setSchema(root);
       setMetrics(structuredClone(task.config?.metrics || {}));
       setOpen(true);
     } catch {
-      message.error('读取指标设置失败，请重试');
-    } finally { setBusy(false); }
+      message.error("读取指标设置失败，请重试");
+    } finally {
+      setBusy(false);
+    }
   };
   const save = async () => {
     setBusy(true);
     try {
       await recomputeTaskMetrics(taskId, metrics);
       setOpen(false);
-      message.success('指标已重算，原始估计保持不变');
+      message.success("指标已重算，原始估计保持不变");
       onComplete();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '指标重算失败');
-    } finally { setBusy(false); }
+      message.error(error.response?.data?.detail || "指标重算失败");
+    } finally {
+      setBusy(false);
+    }
   };
-  return <>
-    <Button loading={busy} onClick={() => void load()}>重算指标</Button>
-    <Modal title="重算指标" open={open} confirmLoading={busy} okText="重算"
-      cancelText="取消" onCancel={() => setOpen(false)} onOk={() => void save()}>
-      <p>从已保存的逐次估计重新计算统计量，原始估计不变。未保存估计值的实验无法重算。</p>
-      <ConfigFields schema={schema.properties?.metrics || {}} root={schema}
-        value={metrics} onChange={setMetrics} path="metrics" />
-    </Modal>
-  </>;
+  return (
+    <>
+      <Button loading={busy} onClick={() => void load()}>
+        重算指标
+      </Button>
+      <Modal
+        title="重算指标"
+        open={open}
+        confirmLoading={busy}
+        okText="重算"
+        cancelText="取消"
+        onCancel={() => setOpen(false)}
+        onOk={() => void save()}
+      >
+        <p>
+          从已保存的逐次估计重新计算统计量，原始估计不变。未保存估计值的实验无法重算。
+        </p>
+        <Space wrap style={{ margin: "12px 0" }}>
+          {(schema["x-metrics"] || []).map(
+            (m: { id: string; name: string }) => (
+              <Checkbox
+                key={m.id}
+                checked={((metrics.include as string[]) || []).includes(m.id)}
+                onChange={(e) =>
+                  setMetrics({
+                    ...metrics,
+                    include: e.target.checked
+                      ? [...((metrics.include as string[]) || []), m.id]
+                      : ((metrics.include as string[]) || []).filter(
+                          (id) => id !== m.id,
+                        ),
+                  })
+                }
+              >
+                {m.name}
+              </Checkbox>
+            ),
+          )}
+        </Space>
+        <ConfigFields
+          schema={{ $ref: "#/$defs/MetricParameters" }}
+          root={schema}
+          value={metrics.params || {}}
+          onChange={(params) => setMetrics({ ...metrics, params })}
+          path="metrics.params"
+        />
+      </Modal>
+    </>
+  );
 }

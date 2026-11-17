@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,16 +18,37 @@ router = APIRouter()
 TEMPLATES_DIR = Path("templates")
 
 
+def _workspace_templates() -> Path:
+    from ..tasks import get_task_manager
+
+    # 可注入路径用于隔离测试；实际用户模板随工作目录保存。
+    if TEMPLATES_DIR != Path("templates"):
+        return TEMPLATES_DIR
+    return get_task_manager().output_dir / "templates"
+
+
 def _template_path(identifier: str) -> Path:
     if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", identifier):
         raise HTTPException(status_code=400, detail="模板 ID 只能包含字母、数字、下划线或短横线")
-    return TEMPLATES_DIR / f"{identifier}.json"
+    local = _workspace_templates() / f"{identifier}.json"
+    if local.exists():
+        return local
+    legacy = TEMPLATES_DIR / f"{identifier}.json"
+    return legacy if legacy.exists() else local
 
 
 def _ensure_templates() -> None:
     """初始化默认模板文件。"""
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     defaults = [
+        {
+            "id": "default-scenario",
+            "name": "默认场景",
+            "description": "使用当前核心库的默认阵列、信源及误差配置；保留已有算法和运行设置。",
+            "kind": "scenario",
+            "level": "内置",
+            "config": {},
+        },
         {
             "id": "standard-comparison",
             "name": "标准 DOA 对比",
@@ -69,7 +91,8 @@ def _ensure_templates() -> None:
 def _read_templates() -> list[dict[str, Any]]:
     _ensure_templates()
     templates = []
-    for path in sorted(TEMPLATES_DIR.glob("*.json")):
+    paths = {*TEMPLATES_DIR.glob("*.json"), *_workspace_templates().glob("*.json")}
+    for path in sorted(paths):
         templates.append(json.loads(path.read_text(encoding="utf-8")))
     return templates
 
@@ -93,6 +116,8 @@ async def create_template(template: dict[str, Any]) -> dict[str, Any]:
             status_code=409, detail="模板 ID 已存在，请使用新 ID 或编辑工作目录模板"
         )
     template["level"] = "工作目录"
+    template["createdAt"] = datetime.now().astimezone().isoformat()
+    path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(path, template)
     return template
 
@@ -106,9 +131,9 @@ async def delete_template(template_id: str) -> dict[str, str]:
     current = json.loads(path.read_text(encoding="utf-8"))
     if current.get("level") == "内置":
         raise HTTPException(status_code=403, detail="内置模板不能直接删除，请先复制到工作目录")
-    trash_dir = TEMPLATES_DIR / ".trash"
+    trash_dir = path.parent / ".trash"
     trash_dir.mkdir(exist_ok=True)
-    path.replace(trash_dir / path.name)
+    path.replace(trash_dir / (uuid.uuid4().hex[:8] + "_" + path.name))
     return {"message": "模板已删除"}
 
 
@@ -123,5 +148,6 @@ async def update_template(template_id: str, template: dict[str, Any]) -> dict[st
         raise HTTPException(status_code=403, detail="内置模板不能直接修改，请先复制到工作目录")
     updated = dict(template)
     updated["id"] = template_id
+    updated["createdAt"] = datetime.now().astimezone().isoformat()
     _write_json(path, updated)
     return updated

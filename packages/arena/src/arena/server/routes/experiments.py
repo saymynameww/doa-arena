@@ -15,6 +15,7 @@ from ...core.config.scenario import ArrayConfig, ImpairmentConfig
 from ..contracts import (
     ChartList,
     ExperimentNotes,
+    ResultDetails,
     ResultFiles,
     TaskList,
     TaskResponse,
@@ -304,7 +305,7 @@ async def get_task_result(task_id: str) -> dict[str, Any]:
     """
     task = _task_or_404(task_id)
 
-    if task.status not in {"completed", "cancelled"} or task.result_path is None:
+    if task.result_path is None:
         raise HTTPException(status_code=400, detail="任务尚未形成结果，中断实验请先整理部分结果")
     if not (task.result_path / "results.npz").exists():
         raise HTTPException(status_code=400, detail="尚未保存完整试验块，请重新运行")
@@ -329,12 +330,50 @@ async def get_task_result(task_id: str) -> dict[str, Any]:
 async def get_task_charts(task_id: str) -> dict[str, Any]:
     """读取实验汇总并转换为前端图表数据。"""
     task = _task_or_404(task_id)
-    if task.status not in {"completed", "cancelled"} or task.result_path is None:
-        raise HTTPException(status_code=400, detail="任务未完成")
+    if task.result_path is None or not (task.result_path / "results.npz").exists():
+        raise HTTPException(status_code=400, detail="第一个完整试验块保存后可查看图表")
 
     from ...core.operations import invoke
 
     return await asyncio.to_thread(invoke, "charts", {"directory": str(task.result_path)})
+
+
+@router.get("/experiments/tasks/{task_id}/details", response_model=ResultDetails)
+async def get_result_details(task_id: str) -> dict[str, Any]:
+    """读取核心汇总的结果表与版本信息。"""
+    task = _task_or_404(task_id)
+    if task.result_path is None or not (task.result_path / "results.npz").exists():
+        raise HTTPException(status_code=400, detail="尚无保存的结果")
+    from ...core.operations import invoke
+
+    return await asyncio.to_thread(invoke, "details", {"directory": str(task.result_path)})
+
+
+@router.get("/experiments/compare/export/{fmt}")
+async def export_comparison(fmt: str, ids: str, metric: str, log: bool = False) -> FileResponse:
+    """仅解析受管实验路径，图表构造在核心进程完成。"""
+    from ...core.operations import invoke
+
+    selected = [_task_or_404(identifier) for identifier in ids.split(",")]
+    if not 2 <= len(selected) <= 4 or any(t.result_path is None for t in selected):
+        raise HTTPException(status_code=400, detail="请选择 2–4 个有结果的实验")
+    try:
+        exported = await asyncio.to_thread(
+            invoke,
+            "compare_export",
+            {
+                "directories": [str(t.result_path) for t in selected],
+                "metric": metric,
+                "format": fmt,
+                "log": log,
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    from pathlib import Path
+
+    path = Path(exported["path"])
+    return FileResponse(path, filename=path.name)
 
 
 @router.post("/experiments/tasks/{task_id}/finalize")
@@ -379,7 +418,12 @@ async def recompute_task(task_id: str, metrics: dict[str, Any]) -> dict[str, Any
 
 @router.get("/experiments/tasks/{task_id}/export/{fmt}")
 async def export_task(
-    task_id: str, fmt: str, metric: str = "rmse", chart: str | None = None
+    task_id: str,
+    fmt: str,
+    metric: str = "rmse",
+    chart: str | None = None,
+    style: str = "web",
+    log: bool = False,
 ) -> FileResponse:
     """隔离执行导出，按指标和当前图表选择生成文件。"""
     from pathlib import Path
@@ -398,6 +442,8 @@ async def export_task(
                 "format": fmt.lower(),
                 "metric": metric,
                 "chart": chart,
+                "style": style,
+                "log": log,
             },
         )
     except ValueError as exc:

@@ -49,7 +49,22 @@ async def list_workspaces() -> dict[str, Any]:
     """列出工作目录。"""
     workspaces = _read_json(WORKSPACES_PATH, [])
     current = _read_json(CURRENT_WORKSPACE_PATH, None)
-    return {"workspaces": workspaces, "current": current}
+    records = []
+    actual = get_task_manager().output_dir.resolve()
+    if not any(Path(w.get("path", "")).resolve() == actual for w in workspaces):
+        workspaces.append({"path": str(actual), "name": (current or {}).get("name", actual.name)})
+    for workspace in sorted(workspaces, key=lambda w: Path(w.get("path", "")).resolve() != actual):
+        path = Path(workspace.get("path", ""))
+        index = path / ".arena_index.sqlite"
+        records.append(
+            {
+                **workspace,
+                "exists": path.is_dir(),
+                "experiments": len(list((path / "experiments").glob("*/config.json"))),
+                "indexed_at": index.stat().st_mtime if index.exists() else None,
+            }
+        )
+    return {"workspaces": records, "current": current}
 
 
 @router.post("/workspaces")
@@ -58,6 +73,13 @@ async def add_workspace(workspace: dict[str, Any]) -> dict[str, Any]:
     workspaces = _read_json(WORKSPACES_PATH, [])
     if not isinstance(workspaces, list):
         workspaces = []
+    path_value = str(workspace.get("path", "")).strip()
+    if not path_value:
+        raise HTTPException(status_code=400, detail="请输入工作目录路径")
+    path = Path(path_value).expanduser().resolve()
+    workspace = {"name": workspace.get("name") or path.name, "path": str(path)}
+    if any(Path(w.get("path", "")).resolve() == path for w in workspaces):
+        raise HTTPException(status_code=409, detail="该工作目录已在列表中")
     workspaces.append(workspace)
     _write_json(WORKSPACES_PATH, workspaces)
     return workspace
@@ -97,3 +119,26 @@ async def rebuild_workspace_index() -> dict[str, Any]:
     """从实验文件恢复索引，包含脚本模式创建的实验。"""
     count = get_task_manager().rebuild_index()
     return {"rebuilt": True, "count": count}
+
+
+@router.delete("/workspaces")
+async def remove_workspace(path: str) -> dict[str, bool]:
+    """仅移除登记，不删除实验文件或目录。"""
+    target = Path(path).resolve()
+    if target == get_task_manager().output_dir.resolve():
+        raise HTTPException(status_code=409, detail="请先切换到其他工作目录")
+    records = _read_json(WORKSPACES_PATH, [])
+    _write_json(
+        WORKSPACES_PATH, [w for w in records if Path(w.get("path", "")).resolve() != target]
+    )
+    return {"removed": True}
+
+
+@router.get("/settings/environment")
+async def get_environment() -> dict[str, Any]:
+    """在隔离进程探测运行环境，Web 服务不加载 torch。"""
+    import asyncio
+
+    from ...core.operations import invoke
+
+    return await asyncio.to_thread(invoke, "environment", {})

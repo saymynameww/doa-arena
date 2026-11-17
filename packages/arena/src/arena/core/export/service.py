@@ -14,7 +14,12 @@ from .matlab import export_to_mat
 
 
 def export_result(
-    directory: Path, fmt: str, metric: str = "rmse", chart: str | None = None
+    directory: Path,
+    fmt: str,
+    metric: str = "rmse",
+    chart: str | None = None,
+    style: str = "web",
+    log: bool = False,
 ) -> Path:
     """输出带时间戳的文件，图表按用户当前选择导出。"""
     if fmt not in {"json", "npz", "csv", "mat", "tex", "html", "png", "svg", "pdf", "py"}:
@@ -48,9 +53,13 @@ def export_result(
         title = chart or next(iter(figures), None)
         if title not in figures:
             raise ValueError("指定图表不存在，请刷新图表列表")
-        export_figure(
-            figures[title], output, format=cast(Literal["png", "svg", "pdf", "html"], fmt)
+        figure = figures[title]
+        figure.update_layout(
+            font={"size": 12 if style == "web" else 16}, height=360 if style == "single" else 500
         )
+        if log:
+            figure.update_yaxes(type="log")
+        export_figure(figure, output, format=cast(Literal["png", "svg", "pdf", "html"], fmt))
     elif fmt == "py":
         output.write_text(
             "import arena\nimport json\nconfig = json.loads("

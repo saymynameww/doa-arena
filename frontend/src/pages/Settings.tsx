@@ -1,210 +1,308 @@
-import React, { useEffect } from 'react';
-import { Card, Form, Input, InputNumber, Select, Switch, Button, message, Divider, Table, Tag, Descriptions, Space } from 'antd';
-import { PlusOutlined, SaveOutlined, SwapOutlined } from '@ant-design/icons';
-import { addWorkspace, getAlgorithmSources, getCurrentWorkspace, getSettings, getWorkspaces, rebuildWorkspaceIndex, selectWorkspace, updateSettings } from '@/services/api';
+import { useEffect, useState } from "react";
+import {
+  Card,
+  Input,
+  Select,
+  Button,
+  message,
+  Table,
+  Tag,
+  Descriptions,
+  Space,
+  Modal,
+  Alert,
+} from "antd";
+import {
+  addWorkspace,
+  getAlgorithmSources,
+  getCurrentWorkspace,
+  getSettings,
+  getWorkspaces,
+  rebuildWorkspaceIndex,
+  selectWorkspace,
+  updateSettings,
+  getEnvironment,
+  removeWorkspace,
+} from "@/services/api";
 
-const { Option } = Select;
-
-const SettingsPage: React.FC = () => {
-  const [form] = Form.useForm();
-  const [workspaces, setWorkspaces] = React.useState<Array<Record<string, any>>>([]);
-  const [currentWorkspace, setCurrentWorkspace] = React.useState<Record<string, any>>({});
-  const [sources, setSources] = React.useState<any[]>([]);
-
-  useEffect(() => {
-    void Promise.all([getSettings(), getWorkspaces(), getCurrentWorkspace(), getAlgorithmSources()]).then(([settings, loadedWorkspaces, current, sourceData]) => {
-      form.setFieldsValue(settings);
-      setWorkspaces(loadedWorkspaces);
-      setCurrentWorkspace(current);
-      setSources(sourceData.sources || []);
-    });
-  }, [form]);
-
-  const handleSave = async () => {
+export default function SettingsPage() {
+  const [workspaces, setWorkspaces] = useState<Array<Record<string, any>>>([]);
+  const [current, setCurrent] = useState<Record<string, any>>({});
+  const [sources, setSources] = useState<any[]>([]);
+  const [settings, setSettings] = useState<Record<string, any>>({});
+  const [environment, setEnvironment] = useState<Record<string, unknown>>({});
+  const [failures, setFailures] = useState<any[]>([]);
+  const [dialog, setDialog] = useState<"workspace" | "source">();
+  const [path, setPath] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
     try {
-      const values = await form.validateFields();
-      await updateSettings(values);
-      message.success('设置已保存');
-    } catch (error) {
-      message.error('保存失败');
+      await fn();
+    } catch (e: any) {
+      message.error(
+        e.response?.data?.detail || "操作失败，请检查路径和服务状态",
+      );
+    } finally {
+      setBusy(false);
     }
   };
-
-  const handleAddWorkspace = async () => {
-    const path = window.prompt('工作目录路径');
-    if (!path) return;
-    const name = window.prompt('工作目录名称', path.split(/[\\/]/).pop() || '新工作目录');
-    if (!name) return;
-    const workspace = await addWorkspace({ name, path });
-    setWorkspaces((items) => [...items, workspace]);
-    message.success('工作目录已添加');
+  const load = async () => {
+    const [ws, c, s, a] = await Promise.all([
+      getWorkspaces(),
+      getCurrentWorkspace(),
+      getSettings(),
+      getAlgorithmSources(),
+    ]);
+    setWorkspaces(ws);
+    setCurrent(c);
+    setSettings(s);
+    setSources(a.sources);
+    setFailures(a.failures);
   };
-
-  const handleSelectWorkspace = async (workspace: Record<string, any>) => {
-    const selected = await selectWorkspace(workspace);
-    setCurrentWorkspace(selected);
-    message.success(`已切换到：${workspace.name || workspace.path}`);
+  useEffect(() => {
+    void act(load);
+    void getEnvironment()
+      .then(setEnvironment)
+      .catch(() => setEnvironment({ 状态: "环境探测失败，请刷新" }));
+  }, []);
+  const open = (type: "workspace" | "source") => {
+    setPath("");
+    setName("");
+    setDialog(type);
   };
-
   return (
-    <Card
-      title="系统设置"
-      extra={
-        <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
-          保存设置
-        </Button>
-      }
-    >
-      <Form form={form} layout="vertical">
-        {/* 工作目录 */}
-        <Divider orientation="left">工作目录</Divider>
-        <Form.Item
-          label="当前工作目录"
-          name="workDir"
-          initialValue="D:/Experiments"
-          tooltip="实验结果的默认保存位置"
-        >
-          <Input addonAfter={<Button size="small">浏览</Button>} />
-        </Form.Item>
-        <div style={{ marginBottom: 16 }}>
-          <Space>
-            <Button icon={<PlusOutlined />} onClick={() => void handleAddWorkspace()}>添加工作目录</Button>
-            <Button onClick={() => void rebuildWorkspaceIndex().then(() => message.success('工作目录索引已重建'))}>重建索引</Button>
-          </Space>
-          <span style={{ marginLeft: 12, color: '#8c8c8c' }}>
-            已配置工作目录：{workspaces.length} 个
-          </span>
-        </div>
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <h2 style={{ margin: 0 }}>设置</h2>
+      <Card
+        title="工作目录"
+        extra={<Button onClick={() => open("workspace")}>添加工作目录</Button>}
+      >
         <Table
+          rowKey="path"
           size="small"
-          pagination={false}
-          rowKey={(row) => row.path || row.name}
+          pagination={{ pageSize: 5, hideOnSinglePage: true }}
           dataSource={workspaces}
-          columns={[{ title: '名称', dataIndex: 'name', render: (name: string, row) => <Space>{name}<>{row.path === currentWorkspace.path && <Tag color="blue">当前</Tag>}</></Space> }, { title: '路径', dataIndex: 'path' }, { title: '状态', render: () => <Tag color="green">可用</Tag> }, { title: '操作', render: (_: unknown, row) => <Button size="small" icon={<SwapOutlined />} disabled={row.path === currentWorkspace.path} onClick={() => void handleSelectWorkspace(row)}>切换到这里</Button> }]}
-          locale={{ emptyText: '尚未配置工作目录' }}
+          scroll={{ x: 900 }}
+          columns={[
+            {
+              title: "名称 / 路径",
+              render: (_, w) => (
+                <>
+                  <strong>{w.name}</strong>
+                  {w.path === current.path && <Tag color="blue">当前</Tag>}
+                  <div style={{ color: "#64748b", overflowWrap: "anywhere" }}>
+                    {w.path}
+                  </div>
+                </>
+              ),
+            },
+            { title: "实验数", dataIndex: "experiments" },
+            {
+              title: "索引更新",
+              render: (_, w) =>
+                w.indexed_at
+                  ? new Date(w.indexed_at * 1000).toLocaleString("zh-CN")
+                  : "尚未建立",
+            },
+            {
+              title: "状态",
+              render: (_, w) => (
+                <Tag color={w.exists ? "green" : "orange"}>
+                  {w.exists ? "可用" : "尚未创建"}
+                </Tag>
+              ),
+            },
+            {
+              title: "操作",
+              render: (_, w) => (
+                <Space wrap>
+                  <Button
+                    disabled={w.path === current.path}
+                    onClick={() =>
+                      void act(async () => {
+                        await selectWorkspace(w);
+                        window.location.reload();
+                      })
+                    }
+                  >
+                    切换
+                  </Button>
+                  <Button
+                    disabled={w.path !== current.path}
+                    onClick={() =>
+                      void act(async () => {
+                        const r = await rebuildWorkspaceIndex();
+                        message.success(`索引已重建：${r.count} 个实验`);
+                        await load();
+                      })
+                    }
+                  >
+                    重建索引
+                  </Button>
+                  <Button
+                    disabled={w.path === current.path}
+                    onClick={() =>
+                      void act(async () => {
+                        await removeWorkspace(w.path);
+                        await load();
+                      })
+                    }
+                  >
+                    从列表移除
+                  </Button>
+                </Space>
+              ),
+            },
+          ]}
         />
-
-        <Divider orientation="left">运行环境</Divider>
-        <Descriptions column={2} size="small">
-          <Descriptions.Item label="服务地址">127.0.0.1:8765</Descriptions.Item>
-          <Descriptions.Item label="结果格式">JSON / NPZ</Descriptions.Item>
-          <Descriptions.Item label="算法来源">内置算法库</Descriptions.Item>
-          <Descriptions.Item label="前端模式">本地开发</Descriptions.Item>
+        <p style={{ color: "#64748b" }}>
+          从列表移除仅取消登记，实验文件保留。重建索引会发现脚本生成的实验；需先切换到目标目录。
+        </p>
+      </Card>
+      <Card
+        title="算法来源"
+        extra={<Button onClick={() => open("source")}>添加全局来源</Button>}
+      >
+        <Table
+          rowKey={(r) => `${r.scope}:${r.value}`}
+          pagination={false}
+          size="small"
+          dataSource={sources}
+          columns={[
+            { title: "层级", dataIndex: "scope" },
+            { title: "名称", dataIndex: "name" },
+            {
+              title: "路径 / 入口",
+              dataIndex: "value",
+              render: (v) => (
+                <span style={{ overflowWrap: "anywhere" }}>{v}</span>
+              ),
+            },
+            { title: "已加载算法", dataIndex: "count" },
+            {
+              title: "状态",
+              render: (_, s) => (
+                <Tag color={s.status === "ok" ? "green" : "orange"}>
+                  {s.status === "ok" ? "可用" : "加载失败"}
+                </Tag>
+              ),
+            },
+          ]}
+          locale={{ emptyText: "未登记外部来源；内置算法随竞技场提供" }}
+        />
+        {failures.map((f, i) => (
+          <Alert
+            key={i}
+            type="error"
+            message={f.message}
+            description={f.path}
+          />
+        ))}
+        <p style={{ color: "#64748b" }}>
+          工作目录来源在该目录的 arena_workspace.json
+          中编辑；相对路径以该工作目录为基准。
+        </p>
+      </Card>
+      <Card title="默认运行设备">
+        <Space>
+          <Select
+            aria-label="默认运行设备"
+            value={settings.default_device || "auto"}
+            style={{ width: 180 }}
+            onChange={(v) => setSettings({ ...settings, default_device: v })}
+            options={[
+              { value: "auto", label: "自动选择" },
+              { value: "cpu", label: "CPU" },
+              { value: "cuda", label: "CUDA" },
+            ]}
+          />
+          <Button
+            loading={busy}
+            onClick={() =>
+              void act(async () => {
+                await updateSettings(settings);
+                message.success("已保存，将用于新添加算法的设备默认值");
+              })
+            }
+          >
+            保存
+          </Button>
+        </Space>
+        <p>用于支持设备参数的学习型算法；已有实验配置保持其记录的设备设置。</p>
+      </Card>
+      <Card
+        title="运行环境"
+        extra={
+          <Button
+            onClick={() =>
+              void navigator.clipboard
+                .writeText(JSON.stringify(environment, null, 2))
+                .then(() => message.success("环境信息已复制"))
+                .catch(() => message.error("复制失败，请手动选择文本"))
+            }
+          >
+            复制环境信息
+          </Button>
+        }
+      >
+        <Descriptions column={2}>
+          {Object.entries(environment).map(([key, value]) => (
+            <Descriptions.Item key={key} label={key}>
+              {String(value)}
+            </Descriptions.Item>
+          ))}
         </Descriptions>
-        <Divider orientation="left">算法来源</Divider>
-        <Table size="small" pagination={false} dataSource={sources} rowKey="name" columns={[{ title: '来源', dataIndex: 'name' }, { title: '状态', dataIndex: 'status', render: (status: string) => <Tag color={status === 'ok' ? 'green' : 'orange'}>{status === 'ok' ? '可用' : '异常'}</Tag> }, { title: '数量', dataIndex: 'count' }]} />
-
-        {/* 默认参数 */}
-        <Divider orientation="left">默认参数</Divider>
-
-        <Form.Item
-          label="默认试验次数"
-          name="defaultTrials"
-          initialValue={100}
-          tooltip="新建实验时的默认值"
-        >
-          <InputNumber min={1} max={10000} style={{ width: '100%' }} />
-        </Form.Item>
-
-        <Form.Item
-          label="默认阵元数"
-          name="defaultArraySize"
-          initialValue={16}
-        >
-          <InputNumber min={2} max={64} style={{ width: '100%' }} />
-        </Form.Item>
-
-        <Form.Item
-          label="默认随机种子"
-          name="defaultSeed"
-          initialValue={42}
-        >
-          <InputNumber min={0} style={{ width: '100%' }} />
-        </Form.Item>
-
-        {/* 图表设置 */}
-        <Divider orientation="left">图表设置</Divider>
-
-        <Form.Item
-          label="默认图表格式"
-          name="chartFormat"
-          initialValue="png"
-        >
-          <Select>
-            <Option value="png">PNG</Option>
-            <Option value="svg">SVG</Option>
-            <Option value="pdf">PDF</Option>
-            <Option value="html">HTML（交互式）</Option>
-          </Select>
-        </Form.Item>
-
-        <Form.Item
-          label="图表分辨率（DPI）"
-          name="chartDpi"
-          initialValue={300}
-        >
-          <InputNumber min={72} max={600} style={{ width: '100%' }} />
-        </Form.Item>
-
-        {/* 性能设置 */}
-        <Divider orientation="left">性能设置</Divider>
-
-        <Form.Item
-          label="最大并行任务数"
-          name="maxParallelTasks"
-          initialValue={4}
-          tooltip="同时运行的实验任务数量上限"
-        >
-          <InputNumber min={1} max={16} style={{ width: '100%' }} />
-        </Form.Item>
-
-        <Form.Item
-          label="自动清理旧结果"
-          name="autoCleanup"
-          valuePropName="checked"
-          initialValue={true}
-          tooltip="自动删除 30 天前的实验结果"
-        >
-          <Switch />
-        </Form.Item>
-
-        {/* 界面设置 */}
-        <Divider orientation="left">界面设置</Divider>
-
-        <Form.Item
-          label="主题"
-          name="theme"
-          initialValue="light"
-        >
-          <Select>
-            <Option value="light">浅色</Option>
-            <Option value="dark">深色</Option>
-            <Option value="auto">跟随系统</Option>
-          </Select>
-        </Form.Item>
-
-        <Form.Item
-          label="语言"
-          name="language"
-          initialValue="zh-CN"
-        >
-          <Select>
-            <Option value="zh-CN">简体中文</Option>
-            <Option value="en-US">English</Option>
-          </Select>
-        </Form.Item>
-
-        <Form.Item
-          label="显示高级选项"
-          name="showAdvanced"
-          valuePropName="checked"
-          initialValue={false}
-        >
-          <Switch />
-        </Form.Item>
-      </Form>
-    </Card>
+      </Card>
+      <Modal
+        title={dialog === "workspace" ? "添加工作目录" : "添加全局算法来源"}
+        open={!!dialog}
+        confirmLoading={busy}
+        onCancel={() => setDialog(undefined)}
+        okText="添加"
+        cancelText="取消"
+        onOk={() =>
+          void act(async () => {
+            if (!path.trim()) {
+              message.error("请输入路径");
+              return;
+            }
+            if (dialog === "workspace") await addWorkspace({ name, path });
+            else
+              await updateSettings({
+                ...settings,
+                algorithm_sources: [
+                  ...(settings.algorithm_sources || []),
+                  { name: name || path, type: "path", value: path },
+                ],
+              });
+            await load();
+            setDialog(undefined);
+          })
+        }
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Input
+            aria-label="名称"
+            placeholder="名称（可选）"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Input
+            aria-label="目录路径"
+            placeholder="本机目录的绝对路径"
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+          />
+          {dialog === "source" && (
+            <Alert
+              type="info"
+              message="选择包含 arena_plugin.py 的算法目录；添加后在隔离进程发现插件。"
+            />
+          )}
+        </Space>
+      </Modal>
+    </Space>
   );
-};
-
-export default SettingsPage;
+}

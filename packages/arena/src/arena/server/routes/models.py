@@ -29,6 +29,7 @@ class ModelList(BaseModel):
 
     models: list[ModelRecord]
     failures: list[str]
+    generator_version: int
 
 
 class ModelImportRequest(BaseModel):
@@ -74,7 +75,9 @@ async def list_models() -> dict[str, Any]:
             )
         except (OSError, ValueError) as exc:
             failures.append(f"{path.parent.name}：{exc}")
-    return {"models": models, "failures": failures}
+    from ...core.runner.core import GENERATOR_VERSION
+
+    return {"models": models, "failures": failures, "generator_version": GENERATOR_VERSION}
 
 
 @router.post("/models/inspect", response_model=ModelInspection)
@@ -92,7 +95,9 @@ async def inspect_model(request: ModelImportRequest) -> dict[str, Any]:
             result["warnings"].append("对应算法尚未注册；导入后需在设置中添加算法来源")
         return result
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400, detail=f"模型包校验失败，请检查路径、文件权限与权重哈希：{exc}"
+        ) from exc
 
 
 @router.post("/models/import", response_model=ModelRecord)
@@ -105,4 +110,6 @@ async def import_model(request: ModelImportRequest) -> dict[str, Any]:
             invoke, "import_model", {"source": request.path, "workspace": str(workspace_path())}
         )
     except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400, detail=f"模型包校验失败，请检查路径、文件权限与权重哈希：{exc}"
+        ) from exc

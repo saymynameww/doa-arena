@@ -1,154 +1,240 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, List, Button, Space, Tag, Empty, Modal, message } from 'antd';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  PlusOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  CopyOutlined,
-} from '@ant-design/icons';
-import { createTemplate, deleteTemplate, getTemplates, updateTemplate } from '@/services/api';
-import type { Template } from '@/types';
+  Card,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Modal,
+  message,
+  Select,
+  Input,
+  Dropdown,
+  Alert,
+} from "antd";
+import { MoreOutlined } from "@ant-design/icons";
+import {
+  createTemplate,
+  deleteTemplate,
+  getTemplates,
+  updateTemplate,
+} from "@/services/api";
+import type { Template } from "@/types";
 
 const TemplatesPage: React.FC = () => {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState<Template[]>([]);
-
+  const [kind, setKind] = useState<string>();
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<Template>();
+  const load = () =>
+    getTemplates()
+      .then(setTemplates)
+      .catch(() => message.error("加载模板失败"));
   useEffect(() => {
-    void getTemplates().then(setTemplates).catch(() => message.error('加载模板失败'));
+    void load();
   }, []);
-
-  const handleUseTemplate = (templateId: string) => {
-    message.success(`模板 ${templateId} 已加载到实验配置页`);
-    navigate(`/?template=${encodeURIComponent(templateId)}`);
-  };
-
-  const handleDeleteTemplate = (templateId: string) => {
+  const act = (fn: () => Promise<unknown>) =>
+    void fn().catch((e) =>
+      message.error(e.response?.data?.detail || "操作失败，请重试"),
+    );
+  const copy = (t: Template) =>
+    act(async () => {
+      await createTemplate({
+        ...t,
+        id: undefined,
+        level: "工作目录",
+        name: `${t.name}（副本）`,
+      });
+      await load();
+      message.success("已复制到工作目录");
+    });
+  const remove = (t: Template) =>
     Modal.confirm({
-      title: '确认删除',
-      content: '删除后模板将移入 .trash/ 目录，可以手动恢复。',
-      okText: '确认删除',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: () => {
-        void deleteTemplate(templateId)
-          .then(() => setTemplates((current) => current.filter((t) => t.id !== templateId)))
-          .catch(() => message.error('模板删除失败'));
-        message.success('模板已删除');
+      title: `删除模板“${t.name}”？`,
+      content: "模板将移入 .trash/，可手动恢复。",
+      okText: "移入回收站",
+      cancelText: "取消",
+      onOk: async () => {
+        await deleteTemplate(t.id);
+        await load();
+        message.success("模板已移入回收站");
       },
     });
-  };
-
-  const getTypeTag = (type: string) => {
-    const types: Record<string, { label: string; color: string }> = {
-      single: { label: '单次', color: 'blue' },
-      monte_carlo: { label: '蒙特卡洛', color: 'green' },
-      sweep: { label: '参数扫描', color: 'orange' },
-    };
-    const config = types[type] || types.monte_carlo;
-    return <Tag color={config.color}>{config.label}</Tag>;
-  };
-
   return (
     <Card
-      title="实验模板"
+      title="模板"
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/?saveTemplate=1')}>
-          新建模板
+        <Button type="primary" onClick={() => navigate("/?saveTemplate=1")}>
+          从新建实验保存模板
         </Button>
       }
     >
-      {templates.length === 0 ? (
-        <Empty description="暂无模板，从实验配置页保存模板" />
-      ) : (
-        <List
-          itemLayout="vertical"
-          dataSource={templates}
-          renderItem={(template) => (
-            <Card
-              type="inner"
-              title={
-                <Space>
-                  <span>{template.name}</span>
-                  {getTypeTag(template.type || "single")}
-                  <Tag color={template.level === '内置' ? 'default' : 'blue'}>
-                    {template.level || '工作目录'}
-                  </Tag>
-                </Space>
-              }
-              extra={
-                <Space>
-                  <Button
-                    type="text"
-                    icon={<CopyOutlined />}
-                    onClick={() => handleUseTemplate(template.id)}
-                  >
-                    使用
-                  </Button>
-                  {template.level === '内置' ? (
-                    <Button type="text" icon={<CopyOutlined />} onClick={() => void handleCopy(template.id)}>
-                      复制到工作目录
-                    </Button>
-                  ) : (
-                    <>
-                      <Button type="text" icon={<EditOutlined />} onClick={() => void handleEdit(template.id)}>
-                        编辑
-                      </Button>
-                      <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDeleteTemplate(template.id)}
-                      >
-                        删除
-                      </Button>
-                    </>
-                  )}
-                </Space>
-              }
-              style={{ marginBottom: 16 }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <div>{template.description}</div>
-                <div>
-                  <strong>算法：</strong>
-                  {(template.algorithms || []).map((algo, index) => (
-                    <Tag key={index}>{algo}</Tag>
-                  ))}
-                </div>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                  创建时间：{template.createdAt}
-                </div>
-              </Space>
-            </Card>
-          )}
+      <Alert
+        type="info"
+        message="场景模板只替换场景；完整实验模板替换场景、算法和运行设置。内置模板可复制后编辑。"
+        style={{ marginBottom: 16 }}
+      />
+      <Space style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="搜索模板名称或说明"
+          allowClear
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
-      )}
+        <Select
+          allowClear
+          placeholder="全部模板类型"
+          value={kind}
+          onChange={setKind}
+          style={{ width: 170 }}
+          options={[
+            { value: "scenario", label: "场景模板" },
+            { value: "experiment", label: "完整实验模板" },
+          ]}
+        />
+      </Space>
+      <Table
+        size="small"
+        rowKey="id"
+        dataSource={templates.filter(
+          (t) =>
+            (!kind || (t.kind || "experiment") === kind) &&
+            `${t.name} ${t.description}`.includes(search),
+        )}
+        locale={{ emptyText: "暂无符合条件的模板" }}
+        columns={[
+          {
+            title: "名称 / 说明",
+            render: (_, t) => (
+              <>
+                <Button
+                  type="link"
+                  style={{ padding: 0 }}
+                  onClick={() =>
+                    navigate(`/?template=${encodeURIComponent(t.id)}`)
+                  }
+                >
+                  {t.name}
+                </Button>
+                <div style={{ color: "#64748b" }}>{t.description}</div>
+              </>
+            ),
+          },
+          {
+            title: "类型",
+            render: (_, t) => (
+              <Tag color={t.kind === "scenario" ? "blue" : "green"}>
+                {t.kind === "scenario" ? "场景模板" : "完整实验"}
+              </Tag>
+            ),
+          },
+          { title: "层级", dataIndex: "level" },
+          {
+            title: "算法",
+            render: (_, t) =>
+              t.kind === "scenario"
+                ? "保留当前算法"
+                : (t.config?.algorithms?.length
+                    ? t.config.algorithms.map((a) => a.label || a.id)
+                    : t.algorithms
+                  )?.join("、"),
+          },
+          {
+            title: "修改时间",
+            render: (_, t) =>
+              t.level === "内置"
+                ? "随竞技场"
+                : t.createdAt
+                  ? new Date(t.createdAt).toLocaleString("zh-CN")
+                  : "未记录",
+          },
+          {
+            title: "操作",
+            render: (_, t) => (
+              <Space>
+                <Button
+                  onClick={() =>
+                    navigate(`/?template=${encodeURIComponent(t.id)}`)
+                  }
+                >
+                  使用
+                </Button>
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: "copy",
+                        label: "复制到工作目录",
+                        onClick: () => copy(t),
+                      },
+                      ...(t.level === "内置"
+                        ? []
+                        : [
+                            {
+                              key: "edit",
+                              label: "编辑名称和说明",
+                              onClick: () => setEditing({ ...t }),
+                            },
+                            {
+                              key: "config",
+                              label: "编辑参数并保存新模板",
+                              onClick: () =>
+                                navigate(
+                                  `/?template=${encodeURIComponent(t.id)}`,
+                                ),
+                            },
+                            {
+                              key: "delete",
+                              label: "移入回收站",
+                              danger: true,
+                              onClick: () => remove(t),
+                            },
+                          ]),
+                    ],
+                  }}
+                >
+                  <Button aria-label="更多模板操作" icon={<MoreOutlined />} />
+                </Dropdown>
+              </Space>
+            ),
+          },
+        ]}
+      />
+      <Modal
+        title="编辑模板"
+        open={!!editing}
+        onCancel={() => setEditing(undefined)}
+        onOk={() =>
+          act(async () => {
+            if (!editing?.name.trim()) throw Error("请输入名称");
+            await updateTemplate(editing.id, editing);
+            setEditing(undefined);
+            await load();
+          })
+        }
+        okText="保存"
+        cancelText="取消"
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Input
+            aria-label="模板名称"
+            value={editing?.name}
+            onChange={(e) =>
+              setEditing((t) => (t ? { ...t, name: e.target.value } : t))
+            }
+          />
+          <Input.TextArea
+            aria-label="模板说明"
+            value={editing?.description}
+            onChange={(e) =>
+              setEditing((t) => (t ? { ...t, description: e.target.value } : t))
+            }
+          />
+        </Space>
+      </Modal>
     </Card>
   );
-
-  async function handleEdit(templateId: string) {
-    const template = templates.find((item) => item.id === templateId);
-    if (!template) return;
-    const name = window.prompt('模板名称', template.name);
-    if (!name || name === template.name) return;
-    const updated = await updateTemplate(templateId, { ...template, name });
-    setTemplates((current) => current.map((item) => (item.id === templateId ? updated : item)));
-    message.success('模板已更新');
-  }
-
-  async function handleCopy(templateId: string) {
-    const template = templates.find((item) => item.id === templateId);
-    if (!template) return;
-    const copied = await createTemplate({
-      ...template,
-      id: undefined,
-      name: `${template.name}（副本）`,
-      level: '工作目录',
-    });
-    setTemplates((current) => [...current, copied]);
-    message.success('模板已复制到工作目录');
-  }
 };
-
 export default TemplatesPage;

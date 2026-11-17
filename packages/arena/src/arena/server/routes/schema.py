@@ -77,6 +77,14 @@ async def experiment_schema() -> dict[str, Any]:
         schema["$defs"][definition]["properties"]["mode"]["x-label"] = label
     schema["x-default"] = ExperimentConfig.model_validate({}).model_dump(mode="json")
     plugins = await list_algorithms()
+    from .settings import SETTINGS_PATH, _read_json
+
+    device = _read_json(SETTINGS_PATH, {}).get("default_device", "auto")
+    for plugin in plugins["algorithms"]:
+        properties = plugin["schema"].get("properties", {})
+        if "device" in properties and device in properties["device"].get("enum", []):
+            properties["device"]["default"] = device
+            plugin["defaults"]["device"] = device
     schema["x-arrays"] = plugins["arrays"]
     schema["x-impairments"] = plugins["impairments"]
     schema["x-algorithms"] = plugins["algorithms"]
@@ -109,6 +117,13 @@ async def experiment_schema() -> dict[str, Any]:
         parameters = json.loads(
             json.dumps(plugin["schema"]).replace("#/$defs/", "#/$defs/" + prefix)
         )
+        enum_labels = {
+            "stat": {"median": "中位数", "mean": "均值"},
+            "criterion": {"halfgap": "误差小于信源间隔的一半", "spectrum": "空间谱双峰"},
+        }
+        for key, labels in enum_labels.items():
+            if key in parameters.get("properties", {}):
+                parameters["properties"][key]["x-enum-labels"] = labels
         for key, value in parameters.pop("$defs", {}).items():
             schema["$defs"][prefix + key] = value
         if parameters.get("properties"):
@@ -133,8 +148,10 @@ async def scenario_preview(config: dict[str, Any]) -> dict[str, Any]:
     if array is None:
         raise HTTPException(status_code=400, detail="阵列插件未注册，请刷新插件来源")
     parsed.scenario.array.origin = array["origin"]
-    # 预览只表示标称阵列，无需抽取或加载误差插件。
-    parsed.scenario.impairments = []
+    for impairment in parsed.scenario.impairments:
+        plugin = next((p for p in plugins["impairments"] if p["id"] == impairment.type), None)
+        if plugin is not None:
+            impairment.origin = plugin["origin"]
     try:
         return await asyncio.to_thread(
             invoke, "preview", {"config": parsed.model_dump(mode="json")}

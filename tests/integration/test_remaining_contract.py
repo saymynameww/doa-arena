@@ -77,6 +77,11 @@ def test_checkpoint_point_files_and_finalize(tmp_path):
     (writer.output_dir / "results.npz").unlink()
     finalized = arena.finalize("interrupted", workspace=tmp_path)
     assert finalized.metadata["status"] == "cancelled"
+    from arena.server.tasks import TaskManager
+
+    restored = TaskManager(tmp_path).get_task_status("interrupted")
+    assert restored["progress"]["completed_trials"] == 2
+    assert restored["progress"]["total_trials"] == 2
     assert not (writer.output_dir / "points").exists()
     assert finalized.saved_summary["complete"] is False
     np.testing.assert_array_equal(

@@ -132,3 +132,24 @@ def test_each_exposed_impairment_generates_observation(impairment):
     observation = scene.generate(RNGTree(42).for_trial(0))
     assert observation.X.shape == (16, 100)
     assert np.all(np.isfinite(observation.X))
+
+
+def test_preview_includes_random_range_and_known_fault_mask():
+    """预览使用核心的随机范围和已知故障掩码，前端不维护误差参数知识。"""
+    from arena.core.exploration import preview_scenario
+
+    config = ExperimentConfig.model_validate(
+        {
+            "scenario": {
+                "sources": {"angles": {"mode": "random", "range_deg": [-25, 25]}},
+                "impairments": [
+                    {"type": "element_failure", "params": {"indices": [1, 3], "known": True}}
+                ],
+            }
+        }
+    )
+    preview = preview_scenario(config.scenario)
+    assert preview["ranges"] == [{"min": -25, "max": 25}]
+    assert preview["angles"] == []
+    assert preview["faulty_elements"] == [1, 3]
+    assert len(preview["positions"]) == config.scenario.array.params["M"]

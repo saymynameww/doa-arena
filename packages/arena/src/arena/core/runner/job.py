@@ -70,6 +70,11 @@ def run_job(config: dict[str, Any], directory: str, mode: str = "web") -> None:
                 }
             )
 
+    def checkpoint(result: Any) -> None:
+        result.metadata["mode"] = mode
+        result.metadata["elapsed_seconds"] = time.time() - started
+        writer.write_experiment(result)
+
     try:
         parsed = ExperimentConfig.model_validate(config)
         parsed._workspace = output.resolve().parent.parent
@@ -77,7 +82,7 @@ def run_job(config: dict[str, Any], directory: str, mode: str = "web") -> None:
             parsed,
             progress,
             cancel_callback=lambda: (output / "CANCEL").exists(),
-            checkpoint_callback=writer.write_experiment,
+            checkpoint_callback=checkpoint,
         )
         result.metadata["mode"] = mode
         writer.write_experiment(result)
@@ -92,7 +97,9 @@ def run_job(config: dict[str, Any], directory: str, mode: str = "web") -> None:
                 "pid": os.getpid(),
                 "completed_trials": sum(len(p.trials) for p in result.points),
                 "total_trials": result.metadata["num_points"] * result.metadata["num_trials"],
-                "percent": 100 if result.metadata["status"] == "completed" else None,
+                "percent": 100
+                if result.metadata["status"] == "completed"
+                else state.get("percent", 0),
             },
         )
     except BaseException as exc:

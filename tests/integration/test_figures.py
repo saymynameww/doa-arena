@@ -228,3 +228,127 @@ def test_html_report(sweep_result):
             assert "ESPRIT" in content
             assert "<svg" in content
             assert "cdn.plot.ly" not in content
+
+
+def test_presentation_probability_units_and_non_snr_axis(sweep_result):
+    """百分比轴的数据必须是百分数，缺少标签时保留真实扫描路径。"""
+    from arena.core.figures.presentation import build_figures
+    from arena.core.metrics.summary import point_metrics
+
+    sweep_result.config["sweep"]["label"] = ""
+    figures = build_figures(sweep_result)
+    chart = next(f for f in figures.values() if f.layout.meta["metric"] == "success_rate")
+    expected = [
+        point_metrics(sweep_result, p, "MUSIC")["metric_values"]["success_rate"]["value"] * 100
+        for p in sweep_result.points
+    ]
+    import numpy as np
+
+    np.testing.assert_allclose(chart.data[0].y, expected, atol=1e-12)
+    assert "scenario.sources.snr_db" in chart.layout.xaxis.title.text
+
+
+def test_result_details_match_figures(sweep_result):
+    """表格与曲线的百分比单位一致，并保留有效次数和参考线比值。"""
+    import numpy as np
+
+    from arena.core.figures.details import result_details
+    from arena.core.figures.presentation import build_figures
+
+    detail = result_details(sweep_result)
+    rows = [r for r in detail["rows"] if r["algorithm"] == "MUSIC"]
+    chart = next(
+        f for f in build_figures(sweep_result).values() if f.layout.meta["metric"] == "success_rate"
+    )
+    # 同一汇总的两种展示仅允许浮点表示误差。
+    np.testing.assert_allclose(
+        [r["metrics"]["success_rate"] for r in rows], chart.data[0].y, atol=1e-12
+    )
+    assert all(r["n_used"] == 10 and r["n_total"] == 10 for r in rows)
+    assert rows[0]["efficiency"] > 0
+
+
+def test_single_and_distribution_presentation():
+    """单次谱归一化、无谱算法独立标记；分布按信源展示且跳过漏检试验。"""
+    import numpy as np
+
+    from arena.core.figures.presentation import build_figures
+    from arena.core.runner.results import ExperimentResult, SweepPointResult, TrialResult
+    from arena_api import Estimate, Spectrum
+
+    config = ExperimentConfig(algorithms=[{"id": "music"}], type="single").model_dump(mode="json")
+    trial = TrialResult(
+        0,
+        {
+            "谱算法": Estimate(
+                np.array([-10.0, 10.0]),
+                Spectrum(np.array([-10.0, 0.0, 10.0]), np.array([2.0, 1.0, 4.0]), "power"),
+            ),
+            "无谱算法": Estimate.from_angles([-9.0, 11.0]),
+        },
+        {},
+        {"谱算法": 1.0, "无谱算法": 1.0},
+        truth_angles=np.array([-10.0, 10.0]),
+    )
+    result = ExperimentResult(config, [SweepPointResult(0, None, [trial])], {})
+    figures = build_figures(result)
+    assert np.max(figures["空间谱"].data[0].y) == 0
+    assert np.max(figures["空间谱（线性）"].data[0].y) == 1
+    assert "无空间谱" in figures["空间谱"].data[-1].name
+    config["type"] = "monte_carlo"
+    result.points[0].trials.append(
+        TrialResult(
+            1,
+            {"谱算法": Estimate.from_angles([-10.0])},
+            {},
+            {},
+            truth_angles=np.array([-10.0, 10.0]),
+        )
+    )
+    dist = build_figures(result)["估计分布"]
+    assert len(dist.data) == 4
+    assert sum(dist.data[0].y) == 1
+
+
+def test_comparison_uses_metric_identity_and_rejects_mismatched_axes(sweep_result):
+    """同指标导出不依赖图表顺序，禁止比较不同扫描变量。"""
+    from copy import deepcopy
+
+    from arena.core.figures.compare import comparison_figure
+
+    other = deepcopy(sweep_result)
+    other.config["metrics"]["include"] = ["time", "success_rate", "rmse"]
+    fig = comparison_figure([sweep_result, other], "success_rate")
+    assert len(fig.data) == 4
+    assert "%" in fig.layout.yaxis.title.text
+    assert fig.data[0].line.color == fig.data[2].line.color
+    assert fig.data[0].line.dash != fig.data[2].line.dash
+    other.config["sweep"]["path"] = "scenario.snapshots"
+    with pytest.raises(ValueError, match="扫描变量不同"):
+        comparison_figure([sweep_result, other], "rmse")
+
+
+def test_result_reader_releases_archive_before_decoding(sweep_result, tmp_path, monkeypatch):
+    """并发图表读取不能持有磁盘句柄，也不能逐试验重复解压整块数组。"""
+    import numpy as np
+
+    from arena.core.storage import ResultWriter
+    from arena.core.storage.reader import read_result
+
+    ResultWriter(tmp_path).write_experiment(sweep_result)
+    original = np.lib.npyio.NpzFile.__getitem__
+    accesses = {}
+
+    def counted(self, key):
+        accesses[key] = accesses.get(key, 0) + 1
+        assert accesses[key] == 1, f"数组 {key} 被重复解压"
+        # Windows 下读取句柄若仍占用原文件，此处原子替换会失败。
+        target = tmp_path / "results.npz"
+        replacement = tmp_path / "replacement.npz"
+        replacement.write_bytes(target.read_bytes())
+        replacement.replace(target)
+        return original(self, key)
+
+    monkeypatch.setattr(np.lib.npyio.NpzFile, "__getitem__", counted)
+    restored = read_result(tmp_path)
+    assert sum(len(point.trials) for point in restored.points) == 30

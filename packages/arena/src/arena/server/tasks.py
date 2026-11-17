@@ -461,12 +461,22 @@ class TaskManager:
             except Exception as e:
                 logger.error(f"进度通知失败: {e}")
 
+    @staticmethod
+    def _progress_snapshot(task: Task) -> dict[str, Any]:
+        """兼容旧取消记录的空百分比，进度来自实际完成次数。"""
+        progress = dict(task.progress)
+        if progress.get("percent") is None:
+            total = progress.get("total_trials") or 0
+            done = progress.get("completed_trials") or 0
+            progress["percent"] = min(100, 100 * done / total) if total else 0
+        return progress
+
     def _format_progress(self, task: Task) -> dict[str, Any]:
         """格式化进度消息。"""
         return {
             "task_id": task.task_id,
             "status": task.status.value,
-            "progress": task.progress,
+            "progress": self._progress_snapshot(task),
             "elapsed_seconds": (time.time() - task.started_at if task.started_at else 0),
         }
 
@@ -503,7 +513,7 @@ class TaskManager:
             status["error"] = task.error
 
         if task.progress:
-            status["progress"] = task.progress
+            status["progress"] = self._progress_snapshot(task)
 
         from .contracts import ExperimentNotes
 
@@ -513,6 +523,13 @@ class TaskManager:
             notes = ExperimentNotes.model_validate_json(notes_path.read_text(encoding="utf-8"))
         status.update(notes=notes.notes, tags=notes.tags, starred=notes.starred)
         status["name"] = notes.display_name or task.config.name
+        status["has_results"] = bool(
+            task.result_path and (task.result_path / "results.npz").exists()
+        )
+        meta_path = task.result_path / "meta.json" if task.result_path else None
+        if meta_path and meta_path.exists():
+            metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+            status["mode"] = metadata.get("mode", "unknown")
 
         return status
 

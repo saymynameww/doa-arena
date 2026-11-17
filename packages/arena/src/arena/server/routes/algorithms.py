@@ -35,9 +35,10 @@ def _discover() -> dict:
     settings = _read_json(SETTINGS_PATH, {})
     workspace_root = get_task_manager().output_dir.resolve()
     workspace = _read_json(workspace_root / "arena_workspace.json", {})
-    sources = list(settings.get("algorithm_sources", []))
+    sources = [{**s, "scope": "全局"} for s in settings.get("algorithm_sources", [])]
     for item in workspace.get("algorithm_sources", []):
         item = dict(item)
+        item["scope"] = "工作目录"
         if item.get("type") == "path":
             for key in ("value", "import_root"):
                 if item.get(key) and not Path(item[key]).is_absolute():
@@ -48,9 +49,19 @@ def _discover() -> dict:
 
         return discover([])
     data = probe(sources)
-    data["sources"] = [
-        {"name": s.get("name", s.get("value", "")), "status": "ok", **s} for s in sources
-    ]
+    for source in sources:
+        root = str(Path(source.get("value", "")).resolve())
+        source["name"] = source.get("name", source.get("value", ""))
+        source["count"] = sum(
+            str((item.get("origin") or {}).get("file", "")).startswith(root)
+            for item in data["algorithms"]
+        )
+        source["status"] = (
+            "error"
+            if any(str(failure.get("path", "")).startswith(root) for failure in data["failures"])
+            else "ok"
+        )
+    data["sources"] = sources
     return data
 
 

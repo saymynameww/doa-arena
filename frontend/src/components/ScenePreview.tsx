@@ -1,11 +1,12 @@
-import React from 'react';
-import { Card } from 'antd';
+import React from "react";
+import { Card } from "antd";
 
 interface ScenePreviewProps {
   arraySize?: number;
   sourceAngles?: number[];
   sourceRanges?: Array<{ min: number; max: number }>; // 动态范围
   faultyElements?: number[];
+  positions?: number[][];
 }
 
 /**
@@ -18,6 +19,7 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
   sourceAngles = [-20, 20],
   sourceRanges = [],
   faultyElements = [],
+  positions = [],
 }) => {
   const width = 300;
   const height = 200;
@@ -61,11 +63,21 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
   // 绘制阵列元
   const renderArrayElements = () => {
     const elements = [];
-    const spacing = Math.min(10, 2 * radius / Math.max(1, arraySize - 1)); // 限制预览宽度
+    const spacing = Math.min(10, (2 * radius) / Math.max(1, arraySize - 1)); // 限制预览宽度
 
     for (let i = 0; i < arraySize; i++) {
-      const x = centerX - ((arraySize - 1) * spacing) / 2 + i * spacing;
-      const y = centerY;
+      const nominalSpan =
+        Math.max(1, ...positions.map((p) => p[0])) -
+        Math.min(0, ...positions.map((p) => p[0]));
+      const x = positions[i]
+        ? centerX -
+          radius +
+          (2 *
+            radius *
+            (positions[i][0] - Math.min(0, ...positions.map((p) => p[0])))) /
+            nominalSpan
+        : centerX - ((arraySize - 1) * spacing) / 2 + i * spacing;
+      const y = centerY - (positions[i]?.[1] || 0) * 20;
       const isFaulty = faultyElements.includes(i);
 
       elements.push(
@@ -74,8 +86,8 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
             cx={x}
             cy={y}
             r="4"
-            fill={isFaulty ? '#ff4d4f' : '#667085'}
-            stroke={isFaulty ? '#cf1322' : '#667085'}
+            fill={isFaulty ? "#ff4d4f" : "#667085"}
+            stroke={isFaulty ? "#cf1322" : "#667085"}
             strokeWidth="1"
           />
           {isFaulty && (
@@ -88,7 +100,7 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
               strokeWidth="1.5"
             />
           )}
-        </g>
+        </g>,
       );
     }
 
@@ -113,7 +125,7 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
                 centerY,
                 radius * 0.9,
                 hasRange.min,
-                hasRange.max
+                hasRange.max,
               )}
               fill="#24272c"
               fillOpacity="0.15"
@@ -131,7 +143,6 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
             y2={y}
             stroke="#24272c"
             strokeWidth="2"
-
           />
           <circle cx={x} cy={y} r="3" fill="#24272c" />
           <text
@@ -143,7 +154,12 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
             fill="#24272c"
           >
             {angle}°
-            {hasRange && <tspan fontSize="9" fill="#8c8c8c"> (范围)</tspan>}
+            {hasRange && (
+              <tspan fontSize="9" fill="#8c8c8c">
+                {" "}
+                (范围)
+              </tspan>
+            )}
           </text>
         </g>
       );
@@ -156,7 +172,7 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
     cy: number,
     r: number,
     startAngle: number,
-    endAngle: number
+    endAngle: number,
   ): string => {
     const startRad = (startAngle * Math.PI) / 180;
     const endRad = (endAngle * Math.PI) / 180;
@@ -178,7 +194,12 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
 
   return (
     <Card title="场景预览" size="small">
-      <svg className="scene-preview-svg" viewBox={`0 0 ${width} ${height + 10}`} role="img" aria-label="阵列与信源方向预览">
+      <svg
+        className="scene-preview-svg"
+        viewBox={`0 0 ${width} ${height + 10}`}
+        role="img"
+        aria-label="阵列与信源方向预览"
+      >
         <defs>
           <marker
             id="arrowhead"
@@ -192,7 +213,11 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
           </marker>
         </defs>
 
-        <path d={`M ${centerX-radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX+radius} ${centerY}`} fill="none" stroke="#d3d8e0" />
+        <path
+          d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`}
+          fill="none"
+          stroke="#d3d8e0"
+        />
         {/* 半圆刻度 */}
         {renderScale()}
 
@@ -201,9 +226,14 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
 
         {/* 信源方向 */}
         {renderSources()}
-
       </svg>
-      <p className="scene-preview-caption">黑线是信源方向：{sourceAngles.map(angle => `${angle}°`).join("、")}。{faultyElements.length > 0 ? "红点为故障阵元。" : ""}</p>
+      <p className="scene-preview-caption">
+        {sourceRanges.length
+          ? "阴影为随机角度范围。"
+          : `黑线是信源方向：${sourceAngles.map((angle) => `${angle}°`).join("、")}。`}
+        {faultyElements.length > 0 ? "红点为已知故障阵元。" : ""}
+        位置为第一个试验的示意。
+      </p>
     </Card>
   );
 };

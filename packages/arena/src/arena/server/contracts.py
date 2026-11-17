@@ -44,6 +44,8 @@ class TaskResponse(BaseModel):
     type: Literal["single", "monte_carlo", "sweep"] = "single"
     config: ExperimentConfig
     progress: TaskProgress | None = None
+    mode: str = "unknown"
+    has_results: bool = False
     notes: str = ""
     tags: list[str] = Field(default_factory=list)
     starred: bool = False
@@ -77,6 +79,14 @@ class ChartList(BaseModel):
     charts: list[ChartData]
 
 
+class ResultDetails(BaseModel):
+    """核心生成的逐点指标与复现元信息。"""
+
+    rows: list[dict[str, Any]]
+    columns: list[dict[str, str]]
+    metadata: dict[str, Any]
+
+
 class Template(BaseModel):
     """可复用实验模板。"""
 
@@ -87,6 +97,7 @@ class Template(BaseModel):
     algorithms: list[str] = Field(default_factory=list)
     createdAt: str = ""
     level: str = "工作目录"
+    kind: Literal["scenario", "experiment"] = "experiment"
     config: ExperimentConfig = Field(default_factory=lambda: ExperimentConfig.model_validate({}))
 
 
@@ -124,6 +135,8 @@ class ParamSchema(BaseModel):
     max: float | None = None
     enum: list[str] | None = None
     description: str = ""
+    title: str = ""
+    label: str = Field(default="", alias="x-label")
 
 
 class PluginInfo(BaseModel):
@@ -160,3 +173,6 @@ class ScenarioPreview(BaseModel):
     elements: int
     angles: list[float]
     physical_spacing_cm: float | None
+    ranges: list[dict[str, float]] = Field(default_factory=list)
+    faulty_elements: list[int] = Field(default_factory=list)
+    positions: list[list[float]] = Field(default_factory=list)

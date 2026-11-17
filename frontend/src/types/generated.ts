@@ -141,6 +141,7 @@ export type ModelInspection = {
 export type ModelList = {
   "models": Array<ModelRecord>;
   "failures": Array<string>;
+  "generator_version": number;
 };
 
 export type ModelRecord = {
@@ -157,6 +158,8 @@ export type ParamSchema = {
   "max"?: number | null;
   "enum"?: Array<string> | null;
   "description"?: string;
+  "title"?: string;
+  "x-label"?: string;
 };
 
 export type PluginInfo = {
@@ -188,6 +191,12 @@ export type RandomSourceCount = {
   "weights"?: Array<number> | null;
 };
 
+export type ResultDetails = {
+  "rows": Array<Record<string, unknown>>;
+  "columns": Array<Record<string, string>>;
+  "metadata": Record<string, unknown>;
+};
+
 export type ResultFiles = {
   "task_id": string;
   "result_path": string;
@@ -213,6 +222,9 @@ export type ScenarioPreview = {
   "elements": number;
   "angles": Array<number>;
   "physical_spacing_cm": number | null;
+  "ranges"?: Array<Record<string, number>>;
+  "faulty_elements"?: Array<number>;
+  "positions"?: Array<Array<number>>;
 };
 
 export type SourcesConfig = {
@@ -263,6 +275,8 @@ export type TaskResponse = {
   "type"?: "single" | "monte_carlo" | "sweep";
   "config": ExperimentConfig;
   "progress"?: TaskProgress | null;
+  "mode"?: string;
+  "has_results"?: boolean;
   "notes"?: string;
   "tags"?: Array<string>;
   "starred"?: boolean;
@@ -276,6 +290,7 @@ export type Template = {
   "algorithms"?: Array<string>;
   "createdAt"?: string;
   "level"?: string;
+  "kind"?: "scenario" | "experiment";
   "config"?: ExperimentConfig;
 };
 

@@ -97,21 +97,33 @@ def test_matlab_loads_chinese_and_nan(result, tmp_path):
         "f=load('" + fixture.as_posix().replace("'", "''") + "');"
         "assert(isnan(f.arena.metric.rmse(2)));"
     )
-    executable = Path(matlab)
-    native = executable.parent / "win64" / "MATLAB.exe"
-    if sys.platform == "win32" and native.exists():
-        executable = native
+    # 使用公开启动入口，让启动器完成环境初始化并返回批处理退出码。
+    # MathWorks matlab (Windows)：脚本调用需要 -wait。
+    arguments = [matlab, *(["-wait"] if sys.platform == "win32" else [])]
+    sentinel = tmp_path / "matlab-passed.txt"
+    expression += (
+        "fid=fopen('"
+        + sentinel.as_posix().replace("'", "''")
+        + "','w');fprintf(fid,'passed');fclose(fid);"
+    )
     log = tmp_path / "matlab.log"
     with log.open("w", encoding="utf-8") as stream:
-        process = subprocess.Popen(
-            [str(executable), "-batch", expression], stdout=stream, stderr=stream
-        )
+        process = subprocess.Popen([*arguments, "-batch", expression], stdout=stream, stderr=stream)
         try:
             code = process.wait(timeout=180)
         except subprocess.TimeoutExpired:
+            import psutil
+
+            # 启动器退出前同时回收本次测试派生的 MATLAB，避免残留进程。
+            for child in psutil.Process(process.pid).children(recursive=True):
+                try:
+                    child.kill()
+                except psutil.NoSuchProcess:
+                    pass
             process.kill()
             process.wait()
             pytest.fail(
                 "MATLAB 批处理超过 180 秒：" + log.read_text(encoding="utf-8", errors="replace")
             )
     assert code == 0, log.read_text(encoding="utf-8", errors="replace")
+    assert sentinel.read_text(encoding="utf-8") == "passed"

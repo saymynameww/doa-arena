@@ -6,6 +6,7 @@ from typing import cast
 
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from arena_api import kit
 
@@ -25,55 +26,105 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
     def truth(trial: TrialResult) -> np.ndarray:
         return trial.truth_angles if trial.truth_angles is not None else fallback
 
+    palette = ["#1677ff", "#fa8c16", "#13a86b", "#8b5cf6", "#e34b72", "#0891b2"]
     if result.config.get("type") == "single":
-        fig = go.Figure()
-        for label, estimate in first.estimates.items():
-            if estimate.spectrum is not None:
-                spectrum = estimate.spectrum
+        for linear in (False, True):
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.75, 0.25])
+            for i, (label, estimate) in enumerate(first.estimates.items()):
+                color = palette[i % len(palette)]
+                if estimate.spectrum is not None:
+                    spectrum = estimate.spectrum
+                    normalized = spectrum.values / max(float(np.max(spectrum.values)), 1e-12)
+                    y = normalized if linear else 10 * np.log10(np.maximum(normalized, 1e-12))
+                    fig.add_trace(
+                        go.Scatter(
+                            x=spectrum.grid,
+                            y=y,
+                            mode="lines",
+                            name=label,
+                            legendgroup=label,
+                            line={"color": color},
+                        ),
+                        row=1,
+                        col=1,
+                    )
                 fig.add_trace(
                     go.Scatter(
-                        x=spectrum.grid,
-                        y=10 * np.log10(np.maximum(spectrum.values, 1e-12)),
-                        mode="lines",
-                        name=label,
-                    )
+                        x=estimate.angles,
+                        y=[i] * len(estimate.angles),
+                        mode="markers",
+                        name=label
+                        + ("（无空间谱，只标估计角度）" if estimate.spectrum is None else " 估计"),
+                        legendgroup=label,
+                        marker={"color": color, "symbol": "x", "size": 10},
+                    ),
+                    row=2,
+                    col=1,
                 )
-            fig.add_trace(
-                go.Scatter(
-                    x=estimate.angles,
-                    y=[0] * len(estimate.angles),
-                    mode="markers",
-                    name=label + " 估计",
-                    marker={"symbol": "x", "size": 10},
+            for angle in truth(first):
+                fig.add_vline(
+                    x=float(angle),
+                    line_dash="dash",
+                    line_color="black",
+                    annotation_text=f"{angle:g}°",
+                    row=1,
+                    col=1,
                 )
+            fig.update_yaxes(title_text="归一化谱" if linear else "归一化谱 (dB)", row=1, col=1)
+            fig.update_yaxes(
+                tickvals=list(range(len(first.estimates))),
+                ticktext=list(first.estimates),
+                row=2,
+                col=1,
             )
-        for angle in truth(first):
-            fig.add_vline(x=float(angle), line_dash="dash", line_color="black")
-        fig.update_layout(
-            title="空间谱与估计角度", xaxis_title="角度 (°)", yaxis_title="归一化谱 (dB)"
-        )
-        figures["空间谱"] = fig
+            fig.update_xaxes(title_text="角度 (°)", row=2, col=1)
+            fig.update_layout(title="空间谱与估计角度")
+            figures["空间谱（线性）" if linear else "空间谱"] = fig
     elif result.config.get("type") == "monte_carlo":
-        fig = go.Figure()
-        for label in labels:
+        count = max((len(truth(t)) for t in result.points[0].trials), default=1)
+        random_angles = result.config["scenario"]["sources"]["angles"]["mode"] == "random"
+        fig = make_subplots(
+            rows=1, cols=count, subplot_titles=[f"信源 {i + 1}" for i in range(count)]
+        )
+        for i, label in enumerate(labels):
             groups: dict[int, list[float]] = {}
             for trial in result.points[0].trials:
-                if label not in trial.estimates:
+                trial_estimate = trial.estimates.get(label)
+                if trial_estimate is None or len(trial_estimate.angles) != len(truth(trial)):
                     continue
-                estimate = trial.estimates[label]
-                pairs, _ = kit.hungarian_matching(estimate.angles, truth(trial))
+                pairs, _ = kit.hungarian_matching(trial_estimate.angles, truth(trial))
                 for ei, si in pairs:
-                    groups.setdefault(int(si), []).append(
-                        float(estimate.angles[ei] - truth(trial)[si])
+                    value = (
+                        trial_estimate.angles[ei] - truth(trial)[si]
+                        if random_angles
+                        else trial_estimate.angles[ei]
                     )
-            for si, errors in groups.items():
-                fig.add_trace(go.Histogram(x=errors, name=f"{label} · 信源 {si + 1}", opacity=0.6))
-        fig.update_layout(
-            title="按信源匹配的估计误差分布",
-            xaxis_title="估计误差 (°)",
-            yaxis_title="次数",
-            barmode="overlay",
-        )
+                    groups.setdefault(int(si), []).append(float(value))
+            for si, samples in groups.items():
+                counts, edges = np.histogram(samples, bins=min(30, max(1, len(samples))))
+                fig.add_trace(
+                    go.Scatter(
+                        x=edges,
+                        y=[*counts, 0],
+                        mode="lines",
+                        name=label,
+                        legendgroup=label,
+                        showlegend=si == 0,
+                        line={"shape": "hv", "color": palette[i % len(palette)]},
+                    ),
+                    row=1,
+                    col=si + 1,
+                )
+        for si in range(count):
+            reference = (
+                0 if random_angles else float(truth(first)[si]) if si < len(truth(first)) else None
+            )
+            if reference is not None:
+                fig.add_vline(x=reference, line_dash="dash", line_color="black", row=1, col=si + 1)
+            fig.update_xaxes(
+                title_text="估计误差 (°)" if random_angles else "估计角度 (°)", row=1, col=si + 1
+            )
+        fig.update_layout(title="估计值分布（仅包含检出全部信源的试验）")
         figures["估计分布"] = fig
     selected = result.config.get("metrics", {}).get(
         "include", ["rmse", "success_rate", "resolution", "time"]
@@ -90,11 +141,19 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
         title = "运行时间" if name == "time" else cls.name
         unit = f"{cls.name} ({cls.unit})" if cls.unit else cls.name
         fig = go.Figure()
-        for label in labels:
+        for i, label in enumerate(labels):
             values = []
+            markers = []
             for point in result.points:
                 metrics = point_metrics(result, point, label)
-                values.append(cast(float | None, metrics["metric_values"][name]["value"]))
+                used = metrics["metric_values"].get("rmse", {}).get("n_used")
+                markers.append(
+                    "circle-open"
+                    if used is not None and used < 0.8 * len(point.trials)
+                    else "circle"
+                )
+                value = cast(float | None, metrics["metric_values"][name]["value"])
+                values.append(value * 100 if value is not None and cls.unit == "%" else value)
             fig.add_trace(
                 go.Scatter(
                     x=[
@@ -104,6 +163,8 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
                     y=values,
                     name=label,
                     mode="lines+markers",
+                    line={"color": palette[i % len(palette)]},
+                    marker={"symbol": markers, "size": 8},
                 )
             )
         if metric_id == "rmse" and "crb" in selected:
@@ -149,13 +210,14 @@ def build_figures(result: ExperimentResult) -> dict[str, go.Figure]:
                 )
             )
         sweep = result.config.get("sweep") or {}
+        axis_label = sweep.get("label") or sweep.get("path") or "实验点"
         fig.update_layout(
             title=title,
             meta={"metric": name},
-            xaxis_title=f"{sweep.get('label') or '实验点'} {sweep.get('unit') or ''}",
+            xaxis_title=f"{axis_label} {sweep.get('unit') or ''}",
             yaxis_title=unit,
         )
         figures[title] = fig
     for fig in figures.values():
-        fig.update_layout(template="plotly_white", hovermode="closest")
+        fig.update_layout(template="plotly_white", hovermode="x unified")
     return figures

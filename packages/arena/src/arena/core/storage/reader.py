@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -25,10 +26,13 @@ def read_result(directory: Path) -> ExperimentResult:
     details = json.loads(detail_path.read_text(encoding="utf-8")) if detail_path.exists() else {}
     details = {(row["point"], row["trial"]): row for row in details.get("trials", [])}
     points = []
-    with np.load(directory / "results.npz", allow_pickle=False) as raw:
+    # 先释放磁盘句柄，避免 Windows 检查点替换被图表读取阻塞。
+    # 各数组只解码一次，避免逐试验访问 NpzFile 导致重复解压。
+    with np.load(BytesIO((directory / "results.npz").read_bytes()), allow_pickle=False) as archive:
+        raw = {key: archive[key] for key in archive.files}
         if "truth_angles" not in raw:
             return _read_standard(config, metadata, summary, details, raw)
-        labels = [key[:-11] for key in raw.files if key.endswith("__estimates")]
+        labels = [key[:-11] for key in raw if key.endswith("__estimates")]
         shape = raw[labels[0] + "__estimates"].shape if labels else raw["truth_angles"].shape
         for pi in range(shape[0]):
             trials = []

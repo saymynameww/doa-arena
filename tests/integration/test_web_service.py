@@ -421,3 +421,56 @@ def test_web_workspace_uses_same_layout_as_script(client, tmp_path):
         ExperimentConfig.model_validate({"algorithms": [{"id": "music"}]})
     )
     assert get_task_manager().tasks[identifier].result_path == root / "experiments" / identifier
+
+
+def test_template_kind_and_workspace_registration(client, tmp_path):
+    """场景模板类型可往返；工作目录登记不可重复，移除不删除磁盘文件。"""
+    template = client.post(
+        "/api/templates",
+        json={"name": "仅场景", "kind": "scenario", "config": {"scenario": {"seed": 17}}},
+    )
+    assert template.status_code == 200
+    assert template.json()["kind"] == "scenario"
+    assert template.json()["createdAt"]
+    path = tmp_path / "中文工作目录"
+    path.mkdir()
+    sentinel = path / "keep.txt"
+    sentinel.write_text("保留", encoding="utf-8")
+    data = {"name": "课题", "path": str(path)}
+    assert client.post("/api/workspaces", json=data).status_code == 200
+    assert client.post("/api/workspaces", json=data).status_code == 409
+    assert client.delete("/api/workspaces", params={"path": str(path)}).status_code == 200
+    assert sentinel.read_text(encoding="utf-8") == "保留"
+    assert client.post("/api/workspaces", json={"path": ""}).status_code == 400
+
+
+def test_history_reports_result_availability_and_mode(client, tmp_path):
+    """历史页禁止无结果对比，且运行模式来自持久化元信息。"""
+    from arena.core.config import ExperimentConfig
+    from arena.core.storage import ResultWriter
+    from arena.server.tasks import get_task_manager
+
+    manager = get_task_manager()
+    identifier = manager.create_task(ExperimentConfig(algorithms=[{"id": "music"}]))
+    task = manager.tasks[identifier]
+    assert not client.get(f"/api/experiments/tasks/{identifier}").json()["has_results"]
+    ResultWriter(task.result_path)._write_json(task.result_path / "meta.json", {"mode": "script"})
+    (task.result_path / "results.npz").touch()
+    record = client.get(f"/api/experiments/tasks/{identifier}").json()
+    assert record["has_results"] and record["mode"] == "script"
+
+
+def test_cancelled_history_accepts_legacy_null_percent(client):
+    """旧版取消记录的 null 百分比不能导致整个历史列表返回 500。"""
+    from arena.core.config import ExperimentConfig
+    from arena.server.tasks import TaskStatus, get_task_manager
+
+    manager = get_task_manager()
+    identifier = manager.create_task(ExperimentConfig(algorithms=[{"id": "music"}]))
+    task = manager.tasks[identifier]
+    task.status = TaskStatus.CANCELLED
+    task.progress = {"completed_trials": 25, "total_trials": 100, "percent": None}
+    manager._save_index()
+    response = client.get(f"/api/experiments/tasks/{identifier}")
+    assert response.status_code == 200
+    assert response.json()["progress"]["percent"] == 25

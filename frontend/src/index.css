@@ -39,7 +39,7 @@ body {
 }
 
 .arena-current-task {
-  margin-top: auto;
+  margin-top: 0;
   padding: 12px 16px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -359,9 +359,46 @@ body {
 }
 
 /* 未选中的实验方式与原型一致，蓝色仅用于当前方式。 */
-.mode-choice:not([aria-checked="true"]) .mode-icon { color: #6b7280; }
+.mode-choice:not([aria-checked="true"]) .mode-icon {
+  color: #6b7280;
+}
 
-.schema-field { margin: 8px 0; align-items: center; }
-.schema-field > .ant-select, .schema-control > .ant-select, .schema-control > .ant-input { max-width: 150px; }
-.schema-control > .ant-input-number { max-width: 110px; }
-.physical-spacing-note { display: block; margin: 4px 0 12px 108px; font-size: 12px; }
+.schema-field {
+  margin: 8px 0;
+  align-items: center;
+}
+.schema-field > .ant-select,
+.schema-control > .ant-select,
+.schema-control > .ant-input {
+  max-width: 150px;
+}
+.schema-control > .ant-input-number {
+  max-width: 110px;
+}
+.physical-spacing-note {
+  display: block;
+  margin: 4px 0 12px 108px;
+  font-size: 12px;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: start;
+}
+.result-grid > div {
+  min-width: 0;
+}
+.result-grid label {
+  display: block;
+  width: 100%;
+}
+@media (max-width: 1200px) {
+  .result-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+body {
+  min-width: min(1024px, 100%);
+}

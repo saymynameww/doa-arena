@@ -102,3 +102,23 @@
 完整验收状态以 `docs/milestones/M6.md`、`M7.md` 为准；上述功能通过不代表逐项视觉验收完成。
 
 2026-11-17 更新：官方内置浏览器已实际复验算法库表格、搜索/详情、模型检查弹窗、排行榜切换/单位/排名与结果跳转，并修复重启进度显示。上述相关项的“视觉待验”更新为“主要路径已复验”；范围和截图见 `docs/milestones/VISUAL_ACCEPTANCE_2026_11_17.md`，其他条目不据此自动通过。
+
+
+## 2026-11-17 全产品浏览器复验（覆盖早期状态）
+
+| 原型需求 | 组件 | API / 核心 | 验收证据 | 当前状态 |
+|---|---|---|---|---|
+| 布局、Schema 配置、场景预览 | Layout / ExperimentConfig / ScenePreview | schema/preview / exploration | 1440 与 1024 视口；随机角度/故障预览回归 | 已复验并修复 |
+| 单次谱及独立估计标记 | ResultCharts / ResultTable | charts、details / figures | 7ea7ed87；线性谱/无谱回归 | 已复验并修复 |
+| 蒙特卡洛分布、指标及重算 | ResultCharts / RecomputeMetrics | figures/details、recompute | 184a1dcb；门限重算 30% / 5% | 已复验并修复 |
+| 扫描点联动与当前图导出 | ResultCharts / ResultTable | export.service | 曲线点选、HTML 下载；导出自动化 | 已复验并修复 |
+| 运行、失败、取消、部分结果 | ExperimentRun | runner.job / storage.reader | db2cff3e 复现；6bb3fd20 最终 9984 次；并发文件替换回归 | 已复验并修复 |
+| 中断整理与重启进度 | ExperimentRun | finalize / tasks | 状态夹具 40/80 整理后刷新；自动化恢复进度 | 已复验并修复 |
+| 搜索筛选、收藏及比较准入 | History / experimentViews | tasks / notes | 非扫描选择禁用；同变量两任务可比较；前端测试 | 已复验并修复 |
+| 差异表、语义对比及导出 | Compare | compare/export / figures.compare | 快拍扫描 500/2 次、点选 x=500、HTML 下载 | 已复验并修复 |
+| 模板类型、保存、回收 | Templates / ExperimentConfig | templates / 当前工作目录 | UI 保存与回收临时模板、空搜索、保留算法；API 回归 | 已复验并修复 |
+| 算法详情及模型错误反馈 | Algorithms / ModelsPanel | algorithms / models | 中文字段、加入新实验、无效路径弹窗；模型回归 | 已复验并修复 |
+| 工作目录及真实环境 | Settings | workspaces、settings/environment | 表格/复制环境、登记 API、隔离探测 | 已复验并修复 |
+| 排名、历史版本、运行选择 | Leaderboard | benchmarks | 500 次验收版本、历史记录、空算法选择禁用、前轮结果跳转 | 页面复验完成；正式九场景仍待确认 |
+
+完整范围、真实任务 ID、缺陷复现、最终测试与边界见 [全产品视觉验收报告](../milestones/FULL_VISUAL_ACCEPTANCE_2026_11_17.md)。这次覆盖全部产品页面，不将 CUDA、AutoDL 或正式场景集待定设计自动标记为通过。

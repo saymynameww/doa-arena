@@ -33,6 +33,56 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
     """执行子进程收到的白名单操作。"""
     from .config import ExperimentConfig
 
+    if operation == "compare_export":
+        from .figures.compare import export_comparison
+
+        return export_comparison(payload)
+
+    if operation == "environment":
+        import importlib.metadata
+        import platform
+
+        import arena
+        import arena_api
+
+        from .runner.core import GENERATOR_VERSION
+
+        info: dict[str, Any] = {
+            "Arena": arena.__version__,
+            "API": arena_api.__version__,
+            "数据生成器": GENERATOR_VERSION,
+            "Python": platform.python_version(),
+        }
+        for name in ("numpy", "scipy", "torch"):
+            try:
+                info[name] = importlib.metadata.version(name)
+            except importlib.metadata.PackageNotFoundError:
+                info[name] = "未安装"
+        try:
+            commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=Path(__file__).parent,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            info["commit"] = commit.stdout.strip() or "未记录"
+        except (OSError, subprocess.TimeoutExpired):
+            info["commit"] = "未记录"
+        if info["torch"] != "未安装":
+            try:
+                import torch
+
+                info["CUDA"] = torch.version.cuda or "CPU 构建"
+                info["GPU"] = (
+                    torch.cuda.get_device_name(0) if torch.cuda.is_available() else "不可用"
+                )
+            except Exception as exc:
+                info["GPU"] = f"探测失败：{exc}"
+        else:
+            info["GPU"] = "未安装学习依赖"
+        return info
+
     if operation.startswith("benchmark_"):
         from .benchmark import create_run, leaderboard, list_suites, save_suite
 
@@ -88,11 +138,21 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         config._workspace = Path(payload["workspace"]) if payload.get("workspace") else None
         return {"valid": True, "issues": validate_configuration(config)}
     directory = Path(payload["directory"])
+    if operation == "details":
+        from .figures.details import result_details
+        from .storage.reader import read_result
+
+        return result_details(read_result(directory))
     if operation == "export":
         from .export.service import export_result
 
         path = export_result(
-            directory, payload["format"], payload.get("metric", "rmse"), payload.get("chart")
+            directory,
+            payload["format"],
+            payload.get("metric", "rmse"),
+            payload.get("chart"),
+            payload.get("style", "web"),
+            payload.get("log", False),
         )
         return {"path": str(path)}
     if operation == "finalize":

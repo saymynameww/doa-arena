@@ -43,6 +43,20 @@ def finalize_directory(directory: Path) -> ExperimentResult:
     result = read_result(directory)
     result.metadata["status"] = "cancelled"
     writer.write_experiment(result)
-    writer._write_json(directory / "status.json", {"schema_version": 1, "status": "cancelled"})
+    status_path = directory / "status.json"
+    state = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
+    completed = sum(len(point.trials) for point in result.points)
+    total = state.get("total_trials") or result.config.get("trials", 1) * len(result.points)
+    writer._write_json(
+        status_path,
+        {
+            **state,
+            "schema_version": 1,
+            "status": "cancelled",
+            "completed_trials": completed,
+            "total_trials": total,
+            "percent": 100 * completed / total if total else 0,
+        },
+    )
     result.saved_summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
     return result
