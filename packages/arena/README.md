@@ -35,6 +35,8 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available()); pr
 
 脚本停止其管理端口上的旧服务后重新启动。实际页面 `http://127.0.0.1:3000`，后端 `http://127.0.0.1:8765`，原型 `http://127.0.0.1:4173/index.html`。加 `-NoBrowser` 可不自动打开浏览器。`-SequentialMkl` 用于本机 Anaconda MKL 与 PyTorch 的 OpenMP 运行库兼容。服务只监听本机。
 
+运行环境在服务启动时后台检测并缓存，新建实验无需等待。设置页“运行环境 → 重新检测”可手动更新，检测失败会单独提示；安装依赖或切换 Python 环境后请重启服务。缓存只用于界面展示，模型任务执行时仍校验 CUDA 是否可用。
+
 ## 构建和安装交付包
 
 构建者需要 Node；交付包使用者不需要 Node。构建脚本将最新前端资源打入 wheel，并清除旧哈希资源：
