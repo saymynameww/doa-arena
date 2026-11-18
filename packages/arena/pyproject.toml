@@ -34,10 +34,11 @@ docx = [
     "python-docx>=0.8",
 ]
 plot = [
-    "plotly>=5.0",
-    "kaleido>=0.2",
+    "plotly>=6.1.1,<8",
+    "kaleido>=1.5.1,<2",
 ]
 dev = [
+    "pypdf>=5",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "mypy>=1.0",

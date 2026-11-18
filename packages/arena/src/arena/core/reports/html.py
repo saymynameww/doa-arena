@@ -34,11 +34,12 @@ def generate_html_report(
 
     # 生成图表
     from ..figures.presentation import build_figures
+    from ..figures.render import render_image
 
     charts = build_figures(result)
 
     # 内嵌 SVG 可离线查看和打印，不依赖外部脚本。
-    charts_html = {name: fig.to_image(format="svg").decode("utf-8") for name, fig in charts.items()}
+    charts_html = {name: render_image(fig, "svg").decode("utf-8") for name, fig in charts.items()}
 
     # 生成 HTML
     html = _build_html(result, title, charts_html)

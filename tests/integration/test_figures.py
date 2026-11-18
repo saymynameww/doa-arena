@@ -104,6 +104,7 @@ def test_export_html(sweep_result):
     not _has_kaleido(),
     reason="kaleido not installed",
 )
+@pytest.mark.slow
 def test_export_png(sweep_result):
     """测试导出 PNG。"""
     from arena.core.figures import create_rmse_curve, export_figure
@@ -213,6 +214,7 @@ def test_all_exports_together(sweep_result):
         assert (output_dir / "results.tex").exists()
 
 
+@pytest.mark.slow
 def test_html_report(sweep_result):
     """测试生成 HTML 报告。"""
     from arena.core.reports import generate_html_report
@@ -231,6 +233,11 @@ def test_html_report(sweep_result):
             assert "MUSIC" in content
             assert "ESPRIT" in content
             assert "<svg" in content
+            from arena.core.figures.presentation import build_figures
+
+            assert content.count("<svg") == len(build_figures(sweep_result))
+            assert "配置摘要" in content and "指标汇总" in content
+            assert "平均耗时" in content and "中位耗时" in content
             assert "cdn.plot.ly" not in content
 
 

@@ -11,6 +11,8 @@ from typing import Literal
 
 import plotly.graph_objects as go
 
+from .render import render_image
+
 logger = logging.getLogger(__name__)
 
 ExportFormat = Literal["png", "pdf", "svg", "html"]
@@ -45,26 +47,10 @@ def export_figure(
         logger.info(f"导出 HTML: {path}")
         return
 
-    # 静态格式需要 kaleido
-    try:
-        import kaleido  # noqa: F401
-    except ImportError:
-        raise ImportError(
-            "静态图表导出需要 kaleido。\n"
-            "安装：pip install kaleido\n"
-            "或使用 format='html' 导出交互式 HTML。"
-        )
-
-    # 导出静态图
-    if format == "png":
-        # FR-RES-07：以网页 96 dpi 的逻辑尺寸输出 300 dpi 等效像素。
-        fig.write_image(str(path), format="png", width=width, height=height, scale=300 / 96)
-    elif format == "pdf":
-        fig.write_image(str(path), format="pdf", width=width, height=height)
-    elif format == "svg":
-        fig.write_image(str(path), format="svg", width=width, height=height)
-    else:
+    if format not in ("png", "pdf", "svg"):
         raise ValueError(f"不支持的格式: {format}")
+    # FR-RES-07：以网页 96 dpi 的逻辑尺寸输出 300 dpi 等效像素。
+    path.write_bytes(render_image(fig, format, width, height, 300 / 96 if format == "png" else 1))
 
     logger.info(f"导出 {format.upper()}: {path}")
 
