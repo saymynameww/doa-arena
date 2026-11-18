@@ -80,7 +80,7 @@ def execute(operation: str, payload: dict[str, Any]) -> dict[str, Any]:
                     torch.cuda.get_device_name(0) if torch.cuda.is_available() else "不可用"
                 )
             except Exception as exc:
-                info["GPU"] = f"探测失败：{exc}"
+                raise RuntimeError(f"PyTorch/CUDA 探测失败：{exc}") from exc
         else:
             info["GPU"] = "未安装学习依赖"
         return info

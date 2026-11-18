@@ -21,16 +21,16 @@ import {
   rebuildWorkspaceIndex,
   selectWorkspace,
   updateSettings,
-  getEnvironment,
   removeWorkspace,
 } from "@/services/api";
+import useEnvironment from "@/hooks/useEnvironment";
 
 export default function SettingsPage() {
   const [workspaces, setWorkspaces] = useState<Array<Record<string, any>>>([]);
   const [current, setCurrent] = useState<Record<string, any>>({});
   const [sources, setSources] = useState<any[]>([]);
   const [settings, setSettings] = useState<Record<string, any>>({});
-  const [environment, setEnvironment] = useState<Record<string, unknown>>({});
+  const { environment, refresh, deviceLabel } = useEnvironment();
   const [failures, setFailures] = useState<any[]>([]);
   const [dialog, setDialog] = useState<"workspace" | "source">();
   const [path, setPath] = useState("");
@@ -63,9 +63,6 @@ export default function SettingsPage() {
   };
   useEffect(() => {
     void act(load);
-    void getEnvironment()
-      .then(setEnvironment)
-      .catch(() => setEnvironment({ 状态: "环境探测失败，请刷新" }));
   }, []);
   const open = (type: "workspace" | "source") => {
     setPath("");
@@ -216,7 +213,7 @@ export default function SettingsPage() {
             options={[
               { value: "auto", label: "自动选择" },
               { value: "cpu", label: "CPU" },
-              { value: "cuda", label: environment.cuda_available === true ? "CUDA" : "CUDA（当前环境不可用）", disabled: environment.cuda_available !== true },
+              { value: "cuda", label: deviceLabel, disabled: environment.cuda_available !== true },
             ]}
           />
           <Button
@@ -236,6 +233,10 @@ export default function SettingsPage() {
       <Card
         title="运行环境"
         extra={
+          <Space>
+          <Button loading={environment.status === "detecting"} onClick={() => void refresh()}>
+            重新检测
+          </Button>
           <Button
             onClick={() =>
               void navigator.clipboard
@@ -246,10 +247,17 @@ export default function SettingsPage() {
           >
             复制环境信息
           </Button>
+          </Space>
         }
       >
+        <Alert showIcon style={{ marginBottom: 16 }}
+          type={environment.status === "error" ? "error" : "info"}
+          message={environment.status === "detecting" ? "正在后台检测环境，可继续配置实验"
+            : environment.status === "error" ? environment.error : "环境检测完成"}
+          description="结果在本次服务运行期间缓存。安装依赖或切换 Python 环境后请重启服务。"
+        />
         <Descriptions column={2}>
-          {Object.entries(environment).map(([key, value]) => (
+          {Object.entries(environment.details || {}).map(([key, value]) => (
             <Descriptions.Item key={key} label={key}>
               {String(value)}
             </Descriptions.Item>

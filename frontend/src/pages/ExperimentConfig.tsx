@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Alert,
@@ -20,7 +20,6 @@ import {
 import {
   createTemplate,
   getExperimentSchema,
-  getEnvironment,
   getScenarioPreview,
   getTemplates,
   runExperiment,
@@ -32,6 +31,7 @@ import ConfigFields, {
 } from "@/components/ConfigFields";
 import ScenePreview from "@/components/ScenePreview";
 import AlgorithmSwatch from "@/components/AlgorithmSwatch";
+import useEnvironment from "@/hooks/useEnvironment";
 
 function mergeDefaults(defaults: any, value: any): any {
   if (value === undefined) return structuredClone(defaults);
@@ -90,7 +90,21 @@ const modes = [
   ],
 ];
 export default function ExperimentConfigPage() {
-  const [schema, setSchema] = useState<JsonSchema>();
+  const [baseSchema, setSchema] = useState<JsonSchema>();
+  const loadStarted = useRef<number | null>(null);
+  const { environment, deviceLabel } = useEnvironment();
+  const schema = useMemo(() => {
+    if (!baseSchema) return undefined;
+    const data = structuredClone(baseSchema);
+    for (const plugin of data["x-algorithms"] || []) {
+      const device = plugin.schema?.properties?.device;
+      if (device?.enum?.includes("cuda")) {
+        device["x-disabled-options"] = environment.cuda_available === true ? {} : { cuda: deviceLabel };
+        device["x-enum-labels"] = { ...device["x-enum-labels"], cuda: deviceLabel };
+      }
+    }
+    return data;
+  }, [baseSchema, environment.cuda_available, deviceLabel]);
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
   const [range, setRange] = useState("-10:5:20");
@@ -109,16 +123,14 @@ export default function ExperimentConfigPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   useEffect(() => {
-    void Promise.all([getExperimentSchema(), getTemplates(), getEnvironment().catch(() => ({ cuda_available: false }))])
-      .then(([raw, list, environment]) => {
+    let active = true;
+    if (import.meta.env.DEV && new URLSearchParams(location.search).has("uiAudit")) {
+      loadStarted.current = performance.now();
+    }
+    void Promise.all([getExperimentSchema(), getTemplates()])
+      .then(([raw, list]) => {
+        if (!active) return;
         const data = raw as JsonSchema;
-        for (const plugin of data["x-algorithms"] || []) {
-          const device = plugin.schema?.properties?.device;
-          if (device?.enum?.includes("cuda") && environment.cuda_available !== true) {
-            device["x-disabled-options"] = { cuda: "当前 Python 环境无法使用 CUDA，请切换 GPU 环境后重启服务" };
-            device["x-enum-labels"] = { ...device["x-enum-labels"], cuda: "CUDA（当前环境不可用）" };
-          }
-        }
         setSchema(data);
         setTemplates(list);
         const template = list.find((t) => t.id === params.get("template"));
@@ -187,8 +199,18 @@ export default function ExperimentConfigPage() {
         if (!template && saved?.range) setRange(saved.range);
         setDraft(next);
       })
-      .catch(() => setError("读取配置失败，请检查后端服务并刷新"));
+      .catch(() => { if (active) setError("读取配置失败，请检查后端服务并刷新"); });
+    return () => { active = false; };
   }, [params]);
+  useEffect(() => {
+    if (!baseSchema || !draft || loadStarted.current === null) return;
+    const start = loadStarted.current;
+    loadStarted.current = null;
+    // 仅开发验收：从表单请求发起，到表单提交 DOM 后的下一帧绘制后。
+    if (import.meta.env.DEV) requestAnimationFrame(() => setTimeout(() => {
+      console.info("ARENA_CONFIG_READY " + JSON.stringify({ duration_ms: performance.now() - start }));
+    }, 0));
+  }, [baseSchema, draft]);
   useEffect(() => {
     if (draft)
       sessionStorage.setItem(

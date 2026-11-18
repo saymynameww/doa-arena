@@ -39,17 +39,10 @@ export const downloadComparison = async (
       responseType: "blob",
     })
   ).data;
-let environmentCache: { expires: number; request: Promise<Record<string, unknown>> } | undefined;
-export const getEnvironment = (): Promise<Record<string, unknown>> => {
-  if (!environmentCache || Date.now() > environmentCache.expires) {
-    const request = api.get("/settings/environment").then((r) => r.data).catch((error) => {
-      environmentCache = undefined;
-      throw error;
-    });
-    environmentCache = { expires: Date.now() + 30000, request };
-  }
-  return environmentCache.request;
-};
+export const getEnvironment = async (): Promise<import("@/types/generated").EnvironmentStatus> =>
+  (await api.get("/settings/environment")).data;
+export const refreshEnvironment = async (): Promise<import("@/types/generated").EnvironmentStatus> =>
+  (await api.post("/settings/environment/refresh")).data;
 export const removeWorkspace = async (path: string) =>
   (await api.delete("/workspaces", { params: { path } })).data;
 

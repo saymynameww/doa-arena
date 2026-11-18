@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from ..contracts import EnvironmentStatus
 from ..tasks import get_task_manager
 
 router = APIRouter()
@@ -134,11 +135,13 @@ async def remove_workspace(path: str) -> dict[str, bool]:
     return {"removed": True}
 
 
-@router.get("/settings/environment")
-async def get_environment() -> dict[str, Any]:
-    """在隔离进程探测运行环境，Web 服务不加载 torch。"""
-    import asyncio
+@router.get("/settings/environment", response_model=EnvironmentStatus)
+async def get_environment(request: Request) -> EnvironmentStatus:
+    """立即读取缓存，不触发探测。"""
+    return request.app.state.environment.snapshot
 
-    from ...core.operations import invoke
 
-    return await asyncio.to_thread(invoke, "environment", {})
+@router.post("/settings/environment/refresh", response_model=EnvironmentStatus)
+async def refresh_environment(request: Request) -> EnvironmentStatus:
+    """手动重新检测，同一时刻仅启动一个探测进程。"""
+    return request.app.state.environment.refresh()

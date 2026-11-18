@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from .environment import EnvironmentMonitor
 from .routes import (
     algorithms,
     experiments,
@@ -31,9 +32,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """应用生命周期管理。"""
     # 启动
     logger.info("Arena Web 服务启动")
-    yield
-    # 关闭
-    logger.info("Arena Web 服务关闭")
+    app.state.environment.refresh()
+    try:
+        yield
+    finally:
+        await app.state.environment.close()
+        logger.info("Arena Web 服务关闭")
 
 
 def create_app() -> FastAPI:
@@ -48,6 +52,7 @@ def create_app() -> FastAPI:
         version="0.4.0",
         lifespan=lifespan,
     )
+    app.state.environment = EnvironmentMonitor()
 
     # CORS（开发模式）
     app.add_middleware(

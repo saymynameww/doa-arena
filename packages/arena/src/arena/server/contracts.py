@@ -8,6 +8,16 @@ from pydantic import BaseModel, Field
 from ..core.config import ExperimentConfig
 
 
+class EnvironmentStatus(BaseModel):
+    """缓存的环境信息；检测失败不等同于没有 CUDA。"""
+
+    status: Literal["detecting", "available", "unavailable", "error"] = "detecting"
+    cuda_available: bool | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    checked_at: str | None = None
+
+
 class ExperimentNotes(BaseModel):
     """与实验计算配置分离的用户备注。"""
 

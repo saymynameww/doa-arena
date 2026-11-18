@@ -58,6 +58,14 @@ export type CorrelationConfig = {
   "phases_deg"?: "random" | Array<number>;
 };
 
+export type EnvironmentStatus = {
+  "status"?: "detecting" | "available" | "unavailable" | "error";
+  "cuda_available"?: boolean | null;
+  "details"?: Record<string, unknown>;
+  "error"?: string | null;
+  "checked_at"?: string | null;
+};
+
 export type ExperimentConfig = {
   "schema_version"?: 1;
   "description"?: string;
