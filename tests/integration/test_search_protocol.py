@@ -213,3 +213,38 @@ def test_invalid_algorithm_parameter_reports_algorithm_index():
             normalize_configuration({"algorithms": [{"id": "music", "params": {"grid_step": -1}}]})
         )
     assert failure.value.detail["errors"][0]["path"] == "algorithms.0.params.grid_step"
+
+
+def test_sweep_schema_declares_permissions_defaults_and_conditions():
+    schema = asyncio.run(experiment_schema())
+    defs = schema["$defs"]
+    assert defs["SourcesConfig"]["properties"]["snr_db"]["x-sweep"]["default"] == "-10:5:20"
+    assert (
+        defs["ScenarioConfig"]["properties"]["snapshots"]["x-sweep"]["default"]
+        == "10,20,50,100,200,500"
+    )
+    for key in ("seed", "noise_power"):
+        assert "x-sweep" not in defs["ScenarioConfig"]["properties"][key]
+    for key in ("scan_min", "scan_max"):
+        assert "x-sweep" not in defs["SearchGrid"]["properties"][key]
+    for plugin in schema["x-algorithms"]:
+        fields = plugin["schema"]["properties"]
+        for key in ("scan_min", "scan_max"):
+            if key in fields:
+                assert "x-sweep" not in fields[key]
+        if "subarray" in fields:
+            assert fields["subarray"]["x-sweep"]["when"] == {"smoothing": ["forward", "fb"]}
+        if "peak_threshold_db" in fields:
+            assert fields["peak_threshold_db"]["x-sweep"]["when"] == {"peak_mode": ["threshold"]}
+    assert set(schema["x-sweep-categories"]) == {"scenario", "advanced", "algorithm"}
+
+
+def test_ordinary_sweep_metadata_does_not_change_legacy_script_semantics():
+    config = ExperimentConfig.model_validate(
+        {
+            "type": "sweep",
+            "algorithms": [{"id": "music"}],
+            "sweep": {"path": "scenario.seed", "values": [41, 42]},
+        }
+    )
+    assert expand_point(config, 42).scenario.seed == 42

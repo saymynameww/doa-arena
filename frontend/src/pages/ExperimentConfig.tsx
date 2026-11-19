@@ -33,6 +33,7 @@ import ConfigFields, {
 import ScenePreview from "@/components/ScenePreview";
 import AlgorithmSwatch from "@/components/AlgorithmSwatch";
 import useEnvironment from "@/hooks/useEnvironment";
+import { activeSweepInfo, sweepAvailable, selectSweepRange, restoreSweepRanges, removeAlgorithmRanges, type SweepSpec } from "@/utils/sweepState";
 import { parseRange, restoreExperimentDraft, configurationErrors } from "@/utils/draftRecovery";
 import { parameterSummary } from "@/utils/experimentViews";
 
@@ -87,7 +88,8 @@ export default function ExperimentConfigPage() {
   }, [baseSchema, environment.cuda_available, deviceLabel]);
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
-  const [range, setRange] = useState("-10:5:20");
+  const [range, setRange] = useState("");
+  const [sweepRanges, setSweepRanges] = useState<Record<string, string>>({});
   const [preview, setPreview] =
     useState<import("@/types/generated").ScenarioPreview>();
   const [busy, setBusy] = useState(false);
@@ -175,10 +177,11 @@ export default function ExperimentConfigPage() {
           setTemplateName(next.name);
           setTemplateOpen(true);
         }
-        const restoredRange = !template && saved?.range !== undefined
-          ? saved.range : next.sweep?.values?.join(", ") ?? "-10:5:20";
+        const restoredRanges = restoreSweepRanges(saved, next, !template || template.kind === "scenario");
+        const restoredRange = next.sweep?.path ? restoredRanges[next.sweep.path] ?? "" : "";
         const restored = await restoreExperimentDraft(next, restoredRange, normalizeExperiment);
         if (active) {
+          setSweepRanges(restoredRanges);
           setRange(restoredRange);
           setDraft(restored.draft);
           setIssues(restored.issues);
@@ -200,9 +203,9 @@ export default function ExperimentConfigPage() {
     if (draft)
       sessionStorage.setItem(
         "arena.experimentDraft",
-        JSON.stringify({ draft, range }),
+        JSON.stringify({ draft, range, sweepRanges: { ...sweepRanges, ...(draft.sweep?.path ? { [draft.sweep.path]: range } : {}) } }),
       );
-  }, [draft, range]);
+  }, [draft, range, sweepRanges]);
   useEffect(() => {
     let current = true;
     if (!draft) return;
@@ -281,7 +284,10 @@ export default function ExperimentConfigPage() {
       rangeError = (e as Error).message;
     }
   }
+  const scanInfo = activeSweepInfo(schema, draft);
+  const inactiveSweep = !!sweep && !!scanInfo.spec && !sweepAvailable(scanInfo.spec, scanInfo.values);
   const errors = [
+    inactiveSweep ? "当前扫描参数的生效条件未满足，请恢复对应选项或选择其他扫描字段" : "",
     !active.length ? "至少启用一个算法" : "",
     draft.type === "sweep" && !sweep ? "请在数值字段旁选择扫描变量" : "",
     rangeError,
@@ -289,16 +295,24 @@ export default function ExperimentConfigPage() {
       .filter((issue) => issue.level === "error")
       .map((issue) => issue.message),
   ].filter(Boolean);
-  const toggleSweep = (path: string, label: string) =>
-    update(
-      "sweep",
-      sweep === path ? null : { path, label, unit: "", values: [] },
-    );
+  const toggleSweep = (path: string, label: string, spec: SweepSpec, unit: string) => {
+    const remembered = { ...sweepRanges, ...(draft.sweep?.path ? { [draft.sweep.path]: range } : {}) };
+    setSweepRanges(remembered);
+    if (sweep === path) update("sweep", null);
+    else {
+      setRange(selectSweepRange(remembered, path, spec));
+      update("sweep", { path, label, unit, values: [] });
+    }
+  };
+  const changeRange = (value: string) => {
+    setRange(value);
+    if (draft.sweep?.path) setSweepRanges((previous) => ({ ...previous, [draft.sweep.path]: value }));
+  };
   const fieldProps = {
     root: schema,
     sweep,
     sweepRange: range,
-    onRange: setRange,
+    onRange: changeRange,
     onSweep: draft.type === "sweep" ? toggleSweep : undefined,
   };
   const build = () => ({
@@ -552,6 +566,7 @@ export default function ExperimentConfigPage() {
               const next = result.config;
               if (!next) throw Error("服务未返回有效配置，请检查后端版本");
               setDraft(next);
+              setSweepRanges(restoreSweepRanges(null, next, false));
               setRange((next.sweep as any)?.values?.join(", ") || "");
               message.success("配置已导入，请核对后运行");
             });
@@ -713,7 +728,7 @@ export default function ExperimentConfigPage() {
               <Input
                 aria-label="扫描取值"
                 value={range}
-                onChange={(e) => setRange(e.target.value)}
+                onChange={(e) => changeRange(e.target.value)}
                 placeholder="起:步长:止"
               />
               <span>{values.length} 个取值</span>
@@ -779,6 +794,11 @@ export default function ExperimentConfigPage() {
         <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={draft.search_grid}
           path="search_grid" onChange={(value) => update("search_grid", value)} />
       </Card>
+      {sweep && <Typography.Paragraph type="secondary">
+        当前扫描类别：{schema["x-sweep-categories"]?.[scanInfo.spec?.category || ""] || "历史/自定义扫描（不在普通入口中）"}
+        {scanInfo.spec?.category === "algorithm" ? "。这是显式算法参数对比；场景性能比较请固定算法设置。" : ""}
+        {inactiveSweep ? "。该参数在当前设置下不生效。" : ""}
+      </Typography.Paragraph>}
       <div className="experiment-columns">
         <Card title="场景" className="experiment-scene">
           <Collapse
@@ -861,6 +881,8 @@ export default function ExperimentConfigPage() {
                         "algorithms",
                         draft.algorithms.filter((_: any, j: number) => j !== i),
                       );
+                      setSweepRanges(removeAlgorithmRanges({ ...sweepRanges,
+                        ...(draft.sweep?.path ? { [draft.sweep.path]: range } : {}) }, i));
                       if (sweep?.startsWith("algorithms["))
                         update("sweep", null);
                     }}

@@ -151,6 +151,9 @@ async def experiment_schema() -> dict[str, Any]:
                 "x-label": plugin["name"],
             }
     schema["$defs"]["ArrayConfig"]["properties"]["carrier_hz"]["x-label"] = "载频（Hz）"
+    from ..sweep_schema import declare_sweeps
+
+    declare_sweeps(schema)
     return schema
 
 

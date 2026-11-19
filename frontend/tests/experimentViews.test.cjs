@@ -109,3 +109,50 @@ test("规范化服务断开也不丢弃草稿", async () => {
   assert.equal(result.draft, draft);
   assert.match(result.issues[0].message, /Network Error/);
 });
+
+const sweepExports = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/utils/sweepState.ts", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText, { exports: sweepExports });
+const { selectSweepRange, restoreSweepRanges, removeAlgorithmRanges, sweepAvailable, activeSweepInfo } = sweepExports;
+test("扫描切换使用各自预设，往返及取消重选保留用户输入", () => {
+  const ranges = { snr: "-3:3:9" };
+  assert.equal(selectSweepRange(ranges, "snapshots", {category:"scenario",default:"10,20,50"}), "10,20,50");
+  ranges.snapshots = "32,64,128";
+  assert.equal(selectSweepRange(ranges, "snr", {category:"scenario",default:"-10:5:20"}), "-3:3:9");
+  assert.equal(selectSweepRange(ranges, "snapshots", {category:"scenario"}), "32,64,128");
+  assert.equal(selectSweepRange({}, "plugin", {category:"algorithm"}), "");
+  assert.equal(selectSweepRange({snr:""}, "snr", {category:"scenario",default:"-10:5:20"}), "");
+});
+test("多字段范围刷新恢复，兼容旧草稿且保留无效文本", async () => {
+  const draft = {type:"sweep",sweep:{path:"snr",values:[]}};
+  const ranges = restoreSweepRanges({range:"-10:0:20",sweepRanges:{snapshots:"20,40"}},draft);
+  assert.equal(ranges.snapshots,"20,40"); assert.equal(ranges.snr,"-10:0:20");
+  const restored = await restoreExperimentDraft(draft,ranges.snr,async value=>value);
+  assert.equal(restored.draft,draft); assert.ok(restored.issues.length);
+  const legacy = restoreSweepRanges({range:"-5:5:15"},draft);
+  assert.equal(legacy.snr,"-5:5:15");
+  const imported = restoreSweepRanges({range:"bad",sweepRanges:{snr:"bad"}},
+    {sweep:{path:"snr",values:[0,5,10]}},false);
+  assert.equal(imported.snr,"0, 5, 10");
+});
+test("扫描默认拒绝未声明字段，并遵守算法参数生效条件", () => {
+  assert.equal(sweepAvailable(undefined,{}),false);
+  const spec={category:"algorithm",when:{smoothing:["forward","fb"]}};
+  assert.equal(sweepAvailable(spec,{smoothing:"none"}),false);
+  assert.equal(sweepAvailable(spec,{smoothing:"fb"}),true);
+});
+test("删除算法后范围索引迁移，不串到另一个算法实例", () => {
+  const result=removeAlgorithmRanges({"algorithms[0].params.grid_step":"0.1,1",
+    "algorithms[1].params.grid_step":"0.2,0.5","scenario.snapshots":"10,20"},0);
+  assert.equal(result["algorithms[0].params.grid_step"],"0.2,0.5");
+  assert.equal(result["algorithms[1].params.grid_step"],undefined);
+  assert.equal(result["scenario.snapshots"],"10,20");
+});
+test("活动扫描解析使用插件 Schema，关闭平滑后判定不生效", () => {
+  const spec={category:"algorithm",when:{smoothing:["fb"]}};
+  const schema={"x-algorithms":[{id:"test",schema:{properties:{subarray:{"x-sweep":spec}}}}]};
+  const draft={sweep:{path:"algorithms[0].params.subarray"},algorithms:[{id:"test",params:{smoothing:"none"}}]};
+  const info=activeSweepInfo(schema,draft);
+  assert.equal(sweepAvailable(info.spec,info.values),false);
+});

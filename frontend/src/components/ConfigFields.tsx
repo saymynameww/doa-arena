@@ -1,4 +1,5 @@
 import { Button, Input, InputNumber, Select, Switch } from "antd";
+import { sweepAvailable, type SweepSpec } from "@/utils/sweepState";
 import ModelSelector from './ModelSelector';
 
 export type JsonSchema = Record<string, any>;
@@ -36,7 +37,7 @@ interface Props {
   sweep?: string;
   sweepRange?: string;
   onRange?: (value: string) => void;
-  onSweep?: (path: string, label: string) => void;
+  onSweep?: (path: string, label: string, spec: SweepSpec, unit: string) => void;
 }
 export default function ConfigFields({
   schema: raw,
@@ -165,11 +166,12 @@ export default function ConfigFields({
                   />
                 )}
               </div>
-              {numeric && onSweep && (
+              {numeric && onSweep && sweepAvailable(spec["x-sweep"], value) && (
                 <Button
                   type="link"
                   size="small"
-                  onClick={() => onSweep(child, label)}
+                  title={`${root["x-sweep-categories"]?.[spec["x-sweep"].category] || ({scenario: "场景扫描", advanced: "高级场景研究", algorithm: "算法参数对比"} as Record<string, string>)[spec["x-sweep"].category]}；建议范围：${spec["x-sweep"].default || "请自行填写"}`}
+                  onClick={() => onSweep(child, label, spec["x-sweep"], spec.unit || "")}
                 >
                   {sweep === child ? "取消扫描" : "扫描"}
                 </Button>

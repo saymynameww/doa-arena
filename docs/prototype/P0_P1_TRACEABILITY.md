@@ -14,6 +14,8 @@
 
 2026-11-19 草稿恢复回归：扫描范围独立保存导致初始化校验失败已修复；无效参数保留表单并显示字段错误，见 [草稿恢复报告](../milestones/DRAFT_RECOVERY_FIX_2026_11_19.md)。
 
+2026-11-19 扫描入口修正：仅显示 Schema 声明且生效的字段，按场景/高级/算法参数分类并提供独立默认范围；各字段记忆、切换与恢复见 [扫描专项报告](../milestones/SWEEP_SCHEMA_2026_11_19.md)。此前仅确认存在字段旁按钮不足以证明逐项符合原型，本次补充覆盖该遗漏。
+
 | 需求 | 优先级 | 设计内容 | 组件/入口 | API/核心 | 可重复测试 | 本轮结论/补充证据 |
 |---|---|---|---|---|---|---|
 | FR-SCN-01 | P0 | 配置 ULA：阵元数 M（2–128）、阵元间距 d（单位 λ，默认 0.5） | ExperimentConfig / ConfigFields / ScenePreview | schema/experiment、schema/preview、experiments/validate；core.config/signals/impairments | test_config_contract、test_configuration_flow、test_impairments、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |
