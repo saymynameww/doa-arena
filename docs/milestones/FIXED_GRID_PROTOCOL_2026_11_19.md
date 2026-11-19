@@ -30,7 +30,7 @@ npm run build
 - 前端：**5 项通过**，ESLint、TypeScript 和 Vite 生产构建通过。
 - `ruff check packages tests scripts`、`mypy packages`（101 文件）、OpenAPI 类型同步检查通过；本次提交全部文件 pre-commit 通过。
 - 全仓库额外 pre-commit 探测发现既有非本次文件的格式问题（旧 Ruff 对 signals/generator.py、start_server.py 的提示及历史产物换行）；未纳入本次变更，工具自动改动已还原。本次提交检查全部通过。
-- Python 运行有既有 Starlette TestClient 弃用提示及 JUnit record_property 警告，无失败/跳过。Linux CI 在推送后单独核对，不以本机结果代替。
+- Python 运行有既有 Starlette TestClient 弃用提示及 JUnit record_property 警告，无失败/跳过。Linux CI 已单独核对：提交 `e1f0e8a0` 的 [运行 44461735488](https://github.com/saymynameww/doa-arena/actions/runs/44461735488) 中 `linux-python310`（全套 pytest、mypy、类型同步）与 `linux-learning` 均成功。本条结果对应代码提交，后续仅补记本文证据。
 
 专项 `tests/integration/test_search_protocol.py`：12 项通过，覆盖共享网格、独立扫描、不影响无网格算法、v1 三种 refine 情形、保存读取、中文路径、局部加密掩码/平滑/近邻峰/边界/空峰，以及 Schema 与规范化接口。
 
