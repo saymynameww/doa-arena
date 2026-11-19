@@ -66,3 +66,46 @@ test("当前任务优先运行中；排队的同参数场景不能重复补跑",
   record.states.failure.status = "completed";
   assert.equal(activeBenchmarkScene([record], algorithm, "failure"), undefined);
 });
+
+const draftExports = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/utils/draftRecovery.ts", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText, { exports: draftExports });
+const { restoreExperimentDraft } = draftExports;
+test("恢复扫描草稿：空 values 使用单独保存的 range，且不修改原草稿", async () => {
+  const draft = { type: "sweep", sweep: { path: "scenario.sources.snr_db", values: [] } };
+  let received;
+  const result = await restoreExperimentDraft(draft, "-10:5:20", async (value) => {
+    received = value; return value;
+  });
+  assert.equal(JSON.stringify(received.sweep.values), "[-10,-5,0,5,10,15,20]");
+  assert.equal(draft.sweep.values.length, 0);
+  assert.equal(result.issues.length, 0);
+});
+test("无效扫描输入恢复后仍可编辑，原始草稿和输入不丢失", async () => {
+  const draft = { type: "sweep", sweep: { path: "scenario.sources.snr_db", values: [] } };
+  const result = await restoreExperimentDraft(draft, "-10:0:20", async () => { throw Error("不应调用"); });
+  assert.equal(result.draft, draft);
+  assert.match(result.issues[0].message, /sweep.values/);
+});
+test("字段校验失败保留原值，显示具体字段；修正后可恢复", async () => {
+  const draft = { type: "single", scenario: { snapshots: 0 }, algorithms: [{ params: { refine: true } }], schema_version: 1 };
+  const normalize = async value => {
+    if (!value.scenario.snapshots) throw { response: { data: { detail: { errors: [
+      { path: "scenario.snapshots", message: "必须大于等于 1" },
+    ] } } } };
+    return value;
+  };
+  const result = await restoreExperimentDraft(draft, "", normalize);
+  assert.equal(result.draft, draft);
+  assert.equal(result.draft.algorithms[0].params.refine, true);
+  assert.match(result.issues[0].message, /scenario.snapshots/);
+  const fixed = await restoreExperimentDraft({ ...draft, scenario: { snapshots: 200 } }, "", normalize);
+  assert.equal(fixed.issues.length, 0);
+});
+test("规范化服务断开也不丢弃草稿", async () => {
+  const draft = { type: "single", name: "未完成实验" };
+  const result = await restoreExperimentDraft(draft, "", async () => { throw Error("Network Error"); });
+  assert.equal(result.draft, draft);
+  assert.match(result.issues[0].message, /Network Error/);
+});

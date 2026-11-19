@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from ...core.config import ExperimentConfig
 from ..contracts import ScenarioPreview
@@ -17,6 +18,12 @@ async def normalize_configuration(config: dict[str, Any]) -> ExperimentConfig:
     """规范化草稿和旧模板，不执行环境检测、算法计算或创建实验。"""
     try:
         return ExperimentConfig.model_validate(config)
+    except ValidationError as exc:
+        errors = [
+            {"path": ".".join(str(part) for part in item["loc"]) or "配置", "message": item["msg"]}
+            for item in exc.errors(include_url=False, include_context=False, include_input=False)
+        ]
+        raise HTTPException(status_code=400, detail={"errors": errors}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

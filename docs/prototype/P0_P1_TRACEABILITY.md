@@ -12,6 +12,8 @@
 
 2026-11-19 寻峰协议：经需求方批准，FR-ALG 内置谱搜索、FR-EXP 配置及 FR-API 参数接口采用统一固定网格、默认无细化；显式插值/局部加密与历史配置迁移由 `test_search_protocol` 覆盖。新建、选变体和历史复制已使用内置浏览器核对，详见 [固定网格报告](../milestones/FIXED_GRID_PROTOCOL_2026_11_19.md)。本次同步修订正式设计文档。
 
+2026-11-19 草稿恢复回归：扫描范围独立保存导致初始化校验失败已修复；无效参数保留表单并显示字段错误，见 [草稿恢复报告](../milestones/DRAFT_RECOVERY_FIX_2026_11_19.md)。
+
 | 需求 | 优先级 | 设计内容 | 组件/入口 | API/核心 | 可重复测试 | 本轮结论/补充证据 |
 |---|---|---|---|---|---|---|
 | FR-SCN-01 | P0 | 配置 ULA：阵元数 M（2–128）、阵元间距 d（单位 λ，默认 0.5） | ExperimentConfig / ConfigFields / ScenePreview | schema/experiment、schema/preview、experiments/validate；core.config/signals/impairments | test_config_contract、test_configuration_flow、test_impairments、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |

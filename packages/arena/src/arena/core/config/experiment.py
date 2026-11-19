@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
+from pydantic_core import InitErrorDetails
 
 from .scenario import ScenarioConfig
 
@@ -198,11 +199,19 @@ class ExperimentConfig(BaseModel):
         from ..algorithms import CBF, MUSIC, MVDR
 
         classes = {cls.id: cls for cls in (CBF, MUSIC, MVDR)}
-        for item in self.algorithms:
+        for index, item in enumerate(self.algorithms):
             if item.id not in classes or item.origin or not item.enabled:
                 continue
             values = self.search_parameters(classes[item.id], item.params)
-            item.params = classes[item.id].Params.model_validate(values).model_dump(mode="json")
+            try:
+                item.params = classes[item.id].Params.model_validate(values).model_dump(mode="json")
+            except ValidationError as exc:
+                errors = exc.errors(include_url=False)
+                for error in errors:
+                    error["loc"] = ("algorithms", index, "params", *error["loc"])
+                raise ValidationError.from_exception_data(
+                    type(self).__name__, cast(list[InitErrorDetails], errors)
+                ) from exc
         return self
 
     def search_parameters(self, cls: Any, values: dict[str, Any]) -> dict[str, Any]:

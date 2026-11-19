@@ -189,3 +189,27 @@ def test_schema_and_normalize_expose_new_defaults_and_preserve_legacy():
         normalize_configuration({"schema_version": 1, "algorithms": [{"id": "music"}]})
     )
     assert old.algorithms[0].params["peak_refinement"] == "parabolic"
+
+
+def test_normalize_invalid_draft_reports_field_without_mutating_input():
+    from fastapi import HTTPException
+
+    draft = {"type": "sweep", "sweep": {"path": "scenario.sources.snr_db", "values": []}}
+    before = json.dumps(draft)
+    with pytest.raises(HTTPException) as failure:
+        asyncio.run(normalize_configuration(draft))
+    assert failure.value.status_code == 400
+    assert failure.value.detail["errors"][0]["path"] == "sweep.values"
+    assert json.dumps(draft) == before
+    draft["sweep"]["values"] = [-10, -5, 0, 5, 10, 15, 20]
+    assert asyncio.run(normalize_configuration(draft)).sweep.values == draft["sweep"]["values"]
+
+
+def test_invalid_algorithm_parameter_reports_algorithm_index():
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as failure:
+        asyncio.run(
+            normalize_configuration({"algorithms": [{"id": "music", "params": {"grid_step": -1}}]})
+        )
+    assert failure.value.detail["errors"][0]["path"] == "algorithms.0.params.grid_step"

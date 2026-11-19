@@ -33,6 +33,7 @@ import ConfigFields, {
 import ScenePreview from "@/components/ScenePreview";
 import AlgorithmSwatch from "@/components/AlgorithmSwatch";
 import useEnvironment from "@/hooks/useEnvironment";
+import { parseRange, restoreExperimentDraft, configurationErrors } from "@/utils/draftRecovery";
 import { parameterSummary } from "@/utils/experimentViews";
 
 function mergeDefaults(defaults: any, value: any): any {
@@ -47,30 +48,7 @@ function mergeDefaults(defaults: any, value: any): any {
   );
 }
 
-function parseRange(text: string): number[] {
-  const parts = text.trim().split(":").map(Number);
-  if (parts.length === 3) {
-    const [start, step, stop] = parts;
-    if (
-      !parts.every(Number.isFinite) ||
-      step === 0 ||
-      (stop - start) / step < 0 ||
-      Math.abs((stop - start) / step) > 10000
-    )
-      throw Error("扫描范围应为起点:步长:终点，步长须指向终点且最多 10001 点");
-    return Array.from(
-      { length: Math.floor((stop - start) / step + 1e-9) + 1 },
-      (_, i) => Number((start + i * step).toPrecision(12)),
-    );
-  }
-  const values = text
-    .split(/[,，\s]+/)
-    .filter(Boolean)
-    .map(Number);
-  if (values.length < 2 || !values.every(Number.isFinite))
-    throw Error("请填写至少两个有限数值，或使用起点:步长:终点");
-  return values;
-}
+
 const modes = [
   [
     "single",
@@ -197,10 +175,14 @@ export default function ExperimentConfigPage() {
           setTemplateName(next.name);
           setTemplateOpen(true);
         }
-        if (next.sweep) setRange(next.sweep.values.join(", "));
-        if (!template && saved?.range) setRange(saved.range);
-        const normalized = await normalizeExperiment(next);
-        if (active) setDraft(normalized);
+        const restoredRange = !template && saved?.range !== undefined
+          ? saved.range : next.sweep?.values?.join(", ") ?? "-10:5:20";
+        const restored = await restoreExperimentDraft(next, restoredRange, normalizeExperiment);
+        if (active) {
+          setRange(restoredRange);
+          setDraft(restored.draft);
+          setIssues(restored.issues);
+        }
       })
       .catch(() => { if (active) setError("读取配置失败，请检查后端服务并刷新"); });
     return () => { active = false; };
@@ -223,8 +205,7 @@ export default function ExperimentConfigPage() {
   }, [draft, range]);
   useEffect(() => {
     let current = true;
-    setIssues([]);
-    if (!draft?.algorithms?.some((a: any) => a.enabled !== false)) return;
+    if (!draft) return;
     const timer = window.setTimeout(() => {
       try {
         if (draft.type === "sweep" && !draft.sweep?.path) return;
@@ -245,12 +226,12 @@ export default function ExperimentConfigPage() {
               setIssues([
                 {
                   level: "warning",
-                  message: "暂时无法预检查配置，运行时会再次校验",
+                  message: "暂时无法预检查配置，草稿已保留。请检查服务连接后重试。",
                 },
               ]);
           });
-      } catch {
-        /* 范围编辑期间使用字段自身提示。 */
+      } catch (e) {
+        if (current) setIssues([{ level: "error", message: `sweep.values（扫描取值）：${(e as Error).message}` }]);
       }
     }, 500);
     return () => {
@@ -335,9 +316,7 @@ export default function ExperimentConfigPage() {
       await action();
     } catch (e: any) {
       setError(
-        typeof e.response?.data?.detail === "string"
-          ? e.response.data.detail
-          : e.message || "操作失败",
+        configurationErrors(e).map((item) => item.message).join("；"),
       );
     } finally {
       setBusy(false);
@@ -359,7 +338,7 @@ export default function ExperimentConfigPage() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError((e as Error).message);
+      setError(configurationErrors(e).map((item) => item.message).join("；"));
     }
   };
   const editAlgorithm = (index: number, change: any) =>
@@ -550,6 +529,11 @@ export default function ExperimentConfigPage() {
   ];
   return (
     <div className="experiment-workbench">
+      {issues.some((issue) => issue.level === "error") && <Alert type="error" showIcon
+        message="草稿已保留，请修正以下配置字段"
+        description={<ul>{issues.filter((issue) => issue.level === "error").map((issue, index) =>
+          <li key={index}>{issue.message}</li>)}</ul>} />}
+
       <header className="experiment-heading">
         <div className="experiment-heading-name">
           <Typography.Title level={3}>新建实验</Typography.Title>
