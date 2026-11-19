@@ -13,7 +13,7 @@ authors = [
     {name = "DOA Research Lab"}
 ]
 dependencies = [
-    "doa-arena-api==1.0.0",
+    "doa-arena-api==1.1.0",
     "numpy>=1.24,<3.0",
     "scipy>=1.10",
     "pydantic>=2.0,<3.0",
@@ -38,6 +38,7 @@ plot = [
     "kaleido>=1.5.1,<2",
 ]
 dev = [
+    "threadpoolctl>=3.1",
     "pypdf>=5",
     "pytest>=7.0",
     "pytest-cov>=4.0",

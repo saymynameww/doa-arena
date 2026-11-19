@@ -18,6 +18,7 @@ from arena_api import (
     ParamsModel,
     RunContext,
     Spectrum,
+    SpectrumSearchParams,
     kit,
 )
 
@@ -30,7 +31,7 @@ class MUSIC(Algorithm):
 
     id: ClassVar[str] = "music"
     name: ClassVar[str] = "MUSIC"
-    version: ClassVar[str] = "1.0.0"
+    version: ClassVar[str] = "1.1.0"
     category: ClassVar[str] = "subspace"
     description: ClassVar[str] = "基于子空间分解的经典算法，通过搜索噪声子空间的零点估计角度"
 
@@ -42,13 +43,8 @@ class MUSIC(Algorithm):
         uses_gpu=False,
     )
 
-    class Params(ParamsModel):
+    class Params(SpectrumSearchParams):
         """MUSIC 参数。"""
-
-        scan_min: float = Param(-90, ge=-90, le=90, label="搜索起始角度", unit="°")
-        scan_max: float = Param(90, ge=-90, le=90, label="搜索终止角度", unit="°")
-        grid_step: float = Param(0.1, gt=0, le=5, label="网格步长", unit="°")
-        refine: bool = Param(True, label="抛物线峰值细化")
 
         smoothing: Literal["none", "forward", "fb"] = Param(
             "none",
@@ -106,11 +102,10 @@ class MUSIC(Algorithm):
         self.params = params
 
         # 生成角度网格
-        self.grid = np.arange(
-            params.scan_min,
-            params.scan_max + params.grid_step / 2,
-            params.grid_step,
+        self.grid = kit.search_grid(
+            params.scan_min, params.scan_max, params.grid_step, params.legacy_grid
         )
+        self.array = array
 
         # 预计算导向矢量
         self.element_mask = array.element_mask
@@ -176,8 +171,18 @@ class MUSIC(Algorithm):
             min_separation=params.grid_step * 0.5,  # 最小间隔为半个网格步长
         )
 
-        if self.params.refine:
-            peak_angles = kit.refine_peaks(spectrum, self.grid, peak_angles)
+        def evaluate(angles: np.ndarray) -> np.ndarray:
+            steering = self.array.steering(angles)[self.element_mask]
+            return kit.music_spectrum(steering[: Un.shape[0]], Un)
+
+        peak_angles = kit.refine_spectrum_peaks(
+            spectrum,
+            self.grid,
+            peak_angles,
+            self.params.peak_refinement,
+            evaluate,
+            self.params.local_step,
+        )
 
         # 构造结果
         result = Estimate(
@@ -190,6 +195,9 @@ class MUSIC(Algorithm):
             if ctx.want_spectrum
             else None,
             info={
+                "peak_refinement": params.peak_refinement,
+                "n_peaks_found": len(peak_angles),
+                "search_grid": [params.scan_min, params.scan_max, params.grid_step],
                 "smoothing": params.smoothing,
                 "subarray": self._get_subarray_size(params, obs.M, obs.K)
                 if params.smoothing != "none"

@@ -22,6 +22,7 @@ import {
   getExperimentSchema,
   getScenarioPreview,
   getTemplates,
+  normalizeExperiment,
   runExperiment,
   validateExperiment,
 } from "@/services/api";
@@ -32,6 +33,7 @@ import ConfigFields, {
 import ScenePreview from "@/components/ScenePreview";
 import AlgorithmSwatch from "@/components/AlgorithmSwatch";
 import useEnvironment from "@/hooks/useEnvironment";
+import { parameterSummary } from "@/utils/experimentViews";
 
 function mergeDefaults(defaults: any, value: any): any {
   if (value === undefined) return structuredClone(defaults);
@@ -128,7 +130,7 @@ export default function ExperimentConfigPage() {
       loadStarted.current = performance.now();
     }
     void Promise.all([getExperimentSchema(), getTemplates()])
-      .then(([raw, list]) => {
+      .then(async ([raw, list]) => {
         if (!active) return;
         const data = raw as JsonSchema;
         setSchema(data);
@@ -197,7 +199,8 @@ export default function ExperimentConfigPage() {
         }
         if (next.sweep) setRange(next.sweep.values.join(", "));
         if (!template && saved?.range) setRange(saved.range);
-        setDraft(next);
+        const normalized = await normalizeExperiment(next);
+        if (active) setDraft(normalized);
       })
       .catch(() => { if (active) setError("读取配置失败，请检查后端服务并刷新"); });
     return () => { active = false; };
@@ -340,9 +343,9 @@ export default function ExperimentConfigPage() {
       setBusy(false);
     }
   };
-  const exportConfig = (format: string) => {
+  const exportConfig = async (format: string) => {
     try {
-      const json = JSON.stringify(build(), null, 2);
+      const json = JSON.stringify(await normalizeExperiment(build()), null, 2);
       const content =
         format === "json"
           ? json
@@ -604,7 +607,7 @@ export default function ExperimentConfigPage() {
                   kind: templateKind,
                   type: draft.type,
                   algorithms: active.map((a: any) => a.id),
-                  config: build(),
+                  config: await normalizeExperiment(build()),
                 });
                 setTemplates(await getTemplates());
                 setTemplateOpen(false);
@@ -785,6 +788,13 @@ export default function ExperimentConfigPage() {
           )}
         </div>
       </Card>
+      <Card title="统一谱搜索网格" className="experiment-search-grid">
+        <Typography.Paragraph type="secondary">
+          固定网格用于采用统一网格的谱搜索基线，不随 SNR 自动调整。独立网格、插值和局部加密需在算法卡片中显式选择；无网格算法保持原生求解方式。
+        </Typography.Paragraph>
+        <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={draft.search_grid}
+          path="search_grid" onChange={(value) => update("search_grid", value)} />
+      </Card>
       <div className="experiment-columns">
         <Card title="场景" className="experiment-scene">
           <Collapse
@@ -894,27 +904,7 @@ export default function ExperimentConfigPage() {
                   items={[
                     {
                       key: "params",
-                      label: Object.entries(a.params).some(
-                        ([k, v]) =>
-                          JSON.stringify(v) !==
-                          JSON.stringify(
-                            plugin?.schema?.properties?.[k]?.default,
-                          ),
-                      )
-                        ? Object.entries(a.params)
-                            .filter(
-                              ([k, v]) =>
-                                JSON.stringify(v) !==
-                                JSON.stringify(
-                                  plugin?.schema?.properties?.[k]?.default,
-                                ),
-                            )
-                            .map(
-                              ([k, v]) =>
-                                `${plugin?.schema?.properties?.[k]?.label || plugin?.schema?.properties?.[k]?.title || k}: ${v === null ? "自动" : String(v)}`,
-                            )
-                            .join("，")
-                        : "默认参数",
+                      label: parameterSummary(plugin?.schema || {}, a.params),
                       children: (
                         <ConfigFields
                           {...fieldProps}
@@ -926,7 +916,11 @@ export default function ExperimentConfigPage() {
                           }
                           value={a.params}
                           path={`algorithms[${i}].params`}
-                          onChange={(v) => editAlgorithm(i, { params: v })}
+                          onChange={(v) => editAlgorithm(i, {
+                            params: plugin?.schema?.["x-shared-grid"] &&
+                              a.params.grid_mode === "shared" && v.grid_mode === "custom"
+                              ? { ...v, ...draft.search_grid } : v,
+                          })}
                         />
                       ),
                     },

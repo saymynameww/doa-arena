@@ -12,6 +12,15 @@ from .algorithms import list_algorithms
 router = APIRouter()
 
 
+@router.post("/schema/normalize", response_model=ExperimentConfig)
+async def normalize_configuration(config: dict[str, Any]) -> ExperimentConfig:
+    """规范化草稿和旧模板，不执行环境检测、算法计算或创建实验。"""
+    try:
+        return ExperimentConfig.model_validate(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/schema/experiment")
 async def experiment_schema() -> dict[str, Any]:
     """发布真实模型、插件参数及显示元数据，前端不维护参数清单。"""

@@ -6,6 +6,17 @@ export const experimentModes: Record<string, string> = {
   sweep: "参数扫描",
 };
 
+export function parameterSummary(schema: Record<string, any>, params: Record<string, any>): string {
+  return Object.entries(schema?.properties || {}).filter(([key, field]: [string, any]) =>
+    !field["x-hidden"] && (!field["x-visible-when"] || Object.entries(field["x-visible-when"])
+      .every(([condition, expected]) => params[condition] === expected)) &&
+    (field["x-summary"] || JSON.stringify(params[key]) !== JSON.stringify(field.default)),
+  ).map(([key, field]: [string, any]) => {
+    const value = params[key] ?? field.default;
+    return `${field["x-label"] || field.label || field.title || key}: ${field["x-enum-labels"]?.[value] ?? (value === null ? "自动" : String(value))}`;
+  }).join("，") || "默认参数";
+}
+
 export function compareReason(tasks: Task[]): string {
   if (tasks.length < 2) return "至少选择 2 个实验";
   if (tasks.length > 4) return "一次最多对比 4 个实验";

@@ -17,6 +17,7 @@ from arena_api import (
     ParamsModel,
     RunContext,
     Spectrum,
+    SpectrumSearchParams,
     kit,
 )
 
@@ -29,7 +30,7 @@ class CBF(Algorithm):
 
     id: ClassVar[str] = "cbf"
     name: ClassVar[str] = "CBF (Bartlett)"
-    version: ClassVar[str] = "1.0.0"
+    version: ClassVar[str] = "1.1.0"
     category: ClassVar[str] = "beamforming"
     description: ClassVar[str] = "常规波束形成，基于功率谱的最简单方法"
 
@@ -41,13 +42,9 @@ class CBF(Algorithm):
         uses_gpu=False,
     )
 
-    class Params(ParamsModel):
+    class Params(SpectrumSearchParams):
         """CBF 参数。"""
 
-        scan_min: float = Param(-90, label="搜索起始角度", unit="°")
-        scan_max: float = Param(90, label="搜索终止角度", unit="°")
-        grid_step: float = Param(0.1, gt=0, label="网格步长", unit="°")
-        refine: bool = Param(True, label="抛物线峰值细化")
         peak_mode: Literal["top_k", "threshold"] = Param("top_k", label="取峰方式")
         peak_threshold_db: float = Param(10, ge=0, label="峰值门限", unit="dB")
 
@@ -68,11 +65,10 @@ class CBF(Algorithm):
         self.params = params
 
         # 角度网格
-        self.grid = np.arange(
-            params.scan_min,
-            params.scan_max + params.grid_step / 2,
-            params.grid_step,
+        self.grid = kit.search_grid(
+            params.scan_min, params.scan_max, params.grid_step, params.legacy_grid
         )
+        self.array = array
 
         # 导向矢量
         self.element_mask = array.element_mask
@@ -112,11 +108,29 @@ class CBF(Algorithm):
                 np.interp(peak_angles, self.grid, spectrum)
                 >= 10 ** (-self.params.peak_threshold_db / 10)
             ]
-        if self.params.refine:
-            peak_angles = kit.refine_peaks(spectrum, self.grid, peak_angles)
+
+        def evaluate(angles: np.ndarray) -> np.ndarray:
+            steering = self.array.steering(angles)[self.element_mask]
+            return np.real(np.sum(steering.conj() * (R @ steering), axis=0)) / np.sum(
+                np.abs(steering) ** 2, axis=0
+            )
+
+        peak_angles = kit.refine_spectrum_peaks(
+            spectrum,
+            self.grid,
+            peak_angles,
+            self.params.peak_refinement,
+            evaluate,
+            self.params.local_step,
+        )
 
         return Estimate(
             angles=peak_angles,
+            info={
+                "peak_refinement": self.params.peak_refinement,
+                "n_peaks_found": len(peak_angles),
+                "search_grid": [self.params.scan_min, self.params.scan_max, self.params.grid_step],
+            },
             spectrum=Spectrum(
                 grid=self.grid,
                 values=spectrum,

@@ -47,7 +47,7 @@ def validate_configuration(
             cls = (classes or {}).get(item.get_label()) or resolve_algorithm(item.id, item.origin)
             from .models import parameters
 
-            params = parameters(cls, item.params, config._workspace)
+            params = parameters(cls, point.search_parameters(cls, item.params), config._workspace)
             warnings = []
             if issubclass(cls, ModelAlgorithm):
                 from .models import training_issues

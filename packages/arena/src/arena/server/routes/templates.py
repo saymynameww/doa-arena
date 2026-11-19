@@ -93,7 +93,15 @@ def _read_templates() -> list[dict[str, Any]]:
     templates = []
     paths = {*TEMPLATES_DIR.glob("*.json"), *_workspace_templates().glob("*.json")}
     for path in sorted(paths):
-        templates.append(json.loads(path.read_text(encoding="utf-8")))
+        template = json.loads(path.read_text(encoding="utf-8"))
+        config = template.get("config", {})
+        if template.get("level") != "内置" and config.get("algorithms"):
+            # 旧模板可能没有版本号；仅在读取存量文件时按旧语义解释，不改写原文件。
+            from ...core.config import ExperimentConfig
+
+            config = {"schema_version": 1, **config}
+            template["config"] = ExperimentConfig.model_validate(config).model_dump(mode="json")
+        templates.append(template)
     return templates
 
 

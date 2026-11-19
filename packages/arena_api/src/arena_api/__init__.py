@@ -3,7 +3,7 @@
 外部算法只需要依赖这个包。
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # 核心数据类型
 # 工具箱（算法公共函数）
@@ -38,6 +38,7 @@ from .params import (
     ModelPath,
     Param,
     ParamsModel,
+    SpectrumSearchParams,
 )
 
 # 插件基类
@@ -76,6 +77,7 @@ __all__ = [
     "AlgorithmSpec",
     # Params
     "ParamsModel",
+    "SpectrumSearchParams",
     "Param",
     "ComplexValue",
     "ModelPath",

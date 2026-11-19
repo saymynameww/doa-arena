@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 # ============================================================================
@@ -439,5 +441,57 @@ def refine_peaks(spectrum: np.ndarray, grid: np.ndarray, angles: np.ndarray) -> 
             denominator = left - 2 * mid + right
             offset = 0.5 * (left - right) / denominator if denominator else 0
             angle = grid[i] + float(np.clip(offset, -0.5, 0.5)) * (grid[i + 1] - grid[i])
+        refined.append(angle)
+    return np.sort(np.asarray(refined))
+
+
+def search_grid(start: float, stop: float, step: float, legacy: bool = False) -> np.ndarray:
+    """构造显式固定网格；旧配置保留历史 arange 的端点与舍入行为。"""
+    if legacy:
+        return np.arange(start, stop + step / 2, step)
+    return np.linspace(start, stop, round((stop - start) / step) + 1)
+
+
+def refine_spectrum_peaks(
+    spectrum: np.ndarray,
+    grid: np.ndarray,
+    angles: np.ndarray,
+    mode: str,
+    evaluate: Callable[[np.ndarray], np.ndarray],
+    local_step: float,
+) -> np.ndarray:
+    """只执行显式选定的细化策略，不使用真实角度或随 SNR 改变策略。
+
+    局部区间受扫描边界与相邻粗峰中点限制。若最大值落在区间边界，
+    保留粗峰，避免将单调区间或同一峰变成额外信源。
+    """
+    if mode == "none":
+        return angles
+    if mode == "parabolic":
+        return refine_peaks(spectrum, grid, angles)
+    if mode != "local_dense":
+        raise ValueError("未知寻峰策略，请选择固定网格、抛物线或局部加密")
+    ordered = np.sort(angles)
+    refined = []
+    for i, original in enumerate(ordered):
+        index = int(np.argmin(np.abs(grid - original)))
+        lower, upper = grid[max(0, index - 1)], grid[min(len(grid) - 1, index + 1)]
+        if i:
+            lower = max(lower, (ordered[i - 1] + original) / 2)
+        if i + 1 < len(ordered):
+            upper = min(upper, (ordered[i + 1] + original) / 2)
+        angle = original
+        width = max(original - lower, upper - original)
+        while width > local_step * (1 + 1e-10):
+            left, right = max(lower, angle - width), min(upper, angle + width)
+            spacing = max(local_step, width / 10)
+            count = max(2, int(np.ceil((right - left) / spacing - 1e-9)))
+            fine = np.linspace(left, right, count + 1)
+            best = int(np.argmax(evaluate(fine)))
+            if best in (0, count) and fine[best] in (lower, upper):
+                angle = original
+                break
+            angle = fine[best]
+            width = (right - left) / count
         refined.append(angle)
     return np.sort(np.asarray(refined))

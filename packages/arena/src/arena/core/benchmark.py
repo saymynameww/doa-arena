@@ -177,10 +177,15 @@ def create_run(
         choices.append(item.model_dump(mode="json"))
     if not choices:
         raise ValueError("请先在新建实验页配置并启用至少一个算法")
+    # 新评测的算法选择按当前协议记录，避免缺省参数与旧榜单混为同一变体。
+    choices = ExperimentConfig.model_validate({"algorithms": choices}).model_dump(mode="json")[
+        "algorithms"
+    ]
     configs = {}
     for scenario in selected:
+        scene_document = ExperimentConfig.model_validate(scenario.config).model_dump(mode="json")
         config = ExperimentConfig.model_validate(
-            {**scenario.config, "name": f"{suite_id}/{scenario.name}", "algorithms": choices}
+            {**scene_document, "name": f"{suite_id}/{scenario.name}", "algorithms": choices}
         )
         config._workspace = ws.path
         validate_configuration(config)

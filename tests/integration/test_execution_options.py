@@ -66,7 +66,14 @@ def test_recompute_keeps_raw_results(tmp_path):
     import arena
 
     result = arena.run(
-        {"type": "single", "trials": 1, "algorithms": [{"id": "music"}]}, workspace=tmp_path
+        {
+            "type": "single",
+            "trials": 1,
+            "algorithms": [{"id": "music"}],
+            # 离网格真值保证严格门限失败，不依赖寻峰器是否细化。
+            "scenario": {"sources": {"angles": {"values": [-9.973, 10.027]}}},
+        },
+        workspace=tmp_path,
     )
     directory = tmp_path / "experiments" / result.metadata["experiment_id"]
     with np.load(directory / "results.npz", allow_pickle=False) as raw:

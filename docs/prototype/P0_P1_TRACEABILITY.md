@@ -10,6 +10,8 @@
 
 2026-11-18 加载优化：FR-SYS-02／NFR-21 的环境信息改为启动后台探测、服务级缓存和手动刷新，新建实验不等待探测；页面内表单就绪采样 151.5–155.8 ms。接口状态、自动化覆盖及证据边界见 [环境缓存报告](../milestones/ENVIRONMENT_CACHE_2026_11_18.md)。
 
+2026-11-19 寻峰协议：经需求方批准，FR-ALG 内置谱搜索、FR-EXP 配置及 FR-API 参数接口采用统一固定网格、默认无细化；显式插值/局部加密与历史配置迁移由 `test_search_protocol` 覆盖。新建、选变体和历史复制已使用内置浏览器核对，详见 [固定网格报告](../milestones/FIXED_GRID_PROTOCOL_2026_11_19.md)。本次同步修订正式设计文档。
+
 | 需求 | 优先级 | 设计内容 | 组件/入口 | API/核心 | 可重复测试 | 本轮结论/补充证据 |
 |---|---|---|---|---|---|---|
 | FR-SCN-01 | P0 | 配置 ULA：阵元数 M（2–128）、阵元间距 d（单位 λ，默认 0.5） | ExperimentConfig / ConfigFields / ScenePreview | schema/experiment、schema/preview、experiments/validate；core.config/signals/impairments | test_config_contract、test_configuration_flow、test_impairments、test_web_service | 本机实现及对应证据通过；沿用对应测试与既有全产品视觉记录，见下方证据边界 |

@@ -104,6 +104,8 @@ def test_metric_recompute_api_preserves_raw(client):
         "/api/experiments/run",
         json={
             "trials": 2,
+            # 离网格真值让严格门限的断言独立于峰值细化默认值。
+            "scenario": {"sources": {"angles": {"values": [-9.973, 10.027]}}},
             "algorithms": [{"id": "music"}],
         },
     )

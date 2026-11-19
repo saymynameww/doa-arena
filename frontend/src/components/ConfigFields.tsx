@@ -210,7 +210,7 @@ export default function ConfigFields({
         value={value ?? schema.default}
         min={schema.minimum}
         max={schema.maximum}
-        step={schema.type === "integer" ? 1 : 0.1}
+        step={schema["x-step"] ?? (schema.type === "integer" ? 1 : 0.1)}
         onChange={onChange}
       />
     );

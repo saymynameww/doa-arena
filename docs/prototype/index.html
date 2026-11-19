@@ -358,7 +358,7 @@ dialog::backdrop{background:#1c1f2366}
   <div class="task" id="task"></div>
 </nav>
 <main class="main">
-<div class="note"><span>原型 v0.2：全部页面已按新版重做。数据全部是假数据；正式界面中所有参数表单由后端 JSON Schema 生成。</span>
+<div class="note"><span>原型 v0.3：全部页面已按新版重做。数据全部是假数据；正式界面中所有参数表单由后端 JSON Schema 生成。</span>
   <label><input type="checkbox" id="reqTg"> 显示需求编号</label></div>
 
 <!-- ===== 实验配置页 ===== -->
@@ -383,6 +383,13 @@ dialog::backdrop{background:#1c1f2366}
   </div>
 </div>
 
+<div class="panel" style="margin-bottom:16px">
+  <div class="pn-h"><h3>统一谱搜索网格</h3></div>
+  <p class="cap">固定网格，不随 SNR 自动调整。插值与局部加密作为显式变体；无网格算法保持原生求解。旧实验保留原参数含义。</p>
+  <div class="fld"><label for="sharedGridMin">搜索起始角度</label><div class="ctl"><input id="sharedGridMin" type="number" value="-90"><span class="unit">°</span></div></div>
+  <div class="fld"><label for="sharedGridMax">搜索终止角度</label><div class="ctl"><input id="sharedGridMax" type="number" value="90"><span class="unit">°</span></div></div>
+  <div class="fld"><label for="sharedGridStep">固定网格步长</label><div class="ctl"><input id="sharedGridStep" type="number" value="0.1" step="0.1"><span class="unit">°</span></div></div>
+</div>
 <div class="cfg">
 <!-- 场景 -->
 <div class="panel" id="scene">
@@ -700,14 +707,17 @@ const swatch = st => `<svg class="swt" width="34" height="14" viewBox="0 0 34 14
 
 // ---------- 后端：已注册算法及其参数声明（正式界面来自 /api/schema） ----------
 const P = {
-  grid: { k: 'grid_step', label: '网格步长', type: 'number', unit: '°', def: 0.1 },
+  gridMode: { k: 'grid_mode', label: '网格来源', type: 'select', def: 'shared', summary: true, opts: [['shared', '实验统一网格'], ['custom', '独立网格（对比变体）']] },
+  refine: { k: 'peak_refinement', label: '寻峰策略', type: 'select', def: 'none', summary: true, opts: [['none', '固定网格（无细化）'], ['parabolic', '三点抛物线插值'], ['local_dense', '局部逐级加密']] },
+  local: { visible: ['peak_refinement', 'local_dense'], k: 'local_step', label: '局部终止步长（局部加密使用）', type: 'number', unit: '°', def: 0.0001 },
+  grid: { visible: ['grid_mode', 'custom'], k: 'grid_step', label: '网格步长', type: 'number', unit: '°', def: 0.1 },
   smooth: { k: 'smoothing', label: '空间平滑', type: 'select', def: 'none', opts: [['none', '不平滑'], ['forward', '前向'], ['fb', '前后向']] },
   sub: { k: 'subarray', label: '子阵阵元数', type: 'number', def: null, none: '自动' },
 };
 const DEFS = {
-  cbf: { name: 'CBF', grp: '内置', ver: '1.0.0', desc: '常规波束形成，在角度网格上搜索功率谱峰', cond: '任意阵列', spec: true, params: [P.grid] },
-  mvdr: { name: 'MVDR', grp: '内置', ver: '1.0.0', desc: 'Capon 最小方差谱，分辨力高于 CBF', cond: '任意阵列', spec: true, params: [P.grid, { k: 'diag_load', label: '对角加载量', type: 'number', def: 0, adv: true }] },
-  music: { name: 'MUSIC', grp: '内置', ver: '1.0.0', desc: '噪声子空间伪谱搜索；相干信源需要开启空间平滑', cond: '需要信源数 K', spec: true, params: [P.grid, P.smooth, P.sub] },
+  cbf: { name: 'CBF', grp: '内置', ver: '1.1.0', desc: '常规波束形成，在角度网格上搜索功率谱峰', cond: '任意阵列', spec: true, params: [P.gridMode, P.refine, P.grid, P.local] },
+  mvdr: { name: 'MVDR', grp: '内置', ver: '1.1.0', desc: 'Capon 最小方差谱，分辨力高于 CBF', cond: '任意阵列', spec: true, params: [P.gridMode, P.refine, P.grid, P.local, { k: 'diag_load', label: '对角加载量', type: 'number', def: 0, adv: true }] },
+  music: { name: 'MUSIC', grp: '内置', ver: '1.1.0', desc: '噪声子空间伪谱搜索；相干信源需要开启空间平滑', cond: '需要信源数 K', spec: true, params: [P.gridMode, P.refine, P.grid, P.local, P.smooth, P.sub] },
   root_music: { name: 'Root-MUSIC', grp: '内置', ver: '1.0.0', desc: '多项式求根，不受网格步长限制', cond: '均匀线阵，全部阵元可用', mask: false, params: [P.smooth, P.sub] },
   esprit: { name: 'ESPRIT', grp: '内置', ver: '1.0.0', desc: '利用子阵之间的旋转不变性直接解出角度', cond: '均匀线阵，全部阵元可用', mask: false, params: [{ k: 'method', label: '方法', type: 'select', def: 'tls', opts: [['tls', 'TLS'], ['ls', 'LS']] }, P.smooth, P.sub] },
   cnn_grid_b: { name: 'CNN 网格分类（B）', grp: 'fewshot-doa/algorithms', ver: '0.1.0', git: 'e3b0c44', dirty: true, desc: '多标签网格分类网络，输入归一化协方差', cond: '阵元数与模型一致', spec: true,
@@ -719,7 +729,7 @@ const param = (a, k) => DEFS[a.def].params.find(p => p.k === k);
 const val = (a, k) => { const p = param(a, k); return p ? (k in a.v ? a.v[k] : p.def) : undefined; };
 const show = (p, v) => p.type === 'select' ? (p.opts.find(o => o[0] === v) || ['', v])[1].replace(/^models\//, '') : (v === null || v === '' ? p.none || '—' : num(v) + (p.unit || ''));
 // 通用规则：摘要只列出与默认值不同的参数，不依赖具体算法
-const diffSummary = a => DEFS[a.def].params.filter(p => val(a, p.k) !== p.def).map(p => `${p.label}：${show(p, val(a, p.k))}`).join('，') || '默认参数';
+const diffSummary = a => DEFS[a.def].params.filter(p => p.summary || val(a, p.k) !== p.def).map(p => `${p.label}：${show(p, val(a, p.k))}`).join('，') || '默认参数';
 
 // ---------- 页面状态 ----------
 let uidSeq = 0;
@@ -840,7 +850,8 @@ function form(a) {
     const swp = p.type === 'number' ? `<button type="button" class="swp" data-swk="${p.k}">${act ? '取消扫描' : '扫描'}</button>` : '';
     return `<div class="fld${act ? ' swon' : ''}"><label for="${fk}">${esc(p.label)}</label><div class="ctl">${ctl}${p.unit ? `<span class="unit">${p.unit}</span>` : ''}${swp}</div>${act ? `<p class="rng-info">${rangeInfo(parseRange(a.rng[p.k]))}</p>` : ''}</div>`;
   };
-  const main = d.params.filter(p => !p.adv), adv = d.params.filter(p => p.adv);
+  const visible = p => !p.visible || val(a, p.visible[0]) === p.visible[1];
+  const main = d.params.filter(p => !p.adv && visible(p)), adv = d.params.filter(p => p.adv && visible(p));
   return `<div class="ac-bd"><p class="ac-meta">插件 ${a.def}，来自 ${esc(d.grp)}，版本 ${d.ver}${d.git ? `，commit ${d.git}` : ''}${d.dirty ? '。<span class="tag warn">有未提交修改</span>运行时自动保存 diff' : ''}</p>
     ${main.map(one).join('')}${adv.length ? `<details class="adv"${adv.some(p => val(a, p.k) !== p.def) ? ' open' : ''}><summary>高级</summary>${adv.map(one).join('')}</details>` : ''}</div>`;
 }

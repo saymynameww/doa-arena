@@ -67,12 +67,13 @@ export type EnvironmentStatus = {
 };
 
 export type ExperimentConfig = {
-  "schema_version"?: 1;
+  "schema_version"?: 2;
   "description"?: string;
   "tags"?: Array<string>;
   "name"?: string;
   "scenario"?: ScenarioConfig;
   "algorithms"?: Array<AlgorithmConfig>;
+  "search_grid"?: SearchGrid;
   "type"?: ExperimentType;
   "trials"?: number;
   "sweep"?: SweepConfig | null;
@@ -234,6 +235,12 @@ export type ScenarioPreview = {
   "ranges"?: Array<Record<string, number>>;
   "faulty_elements"?: Array<number>;
   "positions"?: Array<Array<number>>;
+};
+
+export type SearchGrid = {
+  "scan_min"?: number;
+  "scan_max"?: number;
+  "grid_step"?: number;
 };
 
 export type SourcesConfig = {

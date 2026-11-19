@@ -33,6 +33,19 @@ test("配置差异保留 0、false 和嵌套路径", () => {
   assert.equal(flat["scene.angles"], "[-10,10]");
 });
 
+test("策略摘要使用 Schema 标签，显式显示默认策略并隐藏内部兼容字段", () => {
+  const schema = { properties: {
+    strategy: { label: "寻峰策略", default: "none", "x-summary": true,
+      "x-enum-labels": { none: "固定网格（无细化）", dense: "局部加密" } },
+    spacing: { label: "局部步长", default: 0.0001, "x-summary": true,
+      "x-visible-when": { strategy: "dense" } },
+    internal: { "x-hidden": true, default: false },
+  } };
+  const summary = exportsObject.parameterSummary(schema, {strategy:"none",internal:true});
+  assert.equal(summary, "寻峰策略: 固定网格（无细化）");
+  assert.match(exportsObject.parameterSummary(schema, {strategy:"dense",spacing:0.0001}), /局部步长: 0.0001/);
+});
+
 test("对象数组按字段比较，代码补丁不吞没整组算法参数", () => {
   const flat = flattenConfig({ algorithms: [{ id: "a", params: { step: 1 }, origin: { patch: "diff" } }] });
   assert.equal(flat["algorithms.0.params.step"], "1");

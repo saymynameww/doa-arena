@@ -88,6 +88,8 @@ export const getExperimentSchema = async (): Promise<ExperimentSchema> => {
 };
 
 // 实验相关
+export const normalizeExperiment = async (config: unknown): Promise<ExperimentConfig> =>
+  (await api.post("/schema/normalize", config)).data;
 export const runExperiment = async (config: ExperimentConfig) => {
   const response = await api.post("/experiments/run", config);
   return response.data;

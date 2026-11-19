@@ -103,6 +103,23 @@ class MetricsConfig(BaseModel):
         return data
 
 
+class SearchGrid(BaseModel):
+    """实验统一的固定角度网格，不随场景或运行结果改变。"""
+
+    scan_min: float = Field(-90, ge=-90, le=90, title="搜索起始角度（°）")
+    scan_max: float = Field(90, ge=-90, le=90, title="搜索终止角度（°）")
+    grid_step: float = Field(0.1, gt=0, le=5, title="固定网格步长（°）")
+    model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def check_grid(self) -> SearchGrid:
+        """复用接口包的网格一致性规则。"""
+        from arena_api import SpectrumSearchParams
+
+        SpectrumSearchParams.model_validate(self.model_dump())
+        return self
+
+
 class ExperimentConfig(BaseModel):
     """实验配置（简化版）。
 
@@ -114,13 +131,14 @@ class ExperimentConfig(BaseModel):
     - metrics (指标配置)
     """
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     _workspace: Path | None = PrivateAttr(default=None)
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     name: str = Field("Untitled Experiment", min_length=1, max_length=80, description="实验名称")
     scenario: ScenarioConfig = Field(default_factory=lambda: ScenarioConfig.model_validate({}))
     algorithms: list[AlgorithmConfig] = Field(default_factory=list)
+    search_grid: SearchGrid = Field(default_factory=lambda: SearchGrid.model_validate({}))
 
     # 实验类型
     type: ExperimentType = Field(ExperimentType.MONTE_CARLO)
@@ -144,6 +162,20 @@ class ExperimentConfig(BaseModel):
         if not isinstance(data, dict):
             return data
         data = dict(data)
+        if data.get("schema_version") == 1:
+            data["schema_version"] = 2
+            algorithms = []
+            for raw in data.get("algorithms", []):
+                item = raw.model_dump() if isinstance(raw, AlgorithmConfig) else dict(raw)
+                if item.get("id") in {"cbf", "mvdr", "music"} and not item.get("origin"):
+                    params = dict(item.get("params", {}))
+                    params.setdefault("grid_mode", "custom")
+                    params.setdefault("legacy_grid", True)
+                    if "peak_refinement" not in params:
+                        params.setdefault("refine", True)
+                    item["params"] = params
+                algorithms.append(item)
+            data["algorithms"] = algorithms
         if "experiment" in data:
             experiment = data.pop("experiment")
             unknown = set(experiment) - {"type", "trials", "sweep", "options"}
@@ -159,6 +191,35 @@ class ExperimentConfig(BaseModel):
         if data.get("type") == "single":
             data.setdefault("trials", 1)
         return data
+
+    @model_validator(mode="after")
+    def resolve_builtin_search(self) -> ExperimentConfig:
+        """将内置谱搜索基线的有效参数写入配置，保证保存和执行一致。"""
+        from ..algorithms import CBF, MUSIC, MVDR
+
+        classes = {cls.id: cls for cls in (CBF, MUSIC, MVDR)}
+        for item in self.algorithms:
+            if item.id not in classes or item.origin or not item.enabled:
+                continue
+            values = self.search_parameters(classes[item.id], item.params)
+            item.params = classes[item.id].Params.model_validate(values).model_dump(mode="json")
+        return self
+
+    def search_parameters(self, cls: Any, values: dict[str, Any]) -> dict[str, Any]:
+        """只向声明共享网格的参数模型注入网格，不影响无网格算法或普通插件。"""
+        from arena_api import SpectrumSearchParams
+
+        values = dict(values)
+        if issubclass(cls.Params, SpectrumSearchParams):
+            explicit = any(
+                k in values
+                for k in ("scan_min", "scan_max", "grid_step", "grid_start", "grid_stop")
+            )
+            mode = values.get("grid_mode", "custom" if explicit else "shared")
+            if mode == "shared":
+                values.update(self.search_grid.model_dump())
+                values["grid_mode"] = "shared"
+        return values
 
     def to_document(self) -> dict[str, Any]:
         """生成数据格式规范第 3 章的配置文档。"""

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "doa-arena-api"
-version = "1.0.0"
+version = "1.1.0"
 description = "Interface package for DOA estimation algorithm plugins"
 readme = "README.md"
 requires-python = ">=3.10"

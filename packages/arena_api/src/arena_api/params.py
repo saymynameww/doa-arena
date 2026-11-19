@@ -1,6 +1,6 @@
 """参数声明工具，基于 Pydantic。"""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -87,6 +87,102 @@ def Param(
         json_schema_extra=json_schema_extra,
         **kwargs,
     )
+
+
+class SpectrumSearchParams(ParamsModel):
+    """谱搜索基线的显式数值策略；旧 refine 仅作输入兼容。"""
+
+    model_config = {"json_schema_extra": {"x-shared-grid": True}}
+    grid_mode: Literal["shared", "custom"] = Param(
+        "shared",
+        label="网格来源",
+        json_schema_extra={
+            "x-summary": True,
+            "x-enum-labels": {"shared": "实验统一网格", "custom": "独立网格（对比变体）"},
+        },
+    )
+    scan_min: float = Param(
+        -90,
+        ge=-90,
+        le=90,
+        label="搜索起始角度",
+        unit="°",
+        json_schema_extra={"x-summary": True, "x-visible-when": {"grid_mode": "custom"}},
+    )
+    scan_max: float = Param(
+        90,
+        ge=-90,
+        le=90,
+        label="搜索终止角度",
+        unit="°",
+        json_schema_extra={"x-summary": True, "x-visible-when": {"grid_mode": "custom"}},
+    )
+    grid_step: float = Param(
+        0.1,
+        gt=0,
+        le=5,
+        label="网格步长",
+        unit="°",
+        json_schema_extra={"x-summary": True, "x-visible-when": {"grid_mode": "custom"}},
+    )
+    peak_refinement: Literal["none", "parabolic", "local_dense"] = Param(
+        "none",
+        label="寻峰策略",
+        json_schema_extra={
+            "x-summary": True,
+            "x-enum-labels": {
+                "none": "固定网格（无细化）",
+                "parabolic": "三点抛物线插值",
+                "local_dense": "局部逐级加密",
+            },
+        },
+    )
+    local_step: float = Param(
+        0.0001,
+        gt=0,
+        label="局部终止步长",
+        unit="°",
+        json_schema_extra={
+            "x-summary": True,
+            "x-step": 0.0001,
+            "x-visible-when": {"peak_refinement": "local_dense"},
+        },
+    )
+    legacy_grid: bool = Param(False, json_schema_extra={"x-hidden": True})
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_refinement(cls, data: Any) -> Any:
+        """显式旧布尔值保留含义；显式网格参数默认为独立网格。"""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "refine" in data:
+            value = data.pop("refine")
+            if not isinstance(value, bool):
+                raise ValueError("refine 必须是布尔值，请使用寻峰策略选择具体方式")
+            mode = "parabolic" if value else "none"
+            if "peak_refinement" in data and data["peak_refinement"] != mode:
+                raise ValueError("refine 与寻峰策略冲突，请只保留一个一致的设置")
+            data["peak_refinement"] = mode
+        if "grid_mode" not in data and any(
+            key in data for key in ("scan_min", "scan_max", "grid_step", "grid_start", "grid_stop")
+        ):
+            data["grid_mode"] = "custom"
+        return data
+
+    @model_validator(mode="after")
+    def check_search(self) -> "SpectrumSearchParams":
+        """拒绝不一致的数值配置，不静默改变步长。"""
+        if self.scan_min >= self.scan_max:
+            raise ValueError("搜索起始角度必须小于终止角度")
+        if not self.legacy_grid:
+            cells = (self.scan_max - self.scan_min) / self.grid_step
+            if abs(cells - round(cells)) > 1e-7:
+                raise ValueError("固定网格步长必须整除搜索范围，请调整步长或起止角度")
+        if self.peak_refinement == "local_dense" and self.local_step > self.grid_step:
+            raise ValueError("局部终止步长不能大于全局网格步长")
+        return self
 
 
 class ComplexValue(BaseModel):
