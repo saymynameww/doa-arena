@@ -528,7 +528,7 @@ export default function ExperimentConfigPage() {
     },
     {
       key: "advanced",
-      label: `高级 · 种子 ${scenario.seed}`,
+      label: "高级",
       children: (
         <>
           <ConfigFields
