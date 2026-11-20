@@ -416,3 +416,8 @@ body {
   line-height: 14px;
   cursor: help;
 }
+
+.scene-preview-warning {
+  color: #ad6800;
+  font-size: 12px;
+}

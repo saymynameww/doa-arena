@@ -948,6 +948,7 @@ export default function ExperimentConfigPage() {
         </Card>
         <aside className="experiment-rail">
           <ScenePreview
+            searchRange={{ min: grid.scan_min, max: grid.scan_max }}
             arraySize={preview?.elements || 0}
             sourceAngles={preview?.angles || []}
             sourceRanges={(preview?.ranges || []).map((r) => ({

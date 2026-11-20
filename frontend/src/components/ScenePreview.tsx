@@ -3,6 +3,7 @@ import { Card } from "antd";
 
 interface ScenePreviewProps {
   arraySize?: number;
+  searchRange?: { min: number | null; max: number | null };
   sourceAngles?: number[];
   sourceRanges?: Array<{ min: number; max: number }>; // 动态范围
   faultyElements?: number[];
@@ -20,12 +21,25 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
   sourceRanges = [],
   faultyElements = [],
   positions = [],
+  searchRange,
 }) => {
   const width = 300;
   const height = 200;
   const centerX = width / 2;
   const centerY = height - 20;
   const radius = 120;
+
+  const validSearch = searchRange && typeof searchRange.min === "number" &&
+    typeof searchRange.max === "number" && Number.isFinite(searchRange.min) &&
+    Number.isFinite(searchRange.max) && searchRange.min >= -90 &&
+    searchRange.max <= 90 && searchRange.min < searchRange.max
+    ? { min: searchRange.min, max: searchRange.max } : null;
+  const outside = validSearch ? sourceAngles.filter(
+    angle => angle < validSearch.min || angle > validSearch.max,
+  ) : [];
+  const rangeOutside = validSearch && sourceRanges.some(
+    range => range.min < validSearch.min || range.max > validSearch.max,
+  );
 
   // 绘制半圆刻度
   const renderScale = () => {
@@ -113,28 +127,9 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
       const rad = (angle * Math.PI) / 180;
       const x = centerX + radius * Math.sin(rad);
       const y = centerY - radius * Math.cos(rad);
-      const hasRange = sourceRanges[index];
 
       return (
         <g key={index}>
-          {/* 如果有动态范围，绘制扇形区域 */}
-          {hasRange && (
-            <path
-              d={createArcPath(
-                centerX,
-                centerY,
-                radius * 0.9,
-                hasRange.min,
-                hasRange.max,
-              )}
-              fill="#24272c"
-              fillOpacity="0.15"
-              stroke="#24272c"
-              strokeWidth="1"
-              strokeDasharray="3,3"
-            />
-          )}
-
           {/* 信源方向线 */}
           <line
             x1={centerX}
@@ -154,12 +149,6 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
             fill="#24272c"
           >
             {angle}°
-            {hasRange && (
-              <tspan fontSize="9" fill="#8c8c8c">
-                {" "}
-                (范围)
-              </tspan>
-            )}
           </text>
         </g>
       );
@@ -218,6 +207,15 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
           fill="none"
           stroke="#d3d8e0"
         />
+        {validSearch && <>
+          <path d={createArcPath(centerX, centerY, radius, -90, 90)} fill="#eceff3" />
+          <path data-search-range="true"
+            d={createArcPath(centerX, centerY, radius, validSearch.min, validSearch.max)}
+            fill="#e6f4ff" stroke="#1677ff" strokeWidth="1" strokeDasharray="4,3" />
+        </>}
+        {sourceRanges.map((range, index) => <path key={index} data-source-range="true"
+          d={createArcPath(centerX, centerY, radius * 0.9, range.min, range.max)}
+          fill="none" stroke="#24272c" strokeWidth="1" strokeDasharray="2,3" />)}
         {/* 半圆刻度 */}
         {renderScale()}
 
@@ -229,11 +227,21 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({
       </svg>
       <p className="scene-preview-caption">
         {sourceRanges.length
-          ? "阴影为随机角度范围。"
+          ? "黑色虚线扇区为随机角度范围。"
           : `黑线是信源方向：${sourceAngles.map((angle) => `${angle}°`).join("、")}。`}
         {faultyElements.length > 0 ? "红点为已知故障阵元。" : ""}
         位置为第一个试验的示意。
       </p>
+      {validSearch ? <p className="scene-preview-caption">
+        统一搜索范围：{validSearch.min}°～{validSearch.max}°。浅蓝为范围内，灰色为范围外。
+        仅适用于采用统一网格的谱搜索算法；独立网格或无网格算法不受此范围约束。
+      </p> : searchRange && <p role="status">搜索范围无效，请检查起止角度。</p>}
+      {outside.length > 0 && <p role="status" className="scene-preview-warning">
+        范围外信源：{outside.map(angle => `${angle}°`).join("、")}；统一网格不会在这些方向搜索。
+      </p>}
+      {rangeOutside && <p role="status" className="scene-preview-warning">
+        随机角度范围超出统一搜索范围，部分试验的信源可能落在搜索范围外。
+      </p>}
     </Card>
   );
 };

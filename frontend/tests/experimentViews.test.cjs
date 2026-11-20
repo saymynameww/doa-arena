@@ -156,3 +156,38 @@ test("活动扫描解析使用插件 Schema，关闭平滑后判定不生效", (
   const info=activeSweepInfo(schema,draft);
   assert.equal(sweepAvailable(info.spec,info.values),false);
 });
+
+
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+const previewModule = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/components/ScenePreview.tsx", "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true },
+}).outputText, {
+  exports: previewModule.exports,
+  require: (name) => name === "antd" ? { Card: ({ children }) => React.createElement("div", null, children) } : require(name),
+});
+const renderPreview = (props) => renderToStaticMarkup(React.createElement(previewModule.exports.default, props));
+test("场景预览显示搜索扇区，范围外信源保留并提示，边界属于范围内", () => {
+  const html = renderPreview({ searchRange: { min: -10, max: 20 }, sourceAngles: [-30, -10, 20] });
+  assert.match(html, /data-search-range/);
+  assert.match(html, /统一搜索范围：-10°～20°/);
+  assert.match(html, /范围外信源：-30°/);
+  assert.doesNotMatch(html, /范围外信源：-30°、-10°/);
+  assert.match(html, /黑线是信源方向：-30°、-10°、20°/);
+});
+test("随机角度范围无固定角度时也显示，并提示范围超出", () => {
+  const html = renderPreview({ searchRange: { min: -10, max: 10 }, sourceAngles: [], sourceRanges: [{min: -30, max: 30}] });
+  assert.match(html, /data-source-range/);
+  assert.match(html, /随机角度范围超出统一搜索范围/);
+});
+test("完整范围无越界提示，无效搜索范围不绘制误导扇区", () => {
+  const full = renderPreview({ searchRange: { min: -90, max: 90 }, sourceAngles: [-90, 90] });
+  assert.doesNotMatch(full, /范围外信源/);
+  for (const range of [{min: null,max: 90}, {min: 20,max: -20}, {min: -100,max: 20}]) {
+    const html = renderPreview({ searchRange: range });
+    assert.doesNotMatch(html, /data-search-range/);
+    assert.match(html, /搜索范围无效/);
+    assert.doesNotMatch(html, /NaN/);
+  }
+});
