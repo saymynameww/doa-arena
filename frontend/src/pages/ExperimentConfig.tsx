@@ -422,6 +422,17 @@ export default function ExperimentConfigPage() {
               : ""}
             ，不影响仿真
           </Typography.Text>
+          <Collapse ghost activeKey={revealGrid || gridOpen ? ["grid"] : []}
+            onChange={(keys) => setGridOpen(keys.includes("grid"))}
+            items={[{ key: "grid", label: `搜索网格 · ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
+              children: <>
+                <Typography.Paragraph type="secondary">
+                  控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。
+                </Typography.Paragraph>
+                <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={grid}
+                  path="search_grid" onChange={(value) => update("search_grid", value)} />
+              </>,
+            }]} />
         </>
       ),
     },
@@ -525,21 +536,9 @@ export default function ExperimentConfigPage() {
     },
     {
       key: "advanced",
-      label: `高级 · 种子 ${scenario.seed} · 搜索网格 ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
+      label: `高级 · 种子 ${scenario.seed}`,
       children: (
         <>
-          <Collapse ghost activeKey={revealGrid || gridOpen ? ["grid"] : []}
-            onChange={(keys) => setGridOpen(keys.includes("grid"))}
-            items={[{ key: "grid", label: `搜索网格 · ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
-              children: <>
-                <Typography.Paragraph type="secondary">
-                  控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。
-                </Typography.Paragraph>
-                <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={grid}
-                  path="search_grid" onChange={(value) => update("search_grid", value)} />
-              </>,
-            }]} />
-
           <ConfigFields
             {...fieldProps}
             schema={{
@@ -818,7 +817,7 @@ export default function ExperimentConfigPage() {
         <Card title="场景" className="experiment-scene">
           <Collapse
             ghost
-            activeKey={revealGrid ? [...new Set([...sceneSections, "advanced"])] : sceneSections}
+            activeKey={revealGrid ? [...new Set([...sceneSections, "array"])] : sceneSections}
             onChange={(keys) => setSceneSections(typeof keys === "string" ? [keys] : keys)}
             items={sceneGroups}
           />

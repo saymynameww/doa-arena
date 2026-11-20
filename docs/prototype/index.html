@@ -393,6 +393,11 @@ dialog::backdrop{background:#1c1f2366}
     <div class="fld" id="f-M" data-sw="M" data-swname="阵元数 M" data-path="scenario.array.params.M" data-range="8:4:32"><label for="M">阵元数 M</label><div class="ctl"><input class="one" id="M" type="number" value="16" min="2" max="128"></div><p class="msg" id="m-M"></p></div>
     <div class="fld"><label for="d">阵元间距 d</label><div class="ctl"><input id="d" type="number" value="0.5" step="0.05"><span class="unit">λ</span></div></div>
     <div class="fld"><label for="fc">载频</label><div class="ctl"><input id="fc" value="3.0e9"><span class="unit">Hz</span></div><p class="help">只用来显示物理间距（当前 5.0 cm），不影响仿真</p></div>
+<details class="adv"><summary id="sharedGridSummary">搜索网格 · −90°～90° · 步长 0.1°</summary><p class="cap">控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。</p>
+  <div class="fld"><label for="sharedGridMin">搜索起始角度</label><div class="ctl"><input id="sharedGridMin" type="number" value="-90"><span class="unit">°</span></div></div>
+  <div class="fld"><label for="sharedGridMax">搜索终止角度</label><div class="ctl"><input id="sharedGridMax" type="number" value="90"><span class="unit">°</span></div></div>
+  <div class="fld"><label for="sharedGridStep">固定网格步长</label><div class="ctl"><input id="sharedGridStep" type="number" value="0.1" step="0.1"><span class="unit">°</span></div></div>
+</details>
   </div></details>
 
   <details class="sec" open><summary><span class="sec-t">信源</span><span class="sec-s" id="sSrc"></span></summary><div class="sec-b">
@@ -442,11 +447,7 @@ dialog::backdrop{background:#1c1f2366}
   </div></details>
 
   <details class="sec"><summary><span class="sec-t">高级</span><span class="sec-s" id="sAdv"></span></summary><div class="sec-b">
-<details class="adv"><summary id="sharedGridSummary">搜索网格 · −90°～90° · 步长 0.1°</summary><p class="cap">控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。</p>
-  <div class="fld"><label for="sharedGridMin">搜索起始角度</label><div class="ctl"><input id="sharedGridMin" type="number" value="-90"><span class="unit">°</span></div></div>
-  <div class="fld"><label for="sharedGridMax">搜索终止角度</label><div class="ctl"><input id="sharedGridMax" type="number" value="90"><span class="unit">°</span></div></div>
-  <div class="fld"><label for="sharedGridStep">固定网格步长</label><div class="ctl"><input id="sharedGridStep" type="number" value="0.1" step="0.1"><span class="unit">°</span></div></div>
-</details>
+
     <div class="fld"><label for="seed">随机种子</label><div class="ctl"><input id="seed" value="12345"><button class="btn" id="seedBtn" type="button">换一个</button></div><p class="help">同样的配置和种子，结果逐位相同</p></div>
     <div class="fld only-sweep"><label for="crn">公共随机数</label><div class="ctl"><label class="ck"><input type="checkbox" id="crn" checked> 各扫描点的第 t 次试验用同一组随机数</label></div></div>
   </div></details>
