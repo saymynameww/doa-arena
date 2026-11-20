@@ -89,7 +89,6 @@ export default function ExperimentConfigPage() {
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
   const [sceneSections, setSceneSections] = useState<string[]>(["array", "sources", "impairments"]);
-  const [gridOpen, setGridOpen] = useState(false);
   const [range, setRange] = useState("");
   const [sweepRanges, setSweepRanges] = useState<Record<string, string>>({});
   const [preview, setPreview] =
@@ -366,9 +365,6 @@ export default function ExperimentConfigPage() {
     );
   const grid = draft.search_grid;
   const gridSummary = `${grid.scan_min ?? "未填"}°～${grid.scan_max ?? "未填"}° · 步长 ${grid.grid_step ?? "未填"}°`;
-  const gridChanged = Object.keys(schema["x-default"].search_grid).some(
-    (key) => grid[key] !== schema["x-default"].search_grid[key],
-  );
   const revealGrid = !!sweep?.startsWith("search_grid.") || issues.some(
     (issue) => issue.level === "error" && issue.message.includes("search_grid"),
   );
@@ -422,17 +418,13 @@ export default function ExperimentConfigPage() {
               : ""}
             ，不影响仿真
           </Typography.Text>
-          <Collapse ghost activeKey={revealGrid || gridOpen ? ["grid"] : []}
-            onChange={(keys) => setGridOpen(keys.includes("grid"))}
-            items={[{ key: "grid", label: `搜索网格 · ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
-              children: <>
-                <Typography.Paragraph type="secondary">
-                  控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。
-                </Typography.Paragraph>
-                <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={grid}
-                  path="search_grid" onChange={(value) => update("search_grid", value)} />
-              </>,
-            }]} />
+          <ConfigFields
+            {...fieldProps}
+            schema={schema.$defs.SearchGrid}
+            value={grid}
+            path="search_grid"
+            onChange={(value) => update("search_grid", value)}
+          />
         </>
       ),
     },
