@@ -88,6 +88,8 @@ export default function ExperimentConfigPage() {
   }, [baseSchema, environment.cuda_available, deviceLabel]);
   const [draft, setDraft] = useState<any>();
   const [templates, setTemplates] = useState<any[]>([]);
+  const [sceneSections, setSceneSections] = useState<string[]>(["array", "sources", "impairments"]);
+  const [gridOpen, setGridOpen] = useState(false);
   const [range, setRange] = useState("");
   const [sweepRanges, setSweepRanges] = useState<Record<string, string>>({});
   const [preview, setPreview] =
@@ -362,6 +364,14 @@ export default function ExperimentConfigPage() {
         i === index ? { ...a, ...change } : a,
       ),
     );
+  const grid = draft.search_grid;
+  const gridSummary = `${grid.scan_min ?? "未填"}°～${grid.scan_max ?? "未填"}° · 步长 ${grid.grid_step ?? "未填"}°`;
+  const gridChanged = Object.keys(schema["x-default"].search_grid).some(
+    (key) => grid[key] !== schema["x-default"].search_grid[key],
+  );
+  const revealGrid = !!sweep?.startsWith("search_grid.") || issues.some(
+    (issue) => issue.level === "error" && issue.message.includes("search_grid"),
+  );
   const sceneGroups = [
     {
       key: "array",
@@ -515,9 +525,21 @@ export default function ExperimentConfigPage() {
     },
     {
       key: "advanced",
-      label: `高级 · 种子 ${scenario.seed}`,
+      label: `高级 · 种子 ${scenario.seed} · 搜索网格 ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
       children: (
         <>
+          <Collapse ghost activeKey={revealGrid || gridOpen ? ["grid"] : []}
+            onChange={(keys) => setGridOpen(keys.includes("grid"))}
+            items={[{ key: "grid", label: `搜索网格 · ${gridSummary}${gridChanged ? " · 已修改" : ""}`,
+              children: <>
+                <Typography.Paragraph type="secondary">
+                  控制算法搜索范围，不改变信源真实角度；适用于采用统一网格的算法。
+                </Typography.Paragraph>
+                <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={grid}
+                  path="search_grid" onChange={(value) => update("search_grid", value)} />
+              </>,
+            }]} />
+
           <ConfigFields
             {...fieldProps}
             schema={{
@@ -787,13 +809,6 @@ export default function ExperimentConfigPage() {
           )}
         </div>
       </Card>
-      <Card title="统一谱搜索网格" className="experiment-search-grid">
-        <Typography.Paragraph type="secondary">
-          固定网格用于采用统一网格的谱搜索基线，不随 SNR 自动调整。独立网格、插值和局部加密需在算法卡片中显式选择；无网格算法保持原生求解方式。
-        </Typography.Paragraph>
-        <ConfigFields {...fieldProps} schema={schema.$defs.SearchGrid} value={draft.search_grid}
-          path="search_grid" onChange={(value) => update("search_grid", value)} />
-      </Card>
       {sweep && <Typography.Paragraph type="secondary">
         当前扫描类别：{schema["x-sweep-categories"]?.[scanInfo.spec?.category || ""] || "历史/自定义扫描（不在普通入口中）"}
         {scanInfo.spec?.category === "algorithm" ? "。这是显式算法参数对比；场景性能比较请固定算法设置。" : ""}
@@ -803,7 +818,8 @@ export default function ExperimentConfigPage() {
         <Card title="场景" className="experiment-scene">
           <Collapse
             ghost
-            defaultActiveKey={["array", "sources", "impairments"]}
+            activeKey={revealGrid ? [...new Set([...sceneSections, "advanced"])] : sceneSections}
+            onChange={(keys) => setSceneSections(typeof keys === "string" ? [keys] : keys)}
             items={sceneGroups}
           />
         </Card>
@@ -990,6 +1006,8 @@ export default function ExperimentConfigPage() {
               </dd>
               <dt>算法</dt>
               <dd>{active.map((a: any) => a.label).join("、") || "未选择"}</dd>
+              <dt>搜索网格</dt>
+              <dd>{gridSummary}</dd>
               <dt>随机种子</dt>
               <dd>{scenario.seed}</dd>
             </dl>
