@@ -515,3 +515,23 @@ def test_transient_status_read_does_not_kill_worker(tmp_path, monkeypatch, persi
     assert restored.tasks[identifier].status == expected
     if persistent:
         assert "读锁" in restored.tasks[identifier].error
+
+
+def test_advanced_schema_chinese_labels_and_help(client):
+    """高级字段和枚举均有中文提示，同时保留原始配置值。"""
+    from arena.core.config.experiment import ExperimentOptions
+
+    data = client.get("/api/schema/experiment").json()
+    fields = data["$defs"]["ExperimentOptions"]["properties"]
+    assert set(fields) == set(ExperimentOptions.model_fields)
+    for field in [
+        *fields.values(),
+        *[data["$defs"]["ScenarioConfig"]["properties"][key] for key in ("seed", "noise_power")],
+    ]:
+        assert any("\u4e00" <= char <= "\u9fff" for char in field["x-label"])
+        assert field["x-help"]
+        for value in field.get("enum", []):
+            assert any("\u4e00" <= char <= "\u9fff" for char in field["x-enum-labels"][value])
+            assert field["x-enum-descriptions"][value]
+    assert fields["source_count"]["enum"] == ["true", "mdl", "aic"]
+    assert data["x-default"]["options"] == ExperimentOptions().model_dump()

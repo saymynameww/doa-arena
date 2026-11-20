@@ -94,6 +94,70 @@ async def experiment_schema() -> dict[str, Any]:
         schema["$defs"]["SourcesConfig"]["properties"][key]["x-flatten"] = True
         definition = "AnglesConfig" if key == "angles" else "CorrelationConfig"
         schema["$defs"][definition]["properties"]["mode"]["x-label"] = label
+    # 显示元数据与配置值分离，中文化不改变历史实验及脚本语义。
+    advanced_fields = {
+        "chunk_size": (
+            "试验分块大小",
+            "每块处理的试验次数；影响进度保存和取消响应粒度，批量推理可能有浮点级差异。",
+        ),
+        "max_consecutive_errors": (
+            "连续错误上限",
+            "同一算法在一个扫描点连续失败达到上限后，跳过该点剩余试验。",
+        ),
+        "source_count": (
+            "信源数来源",
+            "选择交给算法的信源数；使用真值或从接收数据估计，会改变算法的已知条件。",
+        ),
+        "save_spectra": ("保存空间谱", "控制空间谱的保存范围；全部保存会增加磁盘占用。"),
+        "save_observations": ("保存接收数据", "控制是否保存阵列接收数据矩阵 X，便于后续检查。"),
+        "workers": ("并行进程数", "同时执行试验的工作进程数；增加会占用更多 CPU 和内存。"),
+        "common_random_numbers": (
+            "公共随机数",
+            "开启时，各扫描点同一试验编号使用共同的随机数，减少点间比较的随机波动。",
+        ),
+        "warmup": (
+            "算法预热",
+            "正式试验前先运行一次估计，丢弃预热结果；预热耗时不计入单次估计耗时。",
+        ),
+        "save_estimates": (
+            "保存估计值",
+            "保存逐次试验的估计角度；关闭后仍计算汇总指标，但无法查看完整逐次估计。",
+        ),
+    }
+    for key, (label, help_text) in advanced_fields.items():
+        schema["$defs"]["ExperimentOptions"]["properties"][key].update(
+            {"x-label": label, "x-help": help_text}
+        )
+    for key, label, help_text in (
+        ("seed", "随机种子", "相同配置、种子和运行环境可复现实验；改变种子会改变随机数据。"),
+        (
+            "noise_power",
+            "噪声功率",
+            "设置基准噪声功率，信号功率按 SNR 相应缩放；通常保持默认值 1。",
+        ),
+    ):
+        schema["$defs"]["ScenarioConfig"]["properties"][key].update(
+            {"x-label": label, "x-help": help_text}
+        )
+    for key, choices in {
+        "source_count": {
+            "true": ("真实信源数", "直接将仿真中的真实信源数交给算法。"),
+            "mdl": ("最小描述长度准则", "通过最小描述长度准则（MDL）从接收数据估计信源数。"),
+            "aic": ("赤池信息准则", "通过赤池信息准则（AIC）从接收数据估计信源数。"),
+        },
+        "save_spectra": {
+            "auto": ("自动保存", "仅单次实验保存空间谱；蒙特卡罗和参数扫描不保存。"),
+            "all": ("全部保存", "保存每次试验可用的空间谱，可能产生较大文件。"),
+            "none": ("不保存", "不保存空间谱数组；需要空间谱的指标仍正常计算。"),
+        },
+        "save_observations": {
+            "auto": ("自动保存", "仅单次实验保存接收数据 X，其他实验可按种子重新生成。"),
+            "none": ("不保存", "不保存接收数据矩阵 X。"),
+        },
+    }.items():
+        field = schema["$defs"]["ExperimentOptions"]["properties"][key]
+        field["x-enum-labels"] = {value: item[0] for value, item in choices.items()}
+        field["x-enum-descriptions"] = {value: item[1] for value, item in choices.items()}
     schema["x-default"] = ExperimentConfig.model_validate({}).model_dump(mode="json")
     plugins = await list_algorithms()
     from .settings import SETTINGS_PATH, _read_json

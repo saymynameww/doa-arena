@@ -1,4 +1,4 @@
-import { Button, Input, InputNumber, Select, Switch } from "antd";
+import { Button, Input, InputNumber, Select, Switch, Tooltip } from "antd";
 import { sweepAvailable, type SweepSpec } from "@/utils/sweepState";
 import ModelSelector from './ModelSelector';
 
@@ -143,6 +143,9 @@ export default function ConfigFields({
               <label title={spec.description}>
                 {label}
                 {spec.unit ? ` (${spec.unit})` : ""}
+                {spec["x-help"] && <Tooltip title={spec["x-help"]}>
+                  <button type="button" className="schema-help" aria-label={`${label}说明`}>?</button>
+                </Tooltip>}
               </label>
               <div className="schema-control">
                 {sweep === child && onRange ? (
@@ -192,8 +195,14 @@ export default function ConfigFields({
           value: v,
           label: schema["x-enum-labels"]?.[v] || String(v),
           disabled: !!schema["x-disabled-options"]?.[v],
-          title: schema["x-disabled-options"]?.[v],
+          title: schema["x-disabled-options"]?.[v] || schema["x-enum-descriptions"]?.[v],
         }))}
+        optionRender={(option) => (
+          <Tooltip title={schema["x-enum-descriptions"]?.[String(option.value)]}>
+            <span>{option.label}</span>
+          </Tooltip>
+        )}
+        title={schema["x-enum-descriptions"]?.[value ?? schema.default]}
         onChange={onChange}
       />
     );
