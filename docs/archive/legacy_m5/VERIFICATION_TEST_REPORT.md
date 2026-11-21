@@ -1,7 +1,7 @@
 # M5 完整补全验收测试报告
 
-**测试时间**: 2026-11-16  
-**测试版本**: v0.6.0-m5-complete  
+**测试时间**: 2026-11-16
+**测试版本**: v0.6.0-m5-complete
 **测试环境**: Windows + Python 3.12 + Node.js + Vite
 
 ---
@@ -36,7 +36,7 @@ Response: {"status":"ok","service":"arena-web"}
 ```bash
 GET http://127.0.0.1:8765/api/algorithms
 ```
-**结果**: 
+**结果**:
 - ✅ 返回 5 个算法（CBF, MVDR, MUSIC, Root-MUSIC, ESPRIT）
 - ✅ 每个算法包含完整的 Schema
 - ⚠️ 暂无 x-advanced 标记（需后端添加）
@@ -67,7 +67,7 @@ GET http://localhost:3000
 ### 3. 新增组件文件测试
 
 #### 3.1 ImpairmentConfig.tsx ✅
-**文件大小**: 265 行  
+**文件大小**: 265 行
 **检查项**:
 - ✅ 文件存在且可读
 - ✅ 包含 4 种误差类型定义
@@ -92,7 +92,7 @@ GET http://localhost:3000
 ```
 
 #### 3.2 SweepableField.tsx ✅
-**文件大小**: 160 行  
+**文件大小**: 160 行
 **检查项**:
 - ✅ 文件存在且可读
 - ✅ 支持单值/扫描范围切换
@@ -110,10 +110,10 @@ GET http://localhost:3000
 
 **代码片段**:
 ```typescript
-const basicFields = fields.filter(([key, paramSchema]) => 
+const basicFields = fields.filter(([key, paramSchema]) =>
   !(paramSchema as any)['x-advanced']
 );
-const advancedFields = fields.filter(([key, paramSchema]) => 
+const advancedFields = fields.filter(([key, paramSchema]) =>
   (paramSchema as any)['x-advanced']
 );
 ```
@@ -130,7 +130,7 @@ const advancedFields = fields.filter(([key, paramSchema]) =>
 ```typescript
 {hasRange && (
   <path
-    d={createArcPath(centerX, centerY, radius * 0.9, 
+    d={createArcPath(centerX, centerY, radius * 0.9,
                      hasRange.min, hasRange.max)}
     fill="#52c41a"
     fillOpacity="0.15"
@@ -301,9 +301,9 @@ const [impairments, setImpairments] = useState<Record<string, any>>({});
 ## ⚠️ 发现的问题
 
 ### 问题 1: 后端 Schema 缺少 x-advanced 标记
-**严重程度**: 低  
-**影响范围**: 高级参数折叠功能需要后端支持  
-**当前状态**: 前端已实现，等待后端添加标记  
+**严重程度**: 低
+**影响范围**: 高级参数折叠功能需要后端支持
+**当前状态**: 前端已实现，等待后端添加标记
 **建议**: 后端在算法 Schema 中添加 x-advanced: true 标记
 
 **示例**:
@@ -445,6 +445,6 @@ docs/
 
 ---
 
-**报告生成时间**: 2026-11-16  
-**报告版本**: 1.0  
+**报告生成时间**: 2026-11-16
+**报告版本**: 1.0
 **签名**: ✅ 自动化测试系统
